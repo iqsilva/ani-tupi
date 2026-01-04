@@ -31,7 +31,7 @@ def anilist_main_menu() -> tuple[str, int] | None:
     if is_logged_in:
         # Get user info
         user_info = anilist_client.get_viewer_info()
-        username = user_info.name if user_info else "User"
+        username = user_info["name"] if user_info else "User"
 
         menu_options.extend(
             [
@@ -418,7 +418,7 @@ def _show_recent_history() -> None:
                     # Get official AniList name
                     anime_info = anilist_client.get_anime_by_id(anilist_id)
                     if anime_info:
-                        display_name = anilist_client.format_title(anime_info.title)
+                        display_name = anilist_client.format_title(anime_info["title"])
 
                     # Mark this anilist_id as seen
                     seen_anilist_ids[anilist_id] = True
@@ -527,11 +527,11 @@ def _search_and_add_anime(is_logged_in: bool) -> tuple[str, int] | None:
     anime_map = {}
 
     for anime in results:
-        display_title = anilist_client.format_title(anime.title)
-        anime_id = anime.id
-        episodes = anime.episodes or "?"
-        year = anime.seasonYear or "?"
-        score = anime.averageScore
+        display_title = anilist_client.format_title(anime["title"])
+        anime_id = anime["id"]
+        episodes = anime.get("episodes") or "?"
+        year = anime.get("seasonYear") or "?"
+        score = anime.get("averageScore")
 
         display = f"{display_title} ({year}, {episodes} eps)"
         if score:
@@ -539,7 +539,7 @@ def _search_and_add_anime(is_logged_in: bool) -> tuple[str, int] | None:
 
         options.append(display)
         search_title = (
-            anime.title.romaji or anime.title.english or display_title
+            anime["title"].get("romaji") or anime["title"].get("english") or display_title
         )
         anime_map[display] = (display_title, search_title, anime_id)
 
