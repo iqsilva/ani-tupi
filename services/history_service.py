@@ -419,32 +419,33 @@ def save_history_from_event(
         if anilist_client.is_authenticated():
             try:
                 # Check if anime is in any list
-                if not anilist_client.is_in_any_list(anilist_id):
+                entry = anilist_client.get_media_list_entry(anilist_id)
+                
+                if not entry:
                     logger.info(f"Adding '{anime_title}' to AniList CURRENT list")
                     anilist_client.add_to_list(anilist_id, "CURRENT")
                 else:
                     # Auto-promote from PLANNING to CURRENT, or COMPLETED to REPEATING
-                    entry = anilist_client.get_media_list_entry(anilist_id)
-                    if entry:
-                        if entry.status == "PLANNING":
-                            logger.info(f"Moving '{anime_title}' from PLANNING to CURRENT")
-                            anilist_client.add_to_list(anilist_id, "CURRENT")
-                        elif entry.status == "COMPLETED":
-                            logger.info(f"Changing '{anime_title}' to REPEATING")
-                            anilist_client.change_status(anilist_id, "REPEATING")
+                    if entry.status == "PLANNING":
+                        logger.info(f"Moving '{anime_title}' from PLANNING to CURRENT")
+                        anilist_client.add_to_list(anilist_id, "CURRENT")
+                    elif entry.status == "COMPLETED":
+                        # If user is rewatching, check if they want to move back to CURRENT
+                        # For now, just change to REPEATING as it's the most logical
+                        logger.info(f"Changing '{anime_title}' to REPEATING")
+                        anilist_client.change_status(anilist_id, "REPEATING")
 
                 # Update progress (episode_idx is 0-based, convert to 1-based)
                 episode_number = episode_idx + 1
+                
+                # IMPORTANT: If already COMPLETED and not REPEATING, progress update might fail
+                # or not reflect on AniList until status is changed.
                 success = anilist_client.update_progress(anilist_id, episode_number)
+                
                 if success:
                     logger.info(f"Synced progress to AniList: Ep {episode_number}")
                 else:
-                    # Verify token is still valid if sync failed
-                    viewer = anilist_client.get_viewer_info()
-                    if not viewer:
-                        logger.warning("AniList token expired - sync failed")
-                    else:
-                        logger.warning(f"Failed to sync progress to AniList for Ep {episode_number}")
+                    logger.warning(f"Failed to sync progress to AniList for Ep {episode_number}")
             except Exception as e:
                 logger.error(f"Error syncing with AniList: {e}")
 

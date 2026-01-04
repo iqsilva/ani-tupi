@@ -429,47 +429,48 @@ def _ipc_event_loop(
                                         anilist_id=anilist_id,
                                     )
 
-                                    # Get episode list to check if next episode exists
-                                    episode_list = rep.get_episode_list(anime_title)
-                                    total_episodes = len(episode_list) if episode_list else 0
-
-                                    # Get next episode URL
+                                    # Search for player URL for next episode (this handles racing scrapers)
                                     next_episode_number = episode_number + 1
-                                    if episode_list and next_episode_number <= len(episode_list):
-                                        next_episode_idx = next_episode_number - 1
-                                        next_url = rep.get_episode_url(
-                                            anime_title, next_episode_idx
+                                    
+                                    # Show OSD message that we are searching
+                                    _send_mpv_command(
+                                        sock,
+                                        "show-text",
+                                        [f"Buscando Episódio {next_episode_number}..."],
+                                    )
+                                    
+                                    # This is a blocking call, but it's what we need to get the stream URL
+                                    next_url = rep.search_player(anime_title, next_episode_number)
+
+                                    if next_url:
+                                        # Send MPV command to load next episode
+                                        _send_mpv_command(
+                                            sock, "loadfile", [next_url, "replace"]
                                         )
 
-                                        if next_url:
-                                            # Send MPV command to load next episode
-                                            _send_mpv_command(
-                                                sock, "loadfile", [next_url, "replace"]
-                                            )
+                                        # Show OSD success message
+                                        _send_mpv_command(
+                                            sock,
+                                            "show-text",
+                                            [f"▶️ Reproduzindo Episódio {next_episode_number}"],
+                                        )
 
-                                            # Show OSD message
-                                            _send_mpv_command(
-                                                sock,
-                                                "show-text",
-                                                [f"Loading Episode {next_episode_number}..."],
-                                            )
+                                        # Update episode context for next iteration
+                                        episode_context["episode_number"] = next_episode_number
+                                        episode_context["url"] = next_url
+                                        # Preserve anilist_id and source for next episode
 
-                                            # Update episode context for next iteration
-                                            episode_context["episode_number"] = next_episode_number
-                                            episode_context["url"] = next_url
-                                            episode_context["total_episodes"] = total_episodes
-                                            # Preserve anilist_id for next episode
+                                        # Print terminal feedback
+                                        print(f"\n▶️  Reproduzindo Episódio {next_episode_number}")
 
-                                            # Continue loop to listen for more keybindings
-                                            continue
-                                        else:
-                                            # Next episode URL not found
-                                            _send_mpv_command(
-                                                sock, "show-text", ["No next episode available"]
-                                            )
+                                        # Continue loop to listen for more keybindings
+                                        continue
                                     else:
-                                        # No more episodes
-                                        _send_mpv_command(sock, "show-text", ["No more episodes"])
+                                        # Next episode URL not found or no more episodes
+                                        _send_mpv_command(
+                                            sock, "show-text", ["Não há mais episódios disponíveis ou erro ao buscar"]
+                                        )
+                                        print(f"\n❌ Falha ao carregar Episódio {next_episode_number}")
 
                                 elif action == "previous":
                                     from services.repository import rep
@@ -480,10 +481,15 @@ def _ipc_event_loop(
                                     # Get previous episode URL
                                     prev_episode_number = max(1, episode_number - 1)
                                     if prev_episode_number < episode_number:
-                                        prev_episode_idx = prev_episode_number - 1
-                                        prev_url = rep.get_episode_url(
-                                            anime_title, prev_episode_idx
+                                        # Show OSD message that we are searching
+                                        _send_mpv_command(
+                                            sock,
+                                            "show-text",
+                                            [f"Buscando Episódio {prev_episode_number}..."],
                                         )
+
+                                        # Search for player URL for previous episode
+                                        prev_url = rep.search_player(anime_title, prev_episode_number)
 
                                         if prev_url:
                                             # Send MPV command to load previous episode
@@ -495,12 +501,15 @@ def _ipc_event_loop(
                                             _send_mpv_command(
                                                 sock,
                                                 "show-text",
-                                                [f"Loading Episode {prev_episode_number}..."],
+                                                [f"⏪ Voltando para Episódio {prev_episode_number}"],
                                             )
 
                                             # Update episode context
                                             episode_context["episode_number"] = prev_episode_number
                                             episode_context["url"] = prev_url
+
+                                            # Print terminal feedback
+                                            print(f"\n⏪ Voltando para Episódio {prev_episode_number}")
 
                                             # Continue loop
                                             continue
@@ -508,11 +517,12 @@ def _ipc_event_loop(
                                             _send_mpv_command(
                                                 sock,
                                                 "show-text",
-                                                ["Previous episode not available"],
+                                                ["Episódio anterior não disponível ou erro ao buscar"],
                                             )
+                                            print(f"\n❌ Falha ao carregar Episódio {prev_episode_number}")
                                     else:
                                         _send_mpv_command(
-                                            sock, "show-text", ["No previous episode"]
+                                            sock, "show-text", ["Não há episódios anteriores"]
                                         )
 
                                 elif action == "reload-episode":

@@ -12,7 +12,7 @@ log.txt
 .beads/
 
 
-# Virtual environments
+# Virtual environmentsn
 venv/
 .venv/
 env/
