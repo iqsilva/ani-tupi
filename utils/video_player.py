@@ -431,22 +431,18 @@ def _ipc_event_loop(
 
                                     # Search for player URL for next episode (this handles racing scrapers)
                                     next_episode_number = episode_number + 1
-                                    
                                     # Show OSD message that we are searching
                                     _send_mpv_command(
                                         sock,
                                         "show-text",
                                         [f"Buscando Episódio {next_episode_number}..."],
                                     )
-                                    
                                     # This is a blocking call, but it's what we need to get the stream URL
                                     next_url = rep.search_player(anime_title, next_episode_number)
 
                                     if next_url:
                                         # Send MPV command to load next episode
-                                        _send_mpv_command(
-                                            sock, "loadfile", [next_url, "replace"]
-                                        )
+                                        _send_mpv_command(sock, "loadfile", [next_url, "replace"])
 
                                         # Show OSD success message
                                         _send_mpv_command(
@@ -461,16 +457,20 @@ def _ipc_event_loop(
                                         # Preserve anilist_id and source for next episode
 
                                         # Print terminal feedback
-                                        print(f"\n▶️  Reproduzindo Episódio {next_episode_number}")
+                                        print(f"▶️  Reproduzindo Episódio {next_episode_number}")
 
                                         # Continue loop to listen for more keybindings
                                         continue
                                     else:
                                         # Next episode URL not found or no more episodes
                                         _send_mpv_command(
-                                            sock, "show-text", ["Não há mais episódios disponíveis ou erro ao buscar"]
+                                            sock,
+                                            "show-text",
+                                            ["Não há mais episódios disponíveis ou erro ao buscar"],
                                         )
-                                        print(f"\n❌ Falha ao carregar Episódio {next_episode_number}")
+                                        print(
+                                            f"❌ Falha ao carregar Episódio {next_episode_number}"
+                                        )
 
                                 elif action == "previous":
                                     from services.repository import rep
@@ -489,7 +489,9 @@ def _ipc_event_loop(
                                         )
 
                                         # Search for player URL for previous episode
-                                        prev_url = rep.search_player(anime_title, prev_episode_number)
+                                        prev_url = rep.search_player(
+                                            anime_title, prev_episode_number
+                                        )
 
                                         if prev_url:
                                             # Send MPV command to load previous episode
@@ -501,7 +503,7 @@ def _ipc_event_loop(
                                             _send_mpv_command(
                                                 sock,
                                                 "show-text",
-                                                [f"⏪ Voltando para Episódio {prev_episode_number}"],
+                                                [f"Voltando para Episódio {prev_episode_number}"],
                                             )
 
                                             # Update episode context
@@ -509,7 +511,9 @@ def _ipc_event_loop(
                                             episode_context["url"] = prev_url
 
                                             # Print terminal feedback
-                                            print(f"\n⏪ Voltando para Episódio {prev_episode_number}")
+                                            print(
+                                                f"⏪ Voltando para Episódio {prev_episode_number}"
+                                            )
 
                                             # Continue loop
                                             continue
@@ -517,9 +521,13 @@ def _ipc_event_loop(
                                             _send_mpv_command(
                                                 sock,
                                                 "show-text",
-                                                ["Episódio anterior não disponível ou erro ao buscar"],
+                                                [
+                                                    "Episódio anterior não disponível ou erro ao buscar"
+                                                ],
                                             )
-                                            print(f"\n❌ Falha ao carregar Episódio {prev_episode_number}")
+                                            print(
+                                                f"❌ Falha ao carregar Episódio {prev_episode_number}"
+                                            )
                                     else:
                                         _send_mpv_command(
                                             sock, "show-text", ["Não há episódios anteriores"]
@@ -544,11 +552,11 @@ def _ipc_event_loop(
 
                                     # Show OSD message
                                     status = "ATIVADO" if _autoplay_enabled else "DESATIVADO"
-                                    message = f"🔄 Auto-play {status} (válido para toda a sessão)"
+                                    message = f"Auto-play {status} (válido para toda a sessão)"
                                     _send_mpv_command(sock, "show-text", [message, "3000"])
 
                                     # Print terminal feedback
-                                    print(f"\n{message}")
+                                    print(f"{message}")
 
                                     # Continue loop - don't exit playback
                                     continue
@@ -594,7 +602,7 @@ def _ipc_event_loop(
             )
 
             # Print terminal feedback
-            print(f"\n▶️  Auto-play ativo: marcando Episódio {episode_number} como assistido")
+            print(f"▶️  Auto-play ativo: marcando Episódio {episode_number} como assistido")
 
             # Return auto-next action
             return VideoPlaybackResult(
