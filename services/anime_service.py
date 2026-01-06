@@ -706,15 +706,22 @@ def anilist_anime_flow(
                     print("📝 Adicionando à sua lista do AniList...")
                     anilist_client.add_to_list(anilist_id, "CURRENT")
                 else:
-                    # Auto-promote from PLANNING to CURRENT, or COMPLETED to REPEATING
+                    # Auto-promote from PLANNING to CURRENT, CURRENT to COMPLETED, or COMPLETED to REPEATING
                     entry = anilist_client.get_media_list_entry(anilist_id)
                     if entry:
                         if entry.status == "PLANNING":
                             print("📝 Movendo de 'Planejo Assistir' para 'Assistindo'...")
                             anilist_client.add_to_list(anilist_id, "CURRENT")
+                        elif entry.status == "CURRENT":
+                            # If finishing last episode of a watched anime, mark as completed
+                            if current_episode == num_episodes:
+                                print("✅ Marcando como 'Completo'...")
+                                anilist_client.change_status(anilist_id, "COMPLETED")
                         elif entry.status == "COMPLETED":
-                            print("🔄 Mudando para 'Recomassistindo'...")
-                            anilist_client.change_status(anilist_id, "REPEATING")
+                            # If rewatching, mark as repeating
+                            if current_episode == num_episodes:
+                                print("🔄 Mudando para 'Recomassistindo'...")
+                                anilist_client.change_status(anilist_id, "REPEATING")
 
                 print(f"🔄 Sincronizando progresso com AniList (Ep {current_episode})...")
                 success = anilist_client.update_progress(anilist_id, current_episode)
@@ -790,15 +797,22 @@ def anilist_anime_flow(
                         print("\n📝 Adicionando à sua lista do AniList...")
                         anilist_client.add_to_list(anilist_id, "CURRENT")
                     else:
-                        # Auto-promote from PLANNING to CURRENT, or COMPLETED to REPEATING
+                        # Auto-promote from PLANNING to CURRENT, CURRENT to COMPLETED, or COMPLETED to REPEATING
                         entry = anilist_client.get_media_list_entry(anilist_id)
                         if entry:
                             if entry.status == "PLANNING":
                                 print("\n📝 Movendo de 'Planejo Assistir' para 'Assistindo'...")
                                 anilist_client.add_to_list(anilist_id, "CURRENT")
+                            elif entry.status == "CURRENT":
+                                # If finishing last episode of a watched anime, mark as completed
+                                if episode == num_episodes:
+                                    print("\n✅ Marcando como 'Completo'...")
+                                    anilist_client.change_status(anilist_id, "COMPLETED")
                             elif entry.status == "COMPLETED":
-                                print("\n🔄 Mudando para 'Recomassistindo'...")
-                                anilist_client.change_status(anilist_id, "REPEATING")
+                                # If rewatching, mark as repeating
+                                if episode == num_episodes:
+                                    print("\n🔄 Mudando para 'Recomassistindo'...")
+                                    anilist_client.change_status(anilist_id, "REPEATING")
 
                     print(f"\n🔄 Sincronizando progresso com AniList (Ep {episode})...")
                     success = anilist_client.update_progress(anilist_id, episode)
