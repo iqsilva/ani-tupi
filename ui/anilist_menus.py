@@ -521,20 +521,18 @@ def _search_and_add_anime(is_logged_in: bool) -> tuple[str, int] | None:
     anime_map = {}
 
     for anime in results:
-        display_title = anilist_client.format_title(anime["title"])
-        anime_id = anime["id"]
-        episodes = anime.get("episodes") or "?"
-        year = anime.get("seasonYear") or "?"
-        score = anime.get("averageScore")
+        display_title = anilist_client.format_title(anime.title)
+        anime_id = anime.id
+        episodes = anime.episodes
+        year = anime.seasonYear or "?"
+        score = anime.averageScore
 
         display = f"{display_title} ({year}, {episodes} eps)"
         if score:
             display += f" ⭐{score}%"
 
         options.append(display)
-        search_title = (
-            anime["title"].get("romaji") or anime["title"].get("english") or display_title
-        )
+        search_title = anime.title.romaji or anime.title.english or display_title
         anime_map[display] = (display_title, search_title, anime_id)
 
     # Show results
