@@ -92,7 +92,7 @@ def normalize_anime_title(title: str):
     # 1. Handle AniList bilingual format "Romaji / English"
     # Take only the romaji part (before the " / ")
     if " / " in title:
-        title = title.split(" / ")[1]
+        title = title.split(" / ")[0]
 
     # 2. Remove season/part/episode suffixes
     season_patterns = [
