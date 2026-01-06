@@ -642,6 +642,31 @@ def anilist_anime_flow(
             print("   💡 O episódio está indisponível em todas as fontes.")
             continue
 
+        # Fetch skip intervals if enabled and AniList ID available
+        skip_intervals = []
+        if settings.skip.enabled and anilist_id:
+            try:
+                from services.anime_skip_service import anime_skip_service
+
+                logger.debug(
+                    f"Fetching skip intervals for AniList {anilist_id}, episode {episode}"
+                )
+                skip_intervals = anime_skip_service.fetch_timestamps(
+                    anilist_id=anilist_id, episode_number=episode, anime_title=selected_anime
+                )
+                if skip_intervals:
+                    logger.info(f"Found {len(skip_intervals)} skip intervals for episode {episode}")
+                else:
+                    logger.debug(f"No skip intervals found for episode {episode}")
+            except Exception as e:
+                logger.warning(f"Failed to fetch skip intervals: {e}")
+                # Continue playback without skip functionality
+                skip_intervals = []
+        elif not settings.skip.enabled:
+            logger.debug("Skip functionality disabled in settings")
+        elif not anilist_id:
+            logger.debug("Skip unavailable: no AniList ID for anime")
+
         # Play episode with IPC support
         result = play_episode(
             url=player_url,
@@ -652,6 +677,7 @@ def anilist_anime_flow(
             use_ipc=True,
             debug=args.debug,
             anilist_id=anilist_id,
+            skip_intervals=skip_intervals,
         )
 
         # Handle IPC navigation actions

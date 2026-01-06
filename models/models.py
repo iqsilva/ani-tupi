@@ -28,6 +28,44 @@ AniListID: TypeAlias = int | None
 TimestampSeconds: TypeAlias = int
 
 
+class SkipInterval(BaseModel):
+    """Skip interval for automatic intro/outro skipping.
+
+    Attributes:
+        type: Interval type (op, ed, recap, preview, mixed-op, mixed-ed)
+        start: Start time in seconds
+        end: End time in seconds
+    """
+
+    type: str = Field(..., min_length=1, description="Interval type (op, ed, recap, preview)")
+    start: float = Field(..., ge=0, description="Start time in seconds")
+    end: float = Field(..., gt=0, description="End time in seconds")
+
+    @model_validator(mode="after")
+    def validate_interval(self) -> "SkipInterval":
+        """Validate start < end."""
+        if self.start >= self.end:
+            raise ValueError(f"Start time ({self.start}) must be less than end time ({self.end})")
+        return self
+
+    @property
+    def type_label(self) -> str:
+        """Get Brazilian Portuguese label for interval type.
+
+        Returns:
+            Localized label for OSD display.
+        """
+        labels = {
+            "op": "abertura",
+            "ed": "encerramento",
+            "recap": "recapitulação",
+            "preview": "prévia",
+            "mixed-op": "abertura mista",
+            "mixed-ed": "encerramento misto",
+        }
+        return labels.get(self.type, self.type)
+
+
 class AnimeMetadata(BaseModel):
     """Anime metadata from scraper.
 
