@@ -29,7 +29,7 @@ class AnimeSkipService:
         self.client_id = settings.skip.api_client_id
         self.cache = get_cache()
         self.cache_ttl = settings.skip.cache_duration_days * 24 * 3600  # days to seconds
-        self.timeout = 5.0  # 5 second timeout for API requests
+        self.timeout = 15.0  # 15 second timeout for API requests (production DB is large)
 
         logger.debug(f"Initialized AnimeSkipService with API: {self.api_url}")
 
