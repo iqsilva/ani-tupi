@@ -163,7 +163,7 @@ class SkipSettings(BaseModel):
         description="Anime Skip API client ID",
     )
     api_url: str = Field(
-        "http://test.api.anime-skip.com/graphql",
+        "https://api.anime-skip.com/graphql",
         description="Anime Skip API GraphQL endpoint",
     )
     cache_duration_days: int = Field(
