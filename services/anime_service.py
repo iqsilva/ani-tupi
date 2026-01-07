@@ -284,9 +284,7 @@ def anilist_anime_flow(
         cache_data = get_cache(variant)
         if cache_data:
             # Found in cache! Use it directly
-            print(
-                f"ℹ️  Usando cache ({cache_data.episode_count} eps disponíveis)"
-            )
+            print(f"ℹ️  Usando cache ({cache_data.episode_count} eps disponíveis)")
             rep.load_from_cache(variant, cache_data)
             used_query = variant
             titles_with_sources = [variant]  # Only one "result" - the cached anime
@@ -345,9 +343,7 @@ def anilist_anime_flow(
             # Cache-first: Check if manual query is in cache
             cache_data = get_cache(manual_query)
             if cache_data:
-                print(
-                    f"ℹ️  Usando cache ({cache_data.episode_count} eps disponíveis)"
-                )
+                print(f"ℹ️  Usando cache ({cache_data.episode_count} eps disponíveis)")
                 rep.load_from_cache(manual_query, cache_data)
                 titles_with_sources = [manual_query]
                 used_query = manual_query
@@ -364,9 +360,7 @@ def anilist_anime_flow(
                 if used_query != manual_query:
                     used_words = metadata.used_words or "?"
                     total_words = metadata.total_words or "?"
-                    print(
-                        f"ℹ️  Reduzido para: '{used_query}' ({used_words}/{total_words} palavras)"
-                    )
+                    print(f"ℹ️  Reduzido para: '{used_query}' ({used_words}/{total_words} palavras)")
 
                 # Pass original_query for ranking results by relevance
                 titles_with_sources = rep.get_anime_titles_with_sources(
@@ -418,9 +412,7 @@ def anilist_anime_flow(
             total_words = metadata.get("total_words")
             if used_words and total_words and used_words < total_words:
                 # Reduced within the search
-                menu_title += (
-                    f"   ({used_words}/{total_words} palavras)\n"
-                )
+                menu_title += f"   ({used_words}/{total_words} palavras)\n"
         menu_title += f"\nEncontrados {len(titles_with_sources)} resultados. Escolha:"
 
         # Pagination: show top N results + "See more" button if needed
@@ -648,9 +640,7 @@ def anilist_anime_flow(
             try:
                 from services.anime_skip_service import anime_skip_service
 
-                logger.debug(
-                    f"Fetching skip intervals for AniList {anilist_id}, episode {episode}"
-                )
+                logger.debug(f"Fetching skip intervals for AniList {anilist_id}, episode {episode}")
                 skip_intervals = anime_skip_service.fetch_timestamps(
                     anilist_id=anilist_id, episode_number=episode, anime_title=selected_anime
                 )
@@ -668,6 +658,10 @@ def anilist_anime_flow(
             logger.debug("Skip unavailable: no AniList ID for anime")
 
         # Play episode with IPC support
+        print(f"\n▶️  Iniciando reprodução do episódio {episode}...")
+        print(f"   Fonte: {source or 'unknown'}")
+        print(f"   URL: {player_url[:80]}{'...' if len(player_url) > 80 else ''}\n")
+
         result = play_episode(
             url=player_url,
             anime_title=selected_anime,
@@ -679,6 +673,10 @@ def anilist_anime_flow(
             anilist_id=anilist_id,
             skip_intervals=skip_intervals,
         )
+
+        print(f"\n📊 Reprodução encerrada:")
+        print(f"   Exit code: {result.exit_code}")
+        print(f"   Ação: {result.action}")
 
         # Handle IPC navigation actions
         if result.action == "next":
@@ -774,10 +772,18 @@ def anilist_anime_flow(
         # For normal quit or other actions, show confirmation menu
         # (History/AniList sync already handled by IPC if action was "next")
         if result.action != "next":
-            # Clear terminal before asking confirmation
+            # Only clear terminal if playback was successful (exit_code == 0)
+            # If there was an error, keep messages visible for 2 seconds
             import os
+            import time
 
-            os.system("clear")
+            if result.exit_code != 0:
+                # Error occurred - give user time to see error messages
+                print("\n⏳ Pressione Enter para continuar...")
+                try:
+                    input()
+                except (EOFError, KeyboardInterrupt):
+                    pass
 
             # Ask if watched until the end before saving/updating anything
             confirm_options = ["✅ Sim, assisti até o final", "❌ Não, parei antes."]
@@ -1130,9 +1136,7 @@ def search_anime_flow(args):
     cache_data = get_cache(query)
     selected_anime = None
     if cache_data:
-        print(
-            f"ℹ️  Usando cache ({cache_data.episode_count} eps disponíveis)"
-        )
+        print(f"ℹ️  Usando cache ({cache_data.episode_count} eps disponíveis)")
         # Populate repository from cache
         rep.load_from_cache(query, cache_data)
         selected_anime = query

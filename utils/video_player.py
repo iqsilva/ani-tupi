@@ -298,11 +298,29 @@ def _launch_mpv_with_ipc(
     ]
 
     try:
-        return subprocess.Popen(
-            mpv_args,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-        )
+        import os
+        import logging
+
+        # Enable detailed logging for debugging
+        debug_mode = os.environ.get("ANI_TUPI_DEBUG_MPV") == "1"
+
+        if debug_mode:
+            # Show MPV stderr for debugging
+            return subprocess.Popen(
+                mpv_args,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                universal_newlines=True,
+            )
+        else:
+            # Capture stderr even in normal mode for error detection
+            # This helps us see why MPV fails silently
+            return subprocess.Popen(
+                mpv_args,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.PIPE,
+                universal_newlines=True,
+            )
     except FileNotFoundError as e:
         msg = "MPV not found in PATH. Please install mpv."
         raise FileNotFoundError(msg) from e
@@ -636,6 +654,30 @@ def _ipc_event_loop(
 
         # MPV process exited normally
         exit_code = mpv_process.returncode or 0
+
+        # Check stderr for error messages
+        stderr_output = ""
+        if hasattr(mpv_process, 'stderr') and mpv_process.stderr:
+            try:
+                stderr_output = mpv_process.stderr.read() if hasattr(mpv_process.stderr, 'read') else ""
+            except:
+                pass
+
+        # Check if MPV failed to load the video
+        if exit_code != 0 or "error" in stderr_output.lower():
+            print(f"⚠️  MPV exited with code {exit_code}")
+            if "error" in stderr_output.lower():
+                # Extract relevant error messages
+                error_lines = [line for line in stderr_output.split('\n') if 'error' in line.lower()]
+                for error_line in error_lines[:3]:  # Show first 3 errors
+                    if error_line.strip():
+                        print(f"   ❌ {error_line.strip()[:100]}")
+                # Special message for Blogger 400 errors
+                if "400" in stderr_output:
+                    print(f"\n   ℹ️  AnimesonlineCC: Token expirado (URLs temporárias)")
+                    print(f"   💡 Solução: Use AnimeFire ou AnimesDigital (sem expiration)")
+                    print(f"   Modifique: export ANI_TUPI__PLUGINS__PRIORITY_ORDER='[\"animesdigital\", \"animefire\"]'")
+            print(f"   Tente ativar debug: ANI_TUPI_DEBUG_MPV=1 uv run ani-tupi")
 
         # Check if auto-play is enabled (declared at function level)
         if _autoplay_enabled and exit_code == 0:

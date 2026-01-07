@@ -643,14 +643,18 @@ class Repository:
                 try:
                     plugin_func(url, container, event)
                     if container:  # Only print if this source succeeded
+                        video_url = container[0]
+                        # Truncate very long URLs in display
+                        display_url = video_url[:80] + "..." if len(video_url) > 80 else video_url
                         print(f"   ✅ Vídeo encontrado em: {source}")
+                        print(f"      URL: {display_url}")
                         # Signal priority source found to cancel other tasks
                         if is_priority:
                             found_event.set()
                 except Exception as e:
                     # Extract just the first line of error (avoid huge stack traces)
                     error_msg = str(e).split("\n")[0]
-                    print(f"   ❌ {source} falhou: {error_msg[:80]}")
+                    print(f"   ❌ {source} falhou: {error_msg[:100]}")
                     # Don't re-raise - let other sources try
 
             # Organize URLs by source following priority order

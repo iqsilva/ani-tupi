@@ -44,6 +44,7 @@ def anime(args) -> None:
 
             # Try to auto-discover AniList ID if authenticated
             from services.anilist_service import anilist_client
+
             if anilist_client.is_authenticated():
                 from utils.anilist_discovery import get_anilist_id_from_title
 
@@ -55,12 +56,15 @@ def anime(args) -> None:
                 if anilist_id:
                     # Get anime metadata for display
                     from utils.anilist_discovery import get_anilist_metadata
+
                     metadata = get_anilist_metadata(anilist_id)
                     if metadata:
                         anilist_title = anilist_client.format_title(metadata.title)
                         print(f"✅ Encontrado: {anilist_title}")
                 else:
-                    print("⚠️  Não foi possível encontrar no AniList (continuando sem sincronização)")
+                    print(
+                        "⚠️  Não foi possível encontrar no AniList (continuando sem sincronização)"
+                    )
     else:
         # This path is used when called from main menu
         selected_anime, episode_idx, source = anime_service.search_anime_flow(args)
@@ -69,6 +73,7 @@ def anime(args) -> None:
 
         # Try to auto-discover AniList ID if authenticated
         from services.anilist_service import anilist_client
+
         if anilist_client.is_authenticated():
             from utils.anilist_discovery import get_anilist_id_from_title
 
@@ -80,6 +85,7 @@ def anime(args) -> None:
             if anilist_id:
                 # Get anime metadata for display
                 from utils.anilist_discovery import get_anilist_metadata
+
                 metadata = get_anilist_metadata(anilist_id)
                 if metadata:
                     anilist_title = anilist_client.format_title(metadata.title)
@@ -115,7 +121,13 @@ def anime(args) -> None:
             continue
 
         # Play video
+        print(f"\n▶️  Iniciando reprodução do episódio {episode}...")
+        print(f"   Fonte: {source or 'unknown'}")
+        print(f"   URL: {player_url[:80]}{'...' if len(player_url) > 80 else ''}\n")
+
         exit_code = play_video(player_url, args.debug)
+
+        print(f"\n📊 Reprodução encerrada - Exit code: {exit_code}")
 
         # Log MPV exit code if it's not a normal exit
         if exit_code not in [0, 3]:  # 0=normal, 3=user quit with 'q'
@@ -123,10 +135,16 @@ def anime(args) -> None:
             if exit_code == 2:
                 print("    (Possível erro ao reproduzir ou janela fechada)")
 
-        # Clear terminal before asking confirmation
-        import os
+        # Only clear terminal if playback was successful
+        # If there was an error, keep messages visible for user to read
 
-        os.system("clear")
+        if exit_code != 0:
+            # Error occurred - give user time to see error messages
+            print("\n⏳ Pressione Enter para continuar...")
+            try:
+                input()
+            except (EOFError, KeyboardInterrupt):
+                pass
 
         # Ask if watched until the end
         confirm_options = ["✅ Sim, assisti até o final", "❌ Não, parei antes."]

@@ -529,3 +529,95 @@ priority_order: list[str] = Field(
 **Current Default Order**: `["animesdigital", "animefire", "animesonlinecc"]`
 
 **Status**: ✅ Implemented - Agnóstic priority system that works with any scraper names
+
+### AnimesonlineCC Player Not Starting Issue (2025-01-07)
+**Issue**: When playing videos from AnimesonlineCC, the video URL would be found successfully, but MPV player wouldn't start with no visible error messages.
+
+**Root Cause**: Two separate issues:
+1. Screen was being cleared with `os.system("clear")` immediately after the player exited, erasing any error messages
+2. AnimesonlineCC's iframe detection was brittle with only one XPath selector, and had no validation of extracted URLs
+3. The Blogger video URLs could fail without user seeing feedback
+
+**Solution Implemented**:
+1. **Improved iframe detection** in `scrapers/plugins/animesonlinecc.py`:
+   - Lines 85-116: Added 3 fallback methods to find iframe with video URL
+   - Method 1: Original XPath selector (5s timeout)
+   - Method 2: Generic iframe search by tag (3s timeout)
+   - Method 3: CSS selector as last resort
+   - Line 125: Handle relative URLs by converting to absolute
+
+2. **Fixed error message visibility** in `commands/anime.py` and `services/anime_service.py`:
+   - Lines 130-136 (commands/anime.py): Don't clear screen if `exit_code != 0`
+   - Show prompt "Press Enter to continue" so user has time to read errors
+   - Lines 782-788 (anime_service.py): Same fix for IPC playback path
+
+3. **Added debug mode** in `utils/video_player.py`:
+   - Lines 305-321: Added `ANI_TUPI_DEBUG_MPV=1` environment variable to show MPV output
+   - Lines 657-660: Show helpful message when MPV fails with exit code 2
+
+4. **Better error reporting** in `services/repository.py`:
+   - Lines 646-650: Display extracted video URL when found (truncated for long URLs)
+   - Line 657: Increased error message display length from 80 to 100 characters
+
+**Testing**:
+```bash
+# Test normal playback (error messages stay visible)
+uv run ani-tupi --query "dandadan"
+
+# Test with debug output from MPV
+ANI_TUPI_DEBUG_MPV=1 uv run ani-tupi --query "dandadan"
+
+# Test scraper directly
+uv run python test_animesonlinecc_debug.py  # Returns ✅ with URL on success
+```
+
+**Status**: ✅ Fixed - Video extraction is robust, error messages now visible to user
+
+**How It Works Now**:
+1. AnimesonlineCC scraper tries 3 methods to find iframe
+2. If found, URL is displayed: "✅ Vídeo encontrado em: animesonlinecc" + URL preview
+3. Player launches with URL
+4. If player fails (exit_code != 0), error message stays visible until user presses Enter
+5. If debug enabled, can see full MPV output for troubleshooting
+
+### AnimesonlineCC Blogger Token Expiration Issue (2025-01-07)
+
+**Issue**: AnimesonlineCC videos play but immediately fail with HTTP 400 error when launched in MPV.
+
+**Root Cause**: AnimesonlineCC uses temporary Blogger video URLs with tokens that expire very quickly (within minutes or even seconds). The scraper successfully extracts the iframe `src`, but the token becomes invalid before MPV can access it.
+
+**Error Message**:
+```
+[ffmpeg] https: HTTP error 400 Bad Request
+[ytdl_hook] ERROR: [blogger.com] Unable to download webpage: HTTP Error 400: Bad Request
+```
+
+**Status**: ⚠️ Limitation of AnimesonlineCC's hosting method
+
+**Solution**: Use alternative sources that don't have this limitation:
+
+**Recommended Sources** (in order of reliability):
+1. **AnimesDigital** - Direct video URLs, no token expiration
+2. **AnimeFire** - Stable iframe-based streaming
+3. **AnimesonlineCC** - ⚠️ Token expiration issues (not recommended for streaming)
+
+**How to Configure Priority**:
+```bash
+# Edit models/config.py or set environment variable:
+export ANI_TUPI__PLUGINS__PRIORITY_ORDER='["animesdigital", "animefire", "animesonlinecc"]'
+
+# Or change in code:
+# models/config.py line ~89:
+priority_order: list[str] = Field(
+    default_factory=lambda: ["animesdigital", "animefire"],  # Skip animesonlinecc
+    ...
+)
+```
+
+**Current Default Order**: `["animesdigital", "animefire", "animesonlinecc"]`
+- This will try AnimesDigital and AnimeFire first (which work), falling back to AnimesonlineCC if needed
+
+**Long-term Fix**: Would require AnimesonlineCC to:
+- Use permanent video URLs instead of temporary tokens
+- Or implement server-side streaming without expiring tokens
+- Or migrate to a different video hosting solution
