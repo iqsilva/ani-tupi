@@ -48,7 +48,10 @@ class AnimesDigital(PluginInterface):
         """Fetch episode list from anime page.
 
         Extracts episodes from the detail page using div.item_ep selector.
+        Filters out special episodes (fractionated like 13.5) to avoid duplicates.
         """
+        import re
+
         html_content = requests.get(url, timeout=REQUEST_TIMEOUT)
         tree = HTMLParser(html_content.text)
 
@@ -72,6 +75,10 @@ class AnimesDigital(PluginInterface):
                 # Clean up extra whitespace
                 title = " ".join(title.split())
                 if title:
+                    # Filter out special episodes (fractionated like 13.5, 0.5, etc)
+                    # These are OVAs/specials that shouldn't be counted as main episodes
+                    if re.search(r"Episódio\s+\d+\.\d+", title):
+                        continue  # Skip special episodes
                     episode_urls.append(href)
                     episode_titles.append(title)
 

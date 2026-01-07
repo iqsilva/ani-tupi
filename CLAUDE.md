@@ -460,6 +460,31 @@ uv run ani-tupi --clear-cache "dandadan"  # This fails
 # Set "animesdigital": false
 ```
 
+### AnimesDigital Fractional Episodes Being Included (2025-01-07)
+**Issue**: AnimesDigital was returning 25 episodes for Jujutsu Kaisen Season 1 instead of 24, showing "25 eps disponíveis / 24 total" in the menu.
+
+**Root Cause**: AnimesDigital lists special episodes with fractional numbers (e.g., "Episódio 13.5") alongside regular episodes. These OVAs/specials were being included in the episode list, causing the count to be inflated. Jujutsu Kaisen Season 1 page had both "Episódio 13" and "Episódio 13.5" listed, resulting in 25 items.
+
+**Solution**: Added filtering in `scrapers/plugins/animesdigital.py` `search_episodes()`:
+- Line 53: Added `import re` for regex pattern matching
+- Lines 78-81: Added check to detect and skip fractional episode numbers (`\d+\.\d+`)
+- Only main numbered episodes (1, 2, 3...24) are included, not specials
+
+**Code**:
+```python
+# Filter out special episodes (fractionated like 13.5, 0.5, etc)
+# These are OVAs/specials that shouldn't be counted as main episodes
+if re.search(r"Episódio\s+\d+\.\d+", title):
+    continue  # Skip special episodes
+```
+
+**Status**: ✅ Fixed - Jujutsu Kaisen Season 1 now correctly returns 24 episodes
+
+**Test Results**:
+- Season 1: 24 episodes (was 25) ✅
+- Season 2: 23 episodes (unchanged) ✅
+- No fractional episodes included ✅
+
 ### Source Priority Order Configuration (2025-01-07)
 **Feature**: Configurable, agnóstic source priority order for scraper sources when searching for anime and videos.
 
