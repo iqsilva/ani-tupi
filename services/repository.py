@@ -396,12 +396,36 @@ class Repository:
 
         # Rank by relevance if original_query provided
         if original_query:
+            import re
+
+            # Extract numeric tokens from query (e.g., "0" from "jujutsu kaisen 0")
+            query_numbers = set(re.findall(r'\d+', original_query))
+
             # Calculate fuzzy matching score for each title against the original query
-            # Use token_sort_ratio for better title matching (handles word order differences)
             scored_results = []
             for result_with_source, original_title in result:
-                # Use token_sort_ratio which handles word order but is stricter than partial_ratio
-                score = fuzz.token_sort_ratio(original_query.lower(), original_title.lower())
+                # Use token_sort_ratio for base matching
+                base_score = fuzz.token_sort_ratio(original_query.lower(), original_title.lower())
+
+                # Boost scoring if title contains the same numbers as query
+                # Example: query="jujutsu kaisen 0" should prioritize titles with "0"
+                if query_numbers:
+                    title_numbers = set(re.findall(r'\d+', original_title))
+                    if query_numbers.issubset(title_numbers):
+                        # Strong boost: title has all the numbers from query
+                        # This fixes "Jujutsu Kaisen 0 Movie" ranking below "Jujutsu Kaisen 2"
+                        score = min(100, base_score + 15)
+                    elif not query_numbers.intersection(title_numbers):
+                        # Penalty: query has specific numbers but title doesn't have any of them
+                        # This ensures "Jujutsu Kaisen 2" ranks below "Jujutsu Kaisen 0" variants
+                        score = max(0, base_score - 20)
+                    else:
+                        # Partial match: title has some but not all numbers from query
+                        score = base_score - 5
+                else:
+                    # No numbers in query, use base score
+                    score = base_score
+
                 scored_results.append((result_with_source, score, original_title))
 
             # Sort by score (descending), then by title length (shorter = more specific), then alphabetically
