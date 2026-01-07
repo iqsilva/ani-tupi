@@ -94,10 +94,18 @@ def normalize_anime_title(title: str):
     if " / " in title:
         title = title.split(" / ")[0]
 
-    # 2. Remove season/part/episode suffixes
+    # 2. Extract season numbers BEFORE removing season patterns
+    # This preserves "2" from "2nd Season" or "Season 2"
+    extracted_season = None
+    season_match = re.search(r"(?:Season\s+|Temporada\s+)(\d+)|(\d+)(?:st|nd|rd|th)?\s+Season", title, re.IGNORECASE)
+    if season_match:
+        extracted_season = season_match.group(1) or season_match.group(2)
+
+    # 3. Remove season/part/episode suffixes
     season_patterns = [
         r"\s+Season\s+\d+",
         r"\s+\d+(?:st|nd|rd|th)\s+Season",
+        r"\s+Temporada\s+\d+",
         r"\s+S\d+",
         r"\s+Part\s+\d+",
         r"\s+Cour\s+\d+",
@@ -111,6 +119,10 @@ def normalize_anime_title(title: str):
     cleaned = title
     for pattern in season_patterns:
         cleaned = re.sub(pattern, "", cleaned, flags=re.IGNORECASE)
+
+    # If we extracted a season number, append it to preserve it
+    if extracted_season:
+        cleaned = f"{cleaned} {extracted_season}"
 
     # 3. Keep only letters, numbers and spaces
     cleaned = re.sub(r"[^A-Za-z0-9\s]", " ", cleaned)
