@@ -4,15 +4,14 @@ When user does manual search without AniList, automatically match results
 against AniList API to get anilist_id. This enables better caching and
 metadata enrichment.
 """
-
 from fuzzywuzzy import fuzz
 
-from utils.cache_manager import get_cache
-from models.models import AniListAnime
+from models.models import AniListAnime, AniListSearchResult
 from models.config import settings
+from utils.cache_manager import get_cache
 
 
-def auto_discover_anilist_id(scraper_title: str) -> int | None:
+def auto_discover_anilist_id(scraper_title: str) -> list[AniListSearchResult]:
     """Auto-discover AniList ID via API using fuzzy matching.
 
     Tries to find best match in AniList for the scraper title.
@@ -23,7 +22,7 @@ def auto_discover_anilist_id(scraper_title: str) -> int | None:
         scraper_title: Anime title from scraper (possibly normalized)
 
     Returns:
-        anilist_id if strong match found, None otherwise
+        A list of AniListSearchResult, sorted by score descending.
     """
 
     try:
@@ -33,7 +32,15 @@ def auto_discover_anilist_id(scraper_title: str) -> int | None:
 
         cached = cache.get(cache_key)
         if cached is not None:
-            return cached  # None is valid (means "not found")
+            # Handle backward compatibility with old cache format (int)
+            if isinstance(cached, list):
+                try:
+                    return [AniListSearchResult(**item) for item in cached]
+                except TypeError:
+                    # In case of malformed list, treat as a cache miss
+                    pass
+            # Old format or malformed, fall through to re-fetch
+
 
         # Query AniList API
         from services.anilist_service import anilist_client
@@ -42,13 +49,11 @@ def auto_discover_anilist_id(scraper_title: str) -> int | None:
 
         if not results:
             # Cache "not found" result for 1 day to avoid repeated API calls
-            cache.set(cache_key, None, expire=86400)
-            return None
+            cache.set(cache_key, [], expire=86400)
+            return []
 
         # Fuzzy match against scraper title
-        best_match = None
-        best_score = 0
-
+        matches = []
         for anime in results:
             title_romaji = anime.title.romaji or ""
             title_english = anime.title.english or ""
@@ -57,39 +62,46 @@ def auto_discover_anilist_id(scraper_title: str) -> int | None:
             if not title_romaji and not title_english:
                 continue
 
-            # Check both titles
+            # Check both titles using token_sort_ratio for better word order tolerance
             score_romaji = (
-                fuzz.ratio(scraper_title.lower(), title_romaji.lower()) if title_romaji else 0
+                fuzz.token_sort_ratio(scraper_title.lower(), title_romaji.lower()) if title_romaji else 0
             )
             score_english = (
-                fuzz.ratio(scraper_title.lower(), title_english.lower()) if title_english else 0
+                fuzz.token_sort_ratio(scraper_title.lower(), title_english.lower()) if title_english else 0
             )
             score = max(score_romaji, score_english)
 
-            if score > best_score:
-                best_score = score
-                best_match = anime
+            threshold = settings.cache.anilist_fuzzy_threshold
+            if score >= threshold:
+                matches.append(
+                    AniListSearchResult(
+                        anilist_id=anime.id,
+                        score=score,
+                        title=title_romaji or title_english,
+                    )
+                )
 
-        # Only accept if score >= threshold (default 90)
-        threshold = settings.cache.anilist_fuzzy_threshold
-        if best_score >= threshold and best_match:
-            anilist_id = best_match.id
-            # Cache for 30 days
-            cache.set(cache_key, anilist_id, expire=2592000)
-            return anilist_id
+        # Sort by score descending
+        sorted_matches = sorted(matches, key=lambda x: x.score, reverse=True)
 
-        # Below threshold - cache as not found
-        cache.set(cache_key, None, expire=86400)
-        return None
+        # Cache for 30 days
+        cache.set(
+            cache_key, [match.model_dump() for match in sorted_matches], expire=2592000
+        )
+        return sorted_matches
 
     except Exception as e:
         print(f"⚠️  Erro ao buscar AniList ID para '{scraper_title}': {e}")
-        return None
+        return []
 
 
 def get_anilist_id_from_title(anime_title: str) -> int | None:
-    """Wrapper around auto_discover_anilist_id with simpler interface."""
-    return auto_discover_anilist_id(anime_title)
+    """Wrapper around auto_discover_anilist_id for single best match."""
+    results = auto_discover_anilist_id(anime_title)
+    if results:
+        return results[0].anilist_id
+    return None
+
 
 
 def get_anilist_metadata(anilist_id: int) -> AniListAnime | None:
