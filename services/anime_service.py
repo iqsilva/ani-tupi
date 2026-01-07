@@ -308,7 +308,7 @@ def anilist_anime_flow(
         # Pass original_query for ranking results by relevance
         used_query = search_metadata.used_query or variant
         titles_with_sources = rep.get_anime_titles_with_sources(
-            filter_by_query=variant, original_query=used_query
+            filter_by_query=variant, original_query=anime_title
         )
 
         if titles_with_sources:
@@ -461,7 +461,7 @@ def anilist_anime_flow(
                 # Pass original_query for ranking results by relevance
                 used_query = search_metadata.used_query or variant
                 titles_with_sources = rep.get_anime_titles_with_sources(
-                    filter_by_query=variant, original_query=used_query
+                    filter_by_query=variant, original_query=anime_title
                 )
                 titles = [t.split(" [")[0] for t in titles_with_sources]
 
@@ -634,29 +634,6 @@ def anilist_anime_flow(
             print("   💡 O episódio está indisponível em todas as fontes.")
             continue
 
-        # Fetch skip intervals if enabled and AniList ID available
-        skip_intervals = []
-        if settings.skip.enabled and anilist_id:
-            try:
-                from services.anime_skip_service import anime_skip_service
-
-                logger.debug(f"Fetching skip intervals for AniList {anilist_id}, episode {episode}")
-                skip_intervals = anime_skip_service.fetch_timestamps(
-                    anilist_id=anilist_id, episode_number=episode, anime_title=selected_anime
-                )
-                if skip_intervals:
-                    logger.info(f"Found {len(skip_intervals)} skip intervals for episode {episode}")
-                else:
-                    logger.debug(f"No skip intervals found for episode {episode}")
-            except Exception as e:
-                logger.warning(f"Failed to fetch skip intervals: {e}")
-                # Continue playback without skip functionality
-                skip_intervals = []
-        elif not settings.skip.enabled:
-            logger.debug("Skip functionality disabled in settings")
-        elif not anilist_id:
-            logger.debug("Skip unavailable: no AniList ID for anime")
-
         # Play episode with IPC support
         print(f"\n▶️  Iniciando reprodução do episódio {episode}...")
         print(f"   Fonte: {source or 'unknown'}")
@@ -671,7 +648,6 @@ def anilist_anime_flow(
             use_ipc=True,
             debug=args.debug,
             anilist_id=anilist_id,
-            skip_intervals=skip_intervals,
         )
 
         print(f"\n📊 Reprodução encerrada:")
@@ -1150,7 +1126,7 @@ def search_anime_flow(args):
         while True:
             rep.clear_search_results()
             with loading(f"Buscando '{query}'..."):
-                rep.search_anime_with_word_limit(query, current_word_count)
+                rep.search_anime_with_word_limit(query, current_word_count, verbose=False)
 
             titles_with_sources = rep.get_anime_titles_with_sources(filter_by_query=query)
 
