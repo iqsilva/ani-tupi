@@ -446,10 +446,10 @@ uv run ani-tupi --clear-cache "dandadan"  # This fails
 
 **Root Cause**: AnimesDigital.org can be slow to respond, especially during peak hours or when fetching episode lists.
 
-**Solution**: Increased timeouts in `scrapers/plugins/animesdigital.py`:
-- Line 19: `search_anime()` timeout: 20s → 30s
-- Line 48: `search_episodes()` timeout: 15s → 30s
-- Line 85: `search_player_src()` timeout: 15s → 30s
+**Solution**: Updated `REQUEST_TIMEOUT` constant in `scrapers/plugins/animesdigital.py`:
+- Added module-level constant: `REQUEST_TIMEOUT = 30` (line 9)
+- Used in `search_anime()`, `search_episodes()`, and `search_player_src()`
+- Single place to update timeout for all AnimesDigital requests
 
 **Status**: ✅ Fixed - More tolerant of slow network conditions
 

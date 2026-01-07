@@ -4,6 +4,10 @@ from selectolax.parser import HTMLParser
 from scrapers.loader import PluginInterface
 from services.repository import rep
 
+# Request timeout for all AnimesDigital API calls (seconds)
+# Increased to 30s to handle slow network conditions
+REQUEST_TIMEOUT = 30
+
 
 class AnimesDigital(PluginInterface):
     languages = ["pt-br"]
@@ -16,7 +20,7 @@ class AnimesDigital(PluginInterface):
         Constructs search URL and extracts anime titles and links.
         """
         url = "https://animesdigital.org/search/" + "+".join(query.split())
-        html_content = requests.get(url, timeout=30)
+        html_content = requests.get(url, timeout=REQUEST_TIMEOUT)
         tree = HTMLParser(html_content.text)
 
         # Extract all anime links
@@ -45,7 +49,7 @@ class AnimesDigital(PluginInterface):
 
         Extracts episodes from the detail page using div.item_ep selector.
         """
-        html_content = requests.get(url, timeout=30)
+        html_content = requests.get(url, timeout=REQUEST_TIMEOUT)
         tree = HTMLParser(html_content.text)
 
         # Find all episode containers
@@ -82,7 +86,7 @@ class AnimesDigital(PluginInterface):
         so we can extract them directly from HTML without Selenium.
         """
         try:
-            response = requests.get(url_episode, timeout=30)
+            response = requests.get(url_episode, timeout=REQUEST_TIMEOUT)
             tree = HTMLParser(response.text)
 
             # Look for iframes with video URLs
