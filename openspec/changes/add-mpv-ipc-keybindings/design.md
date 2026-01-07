@@ -2,7 +2,7 @@
 
 **Change ID:** `add-mpv-ipc-keybindings`
 **Phase:** Detailed Design
-**Author:** Claude Code
+**Author:** Levy Nunes
 **Date:** 2026-01-03
 
 ---

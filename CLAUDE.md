@@ -244,13 +244,35 @@ The project uses custom Ruff rules in `pyproject.toml` that ignore less critical
 
 ## Common Development Tasks
 
+### Available Scraper Plugins
+
+Current scrapers available:
+
+1. **AnimeFirePlus** (`animefire.py`) - High quality, reliable
+   - URL: https://animefire.plus
+   - Episodes: Usually up-to-date
+   - Player: Uses video iframes
+
+2. **AnimesonlineCC** (`animesonlinecc.py`) - Portuguese subtitles
+   - URL: https://animesonlinecc.to
+   - Episodes: Multiple seasons support
+   - Player: iframe player
+
+3. **AnimesDigital** (`animesdigital.py`) - Dubbed content ⭐ NEW
+   - URL: https://animesdigital.org
+   - Episodes: Many dubbed anime
+   - Player: Direct HLS/MP4 extraction
+   - Status: ✅ Fully integrated and tested
+
 ### Adding a New Scraper Plugin
 
 1. Create `scrapers/plugins/newsource.py` with class implementing `Scraper` protocol
 2. Implement `search(query)` → returns `AnimeMetadata` list
 3. Implement `get_episodes(url)` → returns `EpisodeData`
-4. Add to `scrapers/plugins/__init__.py`
-5. Run `uv run ani-tupi --list-sources` to verify it's discovered
+4. Plugin is auto-discovered by `scrapers/loader.py` - no registration needed
+5. Run `uv run test_plugin_integration.py` to verify it's discovered
+
+**Example**: See `animesdigital.py` for a complete implementation
 
 ### Adding a New Command
 
