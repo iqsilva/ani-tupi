@@ -12,6 +12,7 @@ from services.history_service import load_history, save_history
 from services.repository import rep
 from ui.components import loading, menu_navigate
 from utils.video_player import play_video
+from utils.title_utils import normalize_title_for_search
 
 
 def anime(args) -> None:
@@ -47,7 +48,9 @@ def anime(args) -> None:
                 from utils.anilist_discovery import get_anilist_id_from_title
 
                 print(f"\n🔍 Procurando '{selected_anime}' no AniList...")
-                anilist_id = get_anilist_id_from_title(selected_anime)
+                # Normalize title to remove Portuguese suffixes like (Dublado), (Legendado)
+                normalized_title = normalize_title_for_search(selected_anime)
+                anilist_id = get_anilist_id_from_title(normalized_title)
 
                 if anilist_id:
                     # Get anime metadata for display
@@ -70,7 +73,9 @@ def anime(args) -> None:
             from utils.anilist_discovery import get_anilist_id_from_title
 
             print(f"\n🔍 Procurando '{selected_anime}' no AniList...")
-            anilist_id = get_anilist_id_from_title(selected_anime)
+            # Normalize title to remove Portuguese suffixes like (Dublado), (Legendado)
+            normalized_title = normalize_title_for_search(selected_anime)
+            anilist_id = get_anilist_id_from_title(normalized_title)
 
             if anilist_id:
                 # Get anime metadata for display

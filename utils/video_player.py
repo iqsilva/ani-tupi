@@ -60,6 +60,9 @@ def play_video(url: str, debug=False, ytdl_format: str | None = None) -> int:
 
     import mpv
 
+    # Generate custom ani-tupi keybindings
+    input_conf_path, _ = _generate_input_conf()
+
     try:
         # Create MPV instance with current settings
         player = mpv.MPV(
@@ -77,6 +80,7 @@ def play_video(url: str, debug=False, ytdl_format: str | None = None) -> int:
             speed=1.8,  # Default playback speed
             input_default_bindings=True,  # Enable default key bindings
             input_vo_keyboard=True,  # Handle keyboard input on video output
+            input_conf=input_conf_path,  # Use custom ani-tupi keybindings
             osc=True,  # On-screen controller for mouse interaction
         )
 
@@ -104,6 +108,12 @@ def play_video(url: str, debug=False, ytdl_format: str | None = None) -> int:
         # Clean up player instance
         try:
             player.terminate()
+        except:  # noqa: E722
+            pass
+
+        # Clean up temporary input.conf file
+        try:
+            _cleanup_ipc_socket(input_conf_path)
         except:  # noqa: E722
             pass
 

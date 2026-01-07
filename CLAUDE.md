@@ -375,3 +375,68 @@ The project uses OpenSpec for structured change documentation. Major features ar
 - Task tracking for implementation
 
 When making significant changes, consider updating or creating spec documentation.
+
+## Bug Fixes & Workarounds (2025-01-07)
+
+### AniList Title Matching with `--query` Flag
+**Issue**: When using `ani-tupi --query "dandadan"`, the scraper returns titles with Portuguese suffixes like "Dandadan (Dublado)" which don't match AniList searches, preventing automatic AniList ID discovery.
+
+**Root Cause**: The title from scrapers includes localization suffixes that need to be stripped before AniList API lookup.
+
+**Solution**: Added `normalize_title_for_search()` call in `commands/anime.py` before passing to AniList lookup:
+- Lines 52-53: Strip Portuguese suffixes for --query path
+- Lines 77-78: Strip Portuguese suffixes for menu path
+- Uses regex patterns in `utils/title_utils.py` to remove: (Dublado), (Legendado), (Completo), (Dual Audio), (PT-BR)
+
+**Status**: ✅ Fixed - AniList now successfully matches titles from any source
+
+### MPV Keybindings Not Configured
+**Issue**: MPV showed "No key binding found for key 'N'" errors - custom ani-tupi keybindings (Shift+N for next, Shift+P for prev, etc.) weren't available during playback.
+
+**Root Cause**: The `play_video()` function didn't pass custom input.conf to MPV instance. The infrastructure existed but wasn't being used.
+
+**Solution**: Updated `utils/video_player.py` `play_video()` function:
+- Line 64: Generate custom ani-tupi input.conf file with all keybindings
+- Line 83: Pass `input_conf` parameter to MPV constructor
+- Lines 115-118: Clean up temporary input.conf file in finally block
+
+**Keybindings Available**:
+- Shift+N: Next episode (mark watched, move to next)
+- Shift+P: Previous episode
+- Shift+M: Mark & Menu (mark watched, show menu options)
+- Shift+R: Reload current episode
+- Shift+A: Toggle auto-play
+- Shift+T: Toggle sub/dub
+
+**Status**: ✅ Fixed - Custom keybindings now configured and available
+
+### AnimesDigital Scraper Extra Metadata in Episode Names
+**Issue**: AnimesDigital plugin returned episode titles with extra metadata: "Dandadan Episódio 12 11 meses atrás smart_display" instead of clean titles.
+
+**Root Cause**: Used `.text()` on the episode link element which included all nested text content (date, metadata badges, etc.).
+
+**Solution**: Updated `scrapers/plugins/animesdigital.py` `search_episodes()` function:
+- Line 65: Extract title from `.title_anime` CSS class instead of link text
+- This selector contains only the clean episode title without metadata
+- Result: "Dandadan Episódio 12" instead of "Dandadan Episódio 12 11 meses atrás smart_display"
+
+**Status**: ✅ Fixed - Episode lists now display clean titles
+
+### Cache Manager `iterkeys()` Error
+**Issue**: `ani-tupi --clear-cache` fails with `AssertionError: cannot access iterkeys in cache shard`
+
+**Root Cause**: The diskcache library doesn't expose `iterkeys()` method in newer versions.
+
+**Workaround**: Use `--clear-cache` without arguments to clear entire cache:
+```bash
+uv run ani-tupi --clear-cache  # Clears all cache
+```
+
+Instead of:
+```bash
+uv run ani-tupi --clear-cache "dandadan"  # This fails
+```
+
+**Status**: ⚠️ Known issue - Clear-by-prefix not working, but full cache clear works
+
+**To Fix**: Update `utils/cache_manager.py` `clear_cache_by_prefix()` to use iteration method compatible with current diskcache version.

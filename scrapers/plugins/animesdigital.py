@@ -55,15 +55,19 @@ class AnimesDigital(PluginInterface):
         episode_urls = []
 
         for ep_div in episode_divs:
-            # Find the link inside the episode div
+            # Find the link inside the episode div for the URL
             link = ep_div.css_first("a")
+            href = None
             if link:
                 href = link.attributes.get("href")
-                # Get episode title (clean up extra whitespace)
-                title = link.text().strip()
-                title = " ".join(title.split())
 
-                if href:
+            # Get episode title from .title_anime class (avoids metadata like "9 meses atrás")
+            title_elem = ep_div.css_first(".title_anime")
+            if title_elem and href:
+                title = title_elem.text().strip()
+                # Clean up extra whitespace
+                title = " ".join(title.split())
+                if title:
                     episode_urls.append(href)
                     episode_titles.append(title)
 
