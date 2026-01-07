@@ -664,3 +664,41 @@ priority_order: list[str] = Field(
 - But ranking still uses "jujutsu kaisen 0" → "Jujutsu Kaisen 0" stays at #1
 
 **Status**: ✅ Fixed (v2) - Search intent preserved across progressive fallbacks
+
+### AniList Search Result Ranking - Numeric Token Prioritization (2025-01-07)
+
+**Issue**: Even after v2 fix, when searching "Jujutsu Kaisen 0", results were still scattered:
+- Jujutsu Kaisen 0 (1st) ✅
+- Jujutsu Kaisen 2 (2nd) ❌ (shouldn't be here)
+- Jujutsu Kaisen (3rd) ❌
+- Jujutsu Kaisen 0 Movie (5th) ❌ (should be 2nd)
+- Jujutsu Kaisen 0 Dublado (6th) ❌ (should be 3rd)
+
+**Root Cause**: The `token_sort_ratio` fuzzy algorithm penalizes titles with extra tokens (like "Movie"), treating "Jujutsu Kaisen 2" as a better match than "Jujutsu Kaisen 0 Movie" for query "jujutsu kaisen 0".
+
+**Solution**: Implement numeric-aware scoring that:
+1. Extracts numeric tokens from query (e.g., "0" from "jujutsu kaisen 0")
+2. Checks if title contains those same numbers
+3. If yes: adds +15 bonus (ensures "0" variants on top)
+4. If no matching numbers: applies -20 penalty (keeps "2" variants lower)
+
+**Files Changed**:
+- `services/repository.py` lines 398-433: Added numeric token boost/penalty logic
+
+**Scoring Examples**:
+- Query: "jujutsu kaisen 0"
+  - "Jujutsu Kaisen 0" → base 100 + 15 = 100 (capped)
+  - "Jujutsu Kaisen 0 Movie" → base 84 + 15 = 99 ✅
+  - "Jujutsu Kaisen 0 Dublado" → base 80 + 15 = 95 ✅
+  - "Jujutsu Kaisen 2" → base 94 - 20 = 74 ✅
+  - "Jujutsu Kaisen" → base 93 - 20 = 73 ✅
+
+**Result**: All "0" variants grouped at top in logical order:
+1. Jujutsu Kaisen 0
+2. Jujutsu Kaisen 0 Movie
+3. Jujutsu Kaisen 0 Dublado
+4. Jujutsu Kaisen 0 Movie (Dublado)
+5. Jujutsu Kaisen 2
+...
+
+**Status**: ✅ Fixed (v3) - Numeric tokens prioritized in ranking
