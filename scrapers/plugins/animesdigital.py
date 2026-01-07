@@ -16,7 +16,7 @@ class AnimesDigital(PluginInterface):
         Constructs search URL and extracts anime titles and links.
         """
         url = "https://animesdigital.org/search/" + "+".join(query.split())
-        html_content = requests.get(url, timeout=20)
+        html_content = requests.get(url, timeout=30)
         tree = HTMLParser(html_content.text)
 
         # Extract all anime links
@@ -45,7 +45,7 @@ class AnimesDigital(PluginInterface):
 
         Extracts episodes from the detail page using div.item_ep selector.
         """
-        html_content = requests.get(url, timeout=15)
+        html_content = requests.get(url, timeout=30)
         tree = HTMLParser(html_content.text)
 
         # Find all episode containers
@@ -82,7 +82,7 @@ class AnimesDigital(PluginInterface):
         so we can extract them directly from HTML without Selenium.
         """
         try:
-            response = requests.get(url_episode, timeout=15)
+            response = requests.get(url_episode, timeout=30)
             tree = HTMLParser(response.text)
 
             # Look for iframes with video URLs

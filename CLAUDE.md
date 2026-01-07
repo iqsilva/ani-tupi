@@ -440,3 +440,22 @@ uv run ani-tupi --clear-cache "dandadan"  # This fails
 **Status**: ⚠️ Known issue - Clear-by-prefix not working, but full cache clear works
 
 **To Fix**: Update `utils/cache_manager.py` `clear_cache_by_prefix()` to use iteration method compatible with current diskcache version.
+
+### AnimesDigital Timeout Issues
+**Issue**: AnimesDigital requests timeout with `ReadTimeout: HTTPSConnectionPool(host='animesdigital.org', port=443): Read timed out. (read timeout=15)`
+
+**Root Cause**: AnimesDigital.org can be slow to respond, especially during peak hours or when fetching episode lists.
+
+**Solution**: Increased timeouts in `scrapers/plugins/animesdigital.py`:
+- Line 19: `search_anime()` timeout: 20s → 30s
+- Line 48: `search_episodes()` timeout: 15s → 30s
+- Line 85: `search_player_src()` timeout: 15s → 30s
+
+**Status**: ✅ Fixed - More tolerant of slow network conditions
+
+**If Still Timing Out**: Consider temporarily disabling AnimesDigital source:
+```bash
+# Edit to deactivate animesdigital
+~/.local/state/ani-tupi/plugin_preferences.json
+# Set "animesdigital": false
+```
