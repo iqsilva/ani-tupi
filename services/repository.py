@@ -373,17 +373,18 @@ class Repository:
         return sorted(filtered)
 
     def get_anime_titles_with_sources(
-        self, filter_by_query: Optional[str] = None, original_query: Optional[str] = None
+        self,
+        filter_by_query: Optional[str] = None,
+        original_query: Optional[str] = None,
+        anilist_results: Optional[list] = None,
     ) -> list[str]:
         """Get anime titles with source indicators, ranked by relevance.
-
         Shows which sources have each anime, helpful for multi-source scenarios.
         Format: "Anime Title [source1, source2]"
-
         Args:
             filter_by_query: If provided, only return titles matching query.
             original_query: If provided, rank results by fuzzy matching score.
-
+            anilist_results: Optional list of AniListSearchResult for score-based sorting.
         Returns:
             List of anime titles with source indicators, ranked by relevance
         """
@@ -408,20 +409,23 @@ class Repository:
 
         # Rank by relevance if original_query provided
         if original_query:
-            # Calculate fuzzy matching score for each title
+            # Calculate fuzzy matching score for each title against the original query
+            # Use token_sort_ratio for better title matching (handles word order differences)
             scored_results = []
             for result_with_source, original_title in result:
-                score = fuzz.ratio(original_query.lower(), original_title.lower())
-                scored_results.append((result_with_source, score))
+                # Use token_sort_ratio which handles word order but is stricter than partial_ratio
+                score = fuzz.token_sort_ratio(original_query.lower(), original_title.lower())
+                scored_results.append((result_with_source, score, original_title))
 
-            # Sort by score (descending), then alphabetically by title
-            scored_results.sort(key=lambda x: (-x[1], x[0]))
+            # Sort by score (descending), then by title length (shorter = more specific), then alphabetically
+            scored_results.sort(key=lambda x: (-x[1], len(x[2]), x[0]))
             result = [item[0] for item in scored_results]
         else:
             # Default: sort alphabetically by title
             result = [item[0] for item in sorted(result, key=lambda x: x[1])]
 
         return result
+
 
     def search_episodes(self, anime: str, source_filter: str | None = None) -> None:
         """Search for episodes from all sources or a specific source.
