@@ -1125,10 +1125,18 @@ def search_anime_flow(args):
         # Progressive search loop: try full query, then reduce words if user wants more
         while True:
             rep.clear_search_results()
-            with loading(f"Buscando '{query}'..."):
+            # Show what will actually be searched (may be reduced from full query)
+            words = query.split()
+            search_query = " ".join(words[:current_word_count])
+            with loading(f"Buscando '{search_query}'..."):
                 rep.search_anime_with_word_limit(query, current_word_count, verbose=False)
 
-            titles_with_sources = rep.get_anime_titles_with_sources(filter_by_query=query)
+            # Get what query was actually used (may be reduced from original)
+            search_metadata = rep.get_search_metadata()
+            used_query = search_metadata.used_query or query
+
+            # Filter by what was actually searched for, not the original query
+            titles_with_sources = rep.get_anime_titles_with_sources(filter_by_query=used_query)
 
             # If no results, automatically try with fewer words
             if not titles_with_sources:
