@@ -64,7 +64,6 @@ class AnimesOnlineCC(PluginInterface):
         options = webdriver.FirefoxOptions()
         options.add_argument("--headless")
 
-        driver = None
         try:
             if is_firefox_installed_as_snap():
                 service = webdriver.FirefoxService(executable_path="/snap/bin/geckodriver")
@@ -75,88 +74,25 @@ class AnimesOnlineCC(PluginInterface):
             msg = "Firefox not installed."
             raise RuntimeError(msg) from e
 
+        driver.get(url_episode)
+
         try:
-            driver.get(url_episode)
+            xpath = "/html/body/div[1]/div[2]/div[2]/div[2]/div[1]/div[1]/div[1]/iframe"
+            params = (By.XPATH, xpath)
+            WebDriverWait(driver, 7).until(EC.visibility_of_all_elements_located(params))
+        except Exception:
+            driver.quit()
+            msg = "iframe not found in animesonlinecc page."
+            raise RuntimeError(msg)
 
-            # Debug: Check what iframes exist on the page
-            import os
-            debug = os.environ.get("ANI_TUPI_SCRAPER_DEBUG") == "1"
+        product = driver.find_element(params[0], params[1])
+        link = product.get_property("src")
 
-            # Try multiple methods to find the iframe
-            link = None
-            iframe = None
+        driver.quit()
 
-            # Method 1: Try the original XPath
-            try:
-                xpath = "/html/body/div[1]/div[2]/div[2]/div[2]/div[1]/div[1]/div[1]/iframe"
-                params = (By.XPATH, xpath)
-                WebDriverWait(driver, 5).until(EC.visibility_of_all_elements_located(params))
-                iframe = driver.find_element(*params)
-                link = iframe.get_property("src")
-                if debug:
-                    print(f"   ✅ Method 1 (XPath): Found iframe")
-            except Exception as e:
-                iframe = None
-                if debug:
-                    print(f"   ❌ Method 1 (XPath): {str(e)[:80]}")
-
-            # Method 2: Try finding any iframe with src attribute (if original didn't work)
-            if not link:
-                try:
-                    WebDriverWait(driver, 3).until(
-                        lambda d: len(d.find_elements(By.TAG_NAME, "iframe")) > 0
-                    )
-                    iframes = driver.find_elements(By.TAG_NAME, "iframe")
-                    if debug:
-                        print(f"   Found {len(iframes)} iframe(s) on page")
-                    for idx, frame in enumerate(iframes):
-                        src = frame.get_property("src")
-                        if debug:
-                            print(f"      iframe[{idx}] src: {src[:80] if src else 'empty'}...")
-                        if src and src.startswith(("http://", "https://", "//")):
-                            link = src
-                            if debug:
-                                print(f"   ✅ Method 2 (Tag search): Found valid iframe")
-                            break
-                    if debug and not link:
-                        print(f"   ❌ Method 2 (Tag search): No valid iframe found")
-                except Exception as e:
-                    if debug:
-                        print(f"   ❌ Method 2 (Tag search): {str(e)[:80]}")
-                    pass
-
-            # Method 3: Try CSS selector as last resort
-            if not link:
-                try:
-                    iframe = driver.find_element(By.CSS_SELECTOR, "iframe[src]")
-                    link = iframe.get_property("src")
-                    if debug:
-                        print(f"   ✅ Method 3 (CSS): Found iframe")
-                except Exception as e:
-                    if debug:
-                        print(f"   ❌ Method 3 (CSS): {str(e)[:80]}")
-                    pass
-
-            if not link:
-                msg = "Could not find iframe with video URL on animesonlinecc page."
-                if debug:
-                    print(f"   ⚠️  {msg}")
-                raise RuntimeError(msg)
-
-            # Handle relative URLs - convert to absolute if needed
-            if link.startswith("/"):
-                from urllib.parse import urljoin
-                link = urljoin("https://animesonlinecc.to", link)
-
-            if not event.is_set():
-                container.append(link)
-                event.set()
-        finally:
-            if driver:
-                try:
-                    driver.quit()
-                except:  # noqa: E722
-                    pass
+        if not event.is_set():
+            container.append(link)
+            event.set()
 
 
 def load(languages_dict):
