@@ -237,11 +237,9 @@ def loading(msg: str = "Carregando..."):
             results = fetch_anime()
 
     """
-    console_instance = Console()
-
     with Live(
         Spinner("arc", text=msg),
-        console=console_instance,
+        console=console,
         refresh_per_second=12.5,
         transient=True,  # Spinner disappears after completion
     ):
