@@ -621,3 +621,26 @@ priority_order: list[str] = Field(
 - Use permanent video URLs instead of temporary tokens
 - Or implement server-side streaming without expiring tokens
 - Or migrate to a different video hosting solution
+
+### AniList Search Result Ranking Issue (2025-01-07)
+
+**Issue**: When searching anime via AniList menu, titles like "Jujutsu Kaisen 2 Dublado" were ranking much lower than expected, even though they directly matched the search query. Instead, "Jujutsu Kaisen 2nd Season (Dublado)" appeared higher due to fuzzy matching using full AniList bilingual title.
+
+**Root Cause**: The fuzzy matching algorithm was using the full AniList bilingual title (romaji / english format, e.g., "Jujutsu Kaisen 2nd Season / JUJUTSU KAISEN Season 2") for ranking scraper results. This full title has extra tokens and different structure than the actual search query, causing incorrect ranking.
+
+**Example**:
+- User searches AniList for: "jujutsu kaisen 2"
+- AniList returns: "Jujutsu Kaisen 2nd Season / JUJUTSU KAISEN Season 2"
+- Old fuzzy matching used that full title for ranking
+- Result: "2nd Season" variants ranked higher than "2" variants
+
+**Solution**: Use the normalized search query (without season/suffix info) for ranking instead of the full bilingual AniList title.
+
+**Files Changed**:
+- `services/anime_service.py` lines 311 and 464: Changed from `original_query=anime_title` to `original_query=used_query`
+- This passes the actual search term to the fuzzy matching algorithm
+
+**Before**: "Jujutsu Kaisen 2 Dublado" ranked at position 7-9
+**After**: "Jujutsu Kaisen 2" ranks at position 3, "Jujutsu Kaisen 2 Dublado" at position 8 (as expected)
+
+**Status**: ✅ Fixed - Search results now rank by relevance to actual query
