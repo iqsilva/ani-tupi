@@ -702,3 +702,30 @@ priority_order: list[str] = Field(
 ...
 
 **Status**: ✅ Fixed (v3) - Numeric tokens prioritized in ranking
+
+### Title Normalization - Preserve Season Numbers (2025-01-07)
+
+**Issue**: When AniList title contains "2nd Season" or "Season 2", the normalization was removing the number completely, preventing proper numeric-based ranking.
+
+**Example**:
+- AniList: "Jujutsu Kaisen 2nd Season / JUJUTSU KAISEN Season 2"
+- Scraper: "Jujutsu Kaisen 2 Dublado"
+- Problem: Query became "jujutsu kaisen" (lost the "2"), couldn't match properly
+
+**Solution**: Extract season numbers BEFORE removing season patterns, then re-append them:
+1. Detect "2nd Season", "Season 2", "Temporada 2", etc with regex
+2. Extract and store the number
+3. Remove season patterns
+4. Re-append the extracted number
+
+**Files Changed**:
+- `services/anime_service.py` lines 97-125: Modified `normalize_anime_title()` to preserve numbers
+
+**Result**:
+- "Jujutsu Kaisen 2nd Season" → "jujutsu kaisen 2" ✅
+- "Jujutsu Kaisen Season 2" → "jujutsu kaisen 2" ✅
+- "Temporada 2" → preserved as "2" ✅
+
+Now the numeric boost/penalty in ranking can work properly even when AniList uses different season formats.
+
+**Status**: ✅ Fixed (v4) - Season numbers preserved in normalization
