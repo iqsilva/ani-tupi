@@ -46,14 +46,14 @@ def anime(args) -> None:
             from services.anilist_service import anilist_client
 
             if anilist_client.is_authenticated():
-                from utils.anilist_discovery import get_anilist_id_from_title
-
+                from utils.anilist_discovery import auto_discover_anilist_id
                 print(f"\n🔍 Procurando '{selected_anime}' no AniList...")
                 # Normalize title to remove Portuguese suffixes like (Dublado), (Legendado)
                 normalized_title = normalize_title_for_search(selected_anime)
-                anilist_id = get_anilist_id_from_title(normalized_title)
+                anilist_results = auto_discover_anilist_id(normalized_title)
 
-                if anilist_id:
+                if anilist_results:
+                    anilist_id = anilist_results[0].anilist_id
                     # Get anime metadata for display
                     from utils.anilist_discovery import get_anilist_metadata
 

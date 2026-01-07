@@ -177,9 +177,28 @@ def save_video_url(cache_key, episode: int, source: str, url: str) -> None:
 
 
 def clear_cache_all() -> None:
-    """Clear entire cache."""
+    """Clear entire cache, including mappings and history."""
+    from models.config import get_data_path
+    import os
+
+    # Clear diskcache (SQLite files)
     cache = get_cache()
     cache.clear()
+
+    # Delete JSON-based state files
+    data_path = get_data_path()
+    files_to_delete = [
+        data_path / "anilist_mappings.json",
+        data_path / "history.json",
+    ]
+
+    for file_path in files_to_delete:
+        if file_path.exists():
+            try:
+                os.remove(file_path)
+            except OSError:
+                # Ignore errors if file is locked, etc.
+                pass
 
 
 def clear_cache_by_prefix(prefix: str) -> None:

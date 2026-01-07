@@ -139,45 +139,6 @@ class MangaSettings(BaseModel):
     )
 
 
-class SkipSettings(BaseModel):
-    """Automatic intro/outro skip configuration."""
-
-    enabled: bool = Field(
-        True,
-        description="Enable automatic skip functionality",
-    )
-    skip_intros: bool = Field(
-        True,
-        description="Skip opening themes (op)",
-    )
-    skip_outros: bool = Field(
-        True,
-        description="Skip ending themes (ed)",
-    )
-    skip_recaps: bool = Field(
-        False,
-        description="Skip episode recaps (future feature)",
-    )
-    skip_previews: bool = Field(
-        False,
-        description="Skip next episode previews (future feature)",
-    )
-    api_client_id: str = Field(
-        "5HzbkvrJfTo2aRz3pkg78n4n81amMELc",
-        description="Anime Skip API client ID",
-    )
-    api_url: str = Field(
-        "https://api.anime-skip.com/graphql",
-        description="Anime Skip API GraphQL endpoint",
-    )
-    cache_duration_days: int = Field(
-        30,
-        ge=1,
-        le=90,
-        description="Timestamp cache duration in days",
-    )
-
-
 class AppSettings(BaseSettings):
     """Root application settings with environment variable support.
 
@@ -203,7 +164,6 @@ class AppSettings(BaseSettings):
     search: SearchSettings = Field(default_factory=SearchSettings)
     plugins: PluginSettings = Field(default_factory=PluginSettings)
     manga: MangaSettings = Field(default_factory=MangaSettings)
-    skip: SkipSettings = Field(default_factory=SkipSettings)
 
 
 # Singleton instance - import and use throughout the app

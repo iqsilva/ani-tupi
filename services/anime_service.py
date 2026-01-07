@@ -308,7 +308,7 @@ def anilist_anime_flow(
         # Pass original_query for ranking results by relevance
         used_query = search_metadata.used_query or variant
         titles_with_sources = rep.get_anime_titles_with_sources(
-            filter_by_query=variant, original_query=anime_title
+            filter_by_query=variant, original_query=used_query
         )
 
         if titles_with_sources:
@@ -461,7 +461,7 @@ def anilist_anime_flow(
                 # Pass original_query for ranking results by relevance
                 used_query = search_metadata.used_query or variant
                 titles_with_sources = rep.get_anime_titles_with_sources(
-                    filter_by_query=variant, original_query=anime_title
+                    filter_by_query=variant, original_query=used_query
                 )
                 titles = [t.split(" [")[0] for t in titles_with_sources]
 

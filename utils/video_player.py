@@ -415,21 +415,6 @@ def _ipc_event_loop(
         # Fallback to legacy if socket connection fails
         return _play_video_legacy("", debug=False)
 
-    # Enable position monitoring for skip functionality
-    skip_intervals = episode_context.get("skip_intervals", [])
-    processed_intervals = set()  # Track which intervals have been skipped
-    position_monitoring = len(skip_intervals) > 0
-
-    if position_monitoring:
-        try:
-            # Subscribe to time-pos property changes
-            request = {"command": ["observe_property", 1, "time-pos"]}
-            message = json.dumps(request) + "\n"
-            sock.sendall(message.encode("utf-8"))
-        except Exception as e:
-            print(f"Failed to enable position monitoring: {e}")
-            position_monitoring = False
-
     try:
         buffer = ""
         while mpv_process.poll() is None:  # While process is running
@@ -447,36 +432,6 @@ def _ipc_event_loop(
 
                     try:
                         msg = json.loads(line)
-
-                        # Handle position monitoring for skip intervals
-                        if position_monitoring and msg.get("event") == "property-change":
-                            if msg.get("name") == "time-pos":
-                                current_time = msg.get("data")
-                                if current_time is not None and isinstance(current_time, (int, float)):
-                                    # Check if we're in a skip interval
-                                    for interval in skip_intervals:
-                                        interval_id = id(interval)
-                                        # Skip if already processed
-                                        if interval_id in processed_intervals:
-                                            continue
-
-                                        # Check if current position is within skip zone
-                                        if interval.start <= current_time < interval.end:
-                                            # Trigger skip
-                                            try:
-                                                _send_mpv_command(sock, "seek", [str(interval.end), "absolute"])
-                                                _send_mpv_command(
-                                                    sock,
-                                                    "show-text",
-                                                    [f"⏩ Pulando {interval.type_label}...", "3000"],
-                                                )
-                                                processed_intervals.add(interval_id)
-                                                print(
-                                                    f"⏩ Pulando {interval.type_label}: {interval.start:.1f}s → {interval.end:.1f}s"
-                                                )
-                                            except Exception as e:
-                                                print(f"Failed to trigger skip: {e}")
-                                            break
 
                         if msg.get("event") == "client-message":
                             args = msg.get("args", [])
@@ -733,7 +688,6 @@ def play_episode(
     use_ipc: bool = True,
     debug: bool = False,
     anilist_id: int | None = None,
-    skip_intervals: list | None = None,
 ) -> VideoPlaybackResult:
     """Play a single episode with optional IPC support for episode navigation.
 
@@ -746,7 +700,6 @@ def play_episode(
         use_ipc: Enable IPC socket for keybinding events (default True)
         debug: Skip playback and return simulated result
         anilist_id: AniList ID for syncing progress (optional)
-        skip_intervals: List of SkipInterval objects for intro/outro skipping (optional)
 
     Returns:
         VideoPlaybackResult with exit code, action, and optional data
@@ -770,7 +723,6 @@ def play_episode(
         "source": source,
         "url": url,
         "anilist_id": anilist_id,
-        "skip_intervals": skip_intervals or [],
     }
 
     if not use_ipc:
