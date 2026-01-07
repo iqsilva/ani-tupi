@@ -276,6 +276,7 @@ def anilist_anime_flow(
     current_variant_idx = 0  # Track which variation we're currently using
     cache_data = None  # Track if we found the anime in cache
     source = None  # Track which source user selected
+    first_variant = title_variations[0] if title_variations else anime_title  # Store first for ranking
 
     while current_variant_idx < len(title_variations):
         variant = title_variations[current_variant_idx]
@@ -306,9 +307,11 @@ def anilist_anime_flow(
         # Get metadata from this search attempt
         search_metadata = rep.get_search_metadata()
         # Pass original_query for ranking results by relevance
+        # Use first_variant (original normalized title) instead of used_query (which gets reduced)
+        # so that "Jujutsu Kaisen 0" stays ranked high even if search reduces to "jujutsu kaisen"
         used_query = search_metadata.used_query or variant
         titles_with_sources = rep.get_anime_titles_with_sources(
-            filter_by_query=variant, original_query=used_query
+            filter_by_query=variant, original_query=first_variant
         )
 
         if titles_with_sources:
@@ -459,9 +462,10 @@ def anilist_anime_flow(
 
                 search_metadata = rep.get_search_metadata()
                 # Pass original_query for ranking results by relevance
+                # Use first_variant (original normalized title) to keep "Jujutsu Kaisen 0" ranked high
                 used_query = search_metadata.used_query or variant
                 titles_with_sources = rep.get_anime_titles_with_sources(
-                    filter_by_query=variant, original_query=used_query
+                    filter_by_query=variant, original_query=first_variant
                 )
                 titles = [t.split(" [")[0] for t in titles_with_sources]
 
