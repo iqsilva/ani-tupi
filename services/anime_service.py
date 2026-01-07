@@ -1135,8 +1135,22 @@ def search_anime_flow(args):
             search_metadata = rep.get_search_metadata()
             used_query = search_metadata.used_query or query
 
-            # Filter by what was actually searched for, not the original query
-            titles_with_sources = rep.get_anime_titles_with_sources(filter_by_query=used_query)
+            # Try to get AniList match to rank results by romaji name
+            ranking_query = used_query
+            try:
+                from utils.anilist_discovery import auto_discover_anilist_id
+                anilist_results = auto_discover_anilist_id(used_query)
+                if anilist_results:
+                    # Use the best match's romaji name for ranking scraper results
+                    ranking_query = anilist_results[0].title
+            except Exception:
+                # If AniList lookup fails, fall back to ranking by search query
+                pass
+
+            # Filter by what was actually searched for, rank by AniList romaji if available
+            titles_with_sources = rep.get_anime_titles_with_sources(
+                filter_by_query=used_query, original_query=ranking_query
+            )
 
             # If no results, automatically try with fewer words
             if not titles_with_sources:
