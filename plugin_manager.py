@@ -34,11 +34,12 @@ def load_plugin_preferences() -> "PluginPreferences":
         return PluginPreferences()
 
 
-def save_plugin_preferences(disabled_plugins: list[str]) -> None:
+def save_plugin_preferences(disabled_plugins: list[str], priority_order: list[str] | None = None) -> None:
     """Save plugin preferences to JSON file.
 
     Args:
         disabled_plugins: List of plugin names to disable (e.g., ["animesonlinecc"])
+        priority_order: Optional list of plugin names in priority order (first = highest priority)
     """
     prefs_file = settings.plugins.preferences_file
     try:
@@ -46,6 +47,8 @@ def save_plugin_preferences(disabled_plugins: list[str]) -> None:
         prefs_file.parent.mkdir(parents=True, exist_ok=True)
 
         data = {"disabled_plugins": disabled_plugins}
+        if priority_order:
+            data["priority_order"] = priority_order
         with prefs_file.open("w") as f:
             dump(data, f, indent=2)
     except Exception as e:
@@ -146,3 +149,48 @@ def get_enabled_plugins() -> list[str]:
     # Filter out disabled ones
     enabled = [p for p in all_plugins if p not in disabled_plugins]
     return enabled
+
+
+def get_plugin_priority_order() -> list[str]:
+    """Get plugin priority order from preferences.
+
+    Returns:
+        List of plugin names in priority order (first = highest priority)
+        If not configured, returns empty list to use default ordering
+    """
+    prefs_file = settings.plugins.preferences_file
+    try:
+        if prefs_file.exists():
+            with prefs_file.open() as f:
+                data = load(f)
+                return data.get("priority_order", [])
+    except Exception:
+        pass
+    return []
+
+
+def set_plugin_priority_order(priority_order: list[str]) -> None:
+    """Set plugin priority order in preferences.
+
+    Args:
+        priority_order: List of plugin names in priority order (first = highest priority)
+    """
+    prefs_file = settings.plugins.preferences_file
+    try:
+        # Ensure directory exists
+        prefs_file.parent.mkdir(parents=True, exist_ok=True)
+
+        # Load existing preferences
+        data = {}
+        if prefs_file.exists():
+            with prefs_file.open() as f:
+                data = load(f)
+
+        # Update priority order
+        data["priority_order"] = priority_order
+
+        # Save updated preferences
+        with prefs_file.open("w") as f:
+            dump(data, f, indent=2)
+    except Exception as e:
+        print(f"⚠️  Erro ao salvar ordem de prioridade: {e}")

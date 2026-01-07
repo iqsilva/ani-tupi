@@ -250,7 +250,7 @@ class Repository:
         return text
 
     def _search_with_incremental_results(self, query: str, verbose: bool = True) -> None:
-        """Search anime with incremental results."""
+        """Search anime with incremental results respecting configured priority order."""
         from concurrent.futures import ThreadPoolExecutor, wait, ALL_COMPLETED
 
         if verbose:
@@ -265,6 +265,22 @@ class Repository:
         try:
             # Get a snapshot of sources to avoid race conditions
             sources_list = list(self.sources.items())
+
+            # Apply priority order from settings (agnóstico a nomes específicos)
+            priority_order = settings.plugins.priority_order
+            if priority_order:
+                # Create a priority map based on configured order
+                priority_map = {name: idx for idx, name in enumerate(priority_order)}
+
+                # Sort sources: prioritized first, then others in alphabetical order
+                def sort_priority(item):
+                    source_name = item[0]
+                    return priority_map.get(source_name, len(priority_order))
+
+                sources_list.sort(key=sort_priority)
+            else:
+                # If no priority configured, use alphabetical ordering
+                sources_list.sort(key=lambda x: x[0])
 
             # Submit all search tasks
             future_to_source = {}
@@ -614,6 +630,7 @@ class Repository:
             nonlocal selected_urls, self, cache_key
             event = asyncio.Event()
             container = []
+            found_event = asyncio.Event()  # Signal when found in priority source
             loop = asyncio.get_running_loop()
 
             # Show which sources are being tried
@@ -622,93 +639,76 @@ class Repository:
                 print(f"   🔄 Tentando fontes: {', '.join(sources_list)}")
 
             # Wrapper to catch exceptions from plugins
-            def safe_plugin_call(plugin_func, url, source):
+            def safe_plugin_call(plugin_func, url, source, is_priority=False):
                 try:
                     plugin_func(url, container, event)
                     if container:  # Only print if this source succeeded
                         print(f"   ✅ Vídeo encontrado em: {source}")
+                        # Signal priority source found to cancel other tasks
+                        if is_priority:
+                            found_event.set()
                 except Exception as e:
                     # Extract just the first line of error (avoid huge stack traces)
                     error_msg = str(e).split("\n")[0]
                     print(f"   ❌ {source} falhou: {error_msg[:80]}")
                     # Don't re-raise - let other sources try
 
-            # PRIORIDADE: Separar AnimeFiree das outras fontes
-            animefire_urls = [
-                (url, source) for url, source in selected_urls if source == "animefire"
-            ]
-            other_urls = [(url, source) for url, source in selected_urls if source != "animefire"]
+            # Organize URLs by source following priority order
+            priority_order = settings.plugins.priority_order or []
+            priority_map = {name: idx for idx, name in enumerate(priority_order)}
+
+            # Group URLs by source
+            sources_urls = defaultdict(list)
+            for url, source in selected_urls:
+                sources_urls[source].append((url, source))
+
+            # Sort sources by priority
+            sorted_sources = sorted(
+                sources_urls.keys(),
+                key=lambda s: priority_map.get(s, len(priority_order))
+            )
 
             with ThreadPoolExecutor(max_workers=cpu_count()) as executor:
-                # Se AnimeFiree está disponível, tentar primeiro
-                if animefire_urls:
-                    animefire_tasks = [
-                        loop.run_in_executor(
-                            executor,
-                            safe_plugin_call,
-                            self.sources[source].search_player_src,
-                            url,
-                            source,
-                        )
-                        for url, source in animefire_urls
-                    ]
-
-                    # Esperar por AnimeFiree (com timeout de 15s)
-                    try:
-                        _done, _pending = await asyncio.wait(
-                            animefire_tasks, return_when=asyncio.FIRST_COMPLETED, timeout=15
-                        )
-                    except asyncio.TimeoutError:
-                        _pending = set(animefire_tasks)
-
-                    # Se AnimeFiree encontrou, retornar imediatamente
+                # Try sources in configured priority order
+                for source_name in sorted_sources:
                     if container:
-                        return container[0]
+                        # Already found a video, stop searching
+                        break
 
-                    # Se AnimeFiree falhou, tentar outras fontes
-                    if other_urls:
-                        other_tasks = [
-                            loop.run_in_executor(
-                                executor,
-                                safe_plugin_call,
-                                self.sources[source].search_player_src,
-                                url,
-                                source,
-                            )
-                            for url, source in other_urls
-                        ]
-                        _done, _pending = await asyncio.wait(
-                            other_tasks, return_when=asyncio.FIRST_COMPLETED
-                        )
+                    source_urls = sources_urls[source_name]
+                    is_priority = (priority_map.get(source_name, len(priority_order)) < len(priority_order))
 
-                        # Se container is empty after first task, wait for remaining tasks
-                        while not container and _pending:
-                            _done, _pending = await asyncio.wait(
-                                _pending, return_when=asyncio.FIRST_COMPLETED
-                            )
-
-                else:
-                    # Se AnimeFiree não está disponível, race todas as fontes normalmente
-                    tasks = [
+                    # Create tasks for this source
+                    source_tasks = [
                         loop.run_in_executor(
                             executor,
                             safe_plugin_call,
                             self.sources[source].search_player_src,
                             url,
                             source,
+                            is_priority,
                         )
-                        for url, source in selected_urls
+                        for url, source in source_urls
                     ]
 
-                    # Wait for all tasks to complete (any task that finds a URL will set event)
-                    # Continue until all tasks finish or one succeeds
-                    _done, _pending = await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
+                    # Wait for this source (with timeout for high-priority sources)
+                    timeout = 15 if is_priority else None
+                    pending = set(source_tasks)
 
-                    # If container is empty after first task, wait for remaining tasks
-                    while not container and _pending:
-                        _done, _pending = await asyncio.wait(
-                            _pending, return_when=asyncio.FIRST_COMPLETED
-                        )
+                    while pending and not container:
+                        try:
+                            done, pending = await asyncio.wait(
+                                pending,
+                                return_when=asyncio.FIRST_COMPLETED,
+                                timeout=timeout
+                            )
+                        except asyncio.TimeoutError:
+                            # Timeout reached, stop waiting for this source
+                            break
+
+                        # If found a video, break immediately
+                        if container:
+                            break
 
                 # Get video URL if found, otherwise return None
                 video_url = container[0] if container else None

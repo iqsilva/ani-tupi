@@ -75,6 +75,11 @@ class AnimesDigital(PluginInterface):
                     episode_urls.append(href)
                     episode_titles.append(title)
 
+        # Reverse episode lists because AnimesDigital lists episodes in descending order
+        # (last episode first, episode 1 last). We need ascending order for proper navigation.
+        episode_titles.reverse()
+        episode_urls.reverse()
+
         # Add episodes to repository
         rep.add_episode_list(anime, episode_titles, episode_urls, AnimesDigital.name)
 

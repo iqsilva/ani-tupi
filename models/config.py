@@ -110,6 +110,10 @@ class PluginSettings(BaseModel):
         default_factory=list,
         description="List of disabled plugin names (e.g., ['animesonlinecc'])",
     )
+    priority_order: list[str] = Field(
+        default_factory=lambda: ["animesdigital", "animefire", "animesonlinecc"],
+        description="Priority order for scraper sources (first = highest priority)",
+    )
 
 
 class MangaSettings(BaseModel):

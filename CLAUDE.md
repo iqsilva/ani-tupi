@@ -459,3 +459,48 @@ uv run ani-tupi --clear-cache "dandadan"  # This fails
 ~/.local/state/ani-tupi/plugin_preferences.json
 # Set "animesdigital": false
 ```
+
+### Source Priority Order Configuration (2025-01-07)
+**Feature**: Configurable, agnóstic source priority order for scraper sources when searching for anime and videos.
+
+**Implementation**: Refactored `services/repository.py` and `models/config.py`:
+
+**Configuration** (`models/config.py`, PluginSettings):
+```python
+priority_order: list[str] = Field(
+    default_factory=lambda: ["animesdigital", "animefire", "animesonlinecc"],
+    description="Priority order for scraper sources (first = highest priority)",
+)
+```
+
+**Usage** (`services/repository.py`):
+- **Anime Search** (`_search_with_incremental_results()`): Lines 269-283
+  - Reads priority from `settings.plugins.priority_order`
+  - Sorts sources dynamically without hardcoded names
+  - Respects configured order for all searches
+
+- **Video Search** (`search_player()`): Lines 656-719
+  - Organizes sources by priority order
+  - Tries highest-priority source first (with 15s timeout)
+  - Returns immediately when any source succeeds
+  - Falls back to next priority level if current source fails
+
+**How to Change Priority**:
+
+**Option 1: Environment Variable**
+```bash
+export ANI_TUPI__PLUGINS__PRIORITY_ORDER='["animefire","animesdigital","animesonlinecc"]'
+uv run ani-tupi --query "dandadan"
+```
+
+**Option 2: Direct Config in models/config.py**
+```python
+priority_order: list[str] = Field(
+    default_factory=lambda: ["animefire", "animesdigital", "animesonlinecc"],
+    # ... rest of config
+)
+```
+
+**Current Default Order**: `["animesdigital", "animefire", "animesonlinecc"]`
+
+**Status**: ✅ Implemented - Agnóstic priority system that works with any scraper names
