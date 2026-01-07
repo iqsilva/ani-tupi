@@ -94,15 +94,8 @@ class Repository:
                 for url, source, params in sources_list:
                     self.add_anime(anime_title, url, source, params)
 
-            # Still auto-discover IDs for cached results
-            if settings.cache.anilist_auto_discover:
-                from utils.anilist_discovery import auto_discover_anilist_id
-
-                for anime_title in self.anime_to_urls.keys():
-                    if anime_title not in self.anime_to_anilist_id:
-                        anilist_id = auto_discover_anilist_id(anime_title)
-                        if anilist_id:
-                            self.anime_to_anilist_id[anime_title] = anilist_id
+            # AniList IDs are discovered on-demand in search_player() if needed
+            # Avoid unnecessary API calls for cached results
 
             # Set search metadata for consistency
             self._last_search_metadata = {
@@ -153,15 +146,9 @@ class Repository:
                     f"ℹ️  0 resultados com '{partial_query}' ({num_words} palavras) → tentando com menos..."
                 )
 
-        # Auto-discover AniList IDs for search results (non-blocking)
-        if settings.cache.anilist_auto_discover:
-            from utils.anilist_discovery import auto_discover_anilist_id
-
-            for anime_title in self.anime_to_urls.keys():
-                if anime_title not in self.anime_to_anilist_id:
-                    anilist_id = auto_discover_anilist_id(anime_title)
-                    if anilist_id:
-                        self.anime_to_anilist_id[anime_title] = anilist_id
+        # Auto-discover AniList IDs only when needed (disabled for performance)
+        # AniList IDs are discovered on-demand in search_player() if cache.anilist_auto_discover is enabled
+        # Doing it for all search results here generates unnecessary API calls and logs
 
         # CACHE SAVE: Save search results to cache
         if len(self.anime_to_urls) > 0:
@@ -598,8 +585,6 @@ class Repository:
         Assumes all episode lists are the same size.
         Plugin devs should guarantee that OVAs are not considered.
         """
-        from utils.anilist_discovery import auto_discover_anilist_id
-
         selected_urls = []
         for urls, source in self.anime_episodes_urls[anime]:
             if len(urls) >= episode_num:
@@ -615,12 +600,8 @@ class Repository:
                 print(f"   ❌ Nenhuma fonte ativa para buscar episódio {episode_num}.")
             return None
 
-        # Get or discover anilist_id for cache key
+        # Get anilist_id for cache key (if already discovered)
         anilist_id = self.anime_to_anilist_id.get(anime)
-        if anilist_id is None and settings.cache.anilist_auto_discover:
-            anilist_id = auto_discover_anilist_id(anime)
-            if anilist_id:
-                self.anime_to_anilist_id[anime] = anilist_id
 
         # Use anilist_id if available, fallback to anime title
         cache_key = anilist_id if anilist_id else anime
