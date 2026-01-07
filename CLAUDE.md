@@ -643,4 +643,24 @@ priority_order: list[str] = Field(
 **Before**: "Jujutsu Kaisen 2 Dublado" ranked at position 7-9
 **After**: "Jujutsu Kaisen 2" ranks at position 3, "Jujutsu Kaisen 2 Dublado" at position 8 (as expected)
 
-**Status**: ✅ Fixed - Search results now rank by relevance to actual query
+**Status**: ✅ Fixed (v1) - Search results now rank by relevance to actual query
+
+### AniList Search Result Ranking - Progressive Search Follow-up (2025-01-07)
+
+**Issue**: After the initial fix, a new issue emerged: when searching "Jujutsu Kaisen 0" and the progressive search fell back to "jujutsu kaisen" (fewer words), the ranking changed and "Jujutsu Kaisen 0" would drop from 1st to 2nd place, behind the generic "Jujutsu Kaisen".
+
+**Root Cause**: The ranking was using `used_query` which gets progressively reduced by the search system. So when searching "jujutsu kaisen 0" found no results and fell back to "jujutsu kaisen", the ranking algorithm would use "jujutsu kaisen" (without the "0"), losing the original search intent.
+
+**Solution**: Use the **first normalized variant** (the most specific version) for ranking across all progressive search attempts. This preserves the user's original intent.
+
+**Files Changed**:
+- `services/anime_service.py` line 279: Store `first_variant = normalize_anime_title(anime_title)[0]`
+- Line 314: Changed from `original_query=used_query` to `original_query=first_variant`
+- Line 468: Same change for "Continue searching" flow
+
+**Example**:
+- Search "Jujutsu Kaisen 0" → first_variant = "jujutsu kaisen 0"
+- If full query returns nothing, falls back to "jujutsu kaisen"
+- But ranking still uses "jujutsu kaisen 0" → "Jujutsu Kaisen 0" stays at #1
+
+**Status**: ✅ Fixed (v2) - Search intent preserved across progressive fallbacks
