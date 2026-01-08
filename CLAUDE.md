@@ -780,3 +780,27 @@ AttributeError: 'ScraperCacheData' object has no attribute 'get'
 - `services/repository.py` lines 507-526: Added type detection and dual-mode access
 
 **Status**: ✅ Fixed (v6) - Cache loading handles both models and dicts
+
+### AnimesDigital Missing Episodes with ?odr=1 Parameter (2025-01-07)
+
+**Issue**: AnimesDigital has animes in multiple versions (dublada/legendada) with different episode counts:
+- Without `?odr=1`: Legendada shows 19 eps, Dublada shows 22 eps
+- The system would pick Dublada because it had more episodes visible
+- But with `?odr=1` parameter, both show all 24 episodes
+
+**Root Cause**: AnimesDigital has a button "ordenar" (sort/order) that adds `?odr=1` parameter to show all episodes. Without this parameter, the HTML doesn't fully render all episode divs.
+
+**Solution**: Automatically add `?odr=1` parameter to all anime URLs in the `search_episodes()` function:
+1. If URL already has query params: add `&odr=1`
+2. If URL has no params: add `?odr=1`
+3. If URL already has `odr=`: don't add again
+
+**Files Changed**:
+- `scrapers/plugins/animesdigital.py` lines 58-73: Added parameter handling in `search_episodes()`
+- Also prioritize subtitled versions over dubbed (lines 43-56)
+
+**Example**:
+- `https://animesdigital.org/anime/a/tougen-anki` → `https://animesdigital.org/anime/a/tougen-anki?odr=1`
+- Result: 24 episodes instead of 19
+
+**Status**: ✅ Fixed (v7) - AnimesDigital shows all episodes with ?odr=1 parameter

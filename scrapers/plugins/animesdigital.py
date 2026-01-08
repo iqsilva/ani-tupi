@@ -18,6 +18,7 @@ class AnimesDigital(PluginInterface):
         """Search for anime on AnimesDigital.
 
         Constructs search URL and extracts anime titles and links.
+        Prioritizes subtitled versions over dubbed versions when both exist.
         """
         url = "https://animesdigital.org/search/" + "+".join(query.split())
         html_content = requests.get(url, timeout=REQUEST_TIMEOUT)
@@ -39,18 +40,37 @@ class AnimesDigital(PluginInterface):
                 urls.append(href)
                 titles.append(title)
 
-        # Add anime to repository
-        for title, url in zip(titles, urls):
+        # Prioritize subtitled versions over dubbed versions
+        # Dubbed versions have "Dublado" in title, subtitled are without it
+        # Sort so subtitled (no "Dublado") comes before dubbed ones
+        titled_urls = list(zip(titles, urls))
+        titled_urls.sort(
+            key=lambda x: (
+                "dublado" in x[0].lower(),  # False (0) for subtitled, True (1) for dubbed
+                x[0]  # Then by title alphabetically
+            )
+        )
+
+        # Add anime to repository in priority order
+        for title, url in titled_urls:
             rep.add_anime(title, url, AnimesDigital.name)
 
     @staticmethod
     def search_episodes(anime, url, params) -> None:
         """Fetch episode list from anime page.
 
+        Ensures all episodes are displayed by adding ?odr=1 parameter.
         Extracts episodes from the detail page using div.item_ep selector.
         Filters out special episodes (fractionated like 13.5) to avoid duplicates.
         """
         import re
+
+        # Ensure ?odr=1 parameter is present to show all episodes
+        if "?" in url:
+            if "odr=" not in url:
+                url = url + "&odr=1"
+        else:
+            url = url + "?odr=1"
 
         html_content = requests.get(url, timeout=REQUEST_TIMEOUT)
         tree = HTMLParser(html_content.text)
