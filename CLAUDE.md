@@ -761,3 +761,22 @@ Now the numeric boost/penalty in ranking can work properly even when AniList use
 5. User can switch source and watch episode 23
 
 **Status**: ✅ Fixed (v5) - Sequel offer respects actual series episode count
+
+### Cache Loading Type Mismatch (2025-01-07)
+
+**Issue**: When loading cached anime data (e.g., when continuing to watch previously played anime), the application crashed with:
+```
+AttributeError: 'ScraperCacheData' object has no attribute 'get'
+```
+
+**Root Cause**: The `load_from_cache()` method in `services/repository.py` was calling `.get()` as if the `cache_data` parameter was a dictionary, but it was receiving a Pydantic `ScraperCacheData` model object from `get_cache()`.
+
+**Solution**: Updated `load_from_cache()` to handle both Pydantic models and dictionaries:
+1. Check if the object has an `episode_urls` attribute (Pydantic model)
+2. If yes: access directly as attributes
+3. If no: treat as dictionary and use `.get()`
+
+**Files Changed**:
+- `services/repository.py` lines 507-526: Added type detection and dual-mode access
+
+**Status**: ✅ Fixed (v6) - Cache loading handles both models and dicts

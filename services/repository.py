@@ -504,7 +504,7 @@ class Repository:
         episode_list = sorted(episodes, key=lambda title_list: len(title_list))[-1]
         return episode_list
 
-    def load_from_cache(self, anime: str, cache_data: dict) -> None:
+    def load_from_cache(self, anime: str, cache_data) -> None:
         """Populate repository from cached data.
 
         Cache-first approach: When anime is found in cache, load its data
@@ -512,12 +512,18 @@ class Repository:
 
         Args:
             anime: Anime title
-            cache_data: Dict with keys 'episode_urls' and 'episode_count'
+            cache_data: ScraperCacheData model or dict with keys 'episode_urls' and 'episode_count'
         """
         if not cache_data:
             return
 
-        episode_urls = cache_data.get("episode_urls", [])
+        # Handle both Pydantic models and dicts
+        if hasattr(cache_data, 'episode_urls'):
+            # It's a Pydantic model
+            episode_urls = cache_data.episode_urls
+        else:
+            # It's a dict
+            episode_urls = cache_data.get("episode_urls", [])
         if not episode_urls:
             return
 
