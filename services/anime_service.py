@@ -744,7 +744,9 @@ def anilist_anime_flow(
                         print("⚠️  Não foi possível salvar no AniList (continuando...)")
 
             # Check if there's a next episode
-            next_episode_idx = episode_idx + 1
+            # Use current_episode (from IPC context) instead of episode_idx
+            # because episode_idx may be stale if Shift+N/P was used to load episodes
+            next_episode_idx = current_episode  # current_episode is 1-indexed
             if next_episode_idx < num_episodes:
                 # Move to next episode
                 episode_idx = next_episode_idx
