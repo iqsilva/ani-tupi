@@ -701,6 +701,14 @@ def anilist_anime_flow(
                             return  # Sequel started, exit this flow
                     continue  # Loop to play next episode
             # Fall through to menu if no next episode data
+        elif result.action == "quit":
+            # User quit (may have used Shift+N/P to load different episode before quitting)
+            # Sync episode_idx with the final episode number from IPC context
+            if result.data and "episode" in result.data:
+                final_episode = result.data["episode"]
+                if final_episode >= 1 and final_episode <= num_episodes:
+                    episode_idx = final_episode - 1
+                    episode = final_episode
         elif result.action == "auto-next":
             # Auto-play active and user pressed 'q' - already marked as watched in IPC handler
             # Sync with AniList and move to next episode

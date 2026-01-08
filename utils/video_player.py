@@ -673,7 +673,10 @@ def _ipc_event_loop(
             )
 
         # Normal quit (auto-play disabled or error exit)
-        return VideoPlaybackResult(exit_code=exit_code, action="quit", data=None)
+        # Return the final episode_number so anime_service can sync episode_idx
+        # This is important when Shift+N was used to load a different episode
+        final_episode = episode_context.get("episode_number", 1)
+        return VideoPlaybackResult(exit_code=exit_code, action="quit", data={"episode": final_episode})
 
     finally:
         try:
