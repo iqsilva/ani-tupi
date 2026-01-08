@@ -729,3 +729,35 @@ priority_order: list[str] = Field(
 Now the numeric boost/penalty in ranking can work properly even when AniList uses different season formats.
 
 **Status**: ✅ Fixed (v4) - Season numbers preserved in normalization
+
+### Sequel Offer After Incomplete Source (2025-01-07)
+
+**Issue**: When watching anime from a source with fewer episodes (e.g., "Tougen Anki Dublado" with 22 episodes), finishing the last available episode would incorrectly offer the sequel, even though more episodes exist on other sources (e.g., 23+ episodes on AnimesDigital subtitled version).
+
+**Example**:
+- Tougen Anki Dublado (AnimesDigital): 22 episodes
+- Tougen Anki (other sources): 23+ episodes
+- User finishes episode 22 → System offers sequel (WRONG - episode 23 not watched yet)
+
+**Root Cause**: The sequel offer logic only checked if the user reached the current scraper's episode limit (`next_episode == num_episodes`), not AniList's actual episode count.
+
+**Solution**: Before offering sequel, fetch AniList episode count and compare:
+1. If `current_episode < anilist_episodes`: Don't offer sequel, show message that more episodes are available
+2. If `current_episode >= anilist_episodes`: Offer sequel (user actually finished)
+3. If `anilist_episodes` is None: Fallback to old behavior (offer sequel)
+
+**Files Changed**:
+- `services/anime_service.py` line 171: Updated `offer_sequel_and_continue()` signature to accept episode counts
+- Lines 194-198: Added check to prevent sequel offer when more episodes available
+- Lines 693-700: Get AniList episode count before offering sequel (Shift+N path)
+- Lines 756-763: Get AniList episode count before offering sequel (auto-next path)
+- Lines 852-859: Get AniList episode count before offering sequel (menu path)
+
+**How It Works**:
+1. User finishes episode 22 of "Tougen Anki Dublado"
+2. System gets AniList info: 23 episodes total
+3. Compares: 22 < 23 → Don't offer sequel
+4. Shows: "💡 Existem mais 1 episódio(s) disponível(is) em outras fontes."
+5. User can switch source and watch episode 23
+
+**Status**: ✅ Fixed (v5) - Sequel offer respects actual series episode count

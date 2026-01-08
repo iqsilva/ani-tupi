@@ -168,7 +168,7 @@ try:
                 if selector == "iframe":
                     print(f"    First: src='{src}'")
                 else:
-                    print(f"    First element found")
+                    print("    First element found")
 
     # Test 2: Source tags in video
     print("\n[2] Looking for video sources:")
@@ -195,7 +195,7 @@ try:
     for script in scripts:
         text = script.text()
         if "http" in text and ("mp4" in text.lower() or "m3u8" in text.lower()):
-            print(f"  ✓ Found script with video reference")
+            print("  ✓ Found script with video reference")
             # Show snippet
             lines = text.split("\n")
             for line in lines:

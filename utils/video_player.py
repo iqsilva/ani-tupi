@@ -63,6 +63,7 @@ def play_video(url: str, debug=False, ytdl_format: str | None = None) -> int:
     # Generate custom ani-tupi keybindings
     input_conf_path, _ = _generate_input_conf()
 
+    player = None
     try:
         # Create MPV instance with current settings
         player = mpv.MPV(
@@ -107,7 +108,8 @@ def play_video(url: str, debug=False, ytdl_format: str | None = None) -> int:
     finally:
         # Clean up player instance
         try:
-            player.terminate()
+            if player is not None:
+                player.terminate()
         except:  # noqa: E722
             pass
 
@@ -299,7 +301,6 @@ def _launch_mpv_with_ipc(
 
     try:
         import os
-        import logging
 
         # Enable detailed logging for debugging
         debug_mode = os.environ.get("ANI_TUPI_DEBUG_MPV") == "1"
@@ -448,6 +449,9 @@ def _ipc_event_loop(
                                     source = episode_context.get("source")
                                     anilist_id = episode_context.get("anilist_id")
 
+                                    if not anime_title:
+                                        continue
+
                                     # Save current episode as watched (0-indexed)
                                     episode_idx = episode_number - 1
                                     save_history_from_event(
@@ -506,6 +510,9 @@ def _ipc_event_loop(
 
                                     anime_title = episode_context.get("anime_title")
                                     episode_number = episode_context.get("episode_number", 1)
+
+                                    if not anime_title:
+                                        continue
 
                                     # Get previous episode URL
                                     prev_episode_number = max(1, episode_number - 1)
@@ -629,10 +636,10 @@ def _ipc_event_loop(
                         print(f"   ❌ {error_line.strip()[:100]}")
                 # Special message for Blogger 400 errors
                 if "400" in stderr_output:
-                    print(f"\n   ℹ️  AnimesonlineCC: Token expirado (URLs temporárias)")
-                    print(f"   💡 Solução: Use AnimeFire ou AnimesDigital (sem expiration)")
-                    print(f"   Modifique: export ANI_TUPI__PLUGINS__PRIORITY_ORDER='[\"animesdigital\", \"animefire\"]'")
-            print(f"   Tente ativar debug: ANI_TUPI_DEBUG_MPV=1 uv run ani-tupi")
+                    print("\n   ℹ️  AnimesonlineCC: Token expirado (URLs temporárias)")
+                    print("   💡 Solução: Use AnimeFire ou AnimesDigital (sem expiration)")
+                    print("   Modifique: export ANI_TUPI__PLUGINS__PRIORITY_ORDER='[\"animesdigital\", \"animefire\"]'")
+            print("   Tente ativar debug: ANI_TUPI_DEBUG_MPV=1 uv run ani-tupi")
 
         # Check if auto-play is enabled (declared at function level)
         if _autoplay_enabled and exit_code == 0:
@@ -644,15 +651,16 @@ def _ipc_event_loop(
             source = episode_context.get("source")
             anilist_id = episode_context.get("anilist_id")
 
-            # Save current episode as watched (0-indexed)
-            episode_idx = episode_number - 1
-            save_history_from_event(
-                anime_title=anime_title,
-                episode_idx=episode_idx,
-                action="watched",
-                source=source,
-                anilist_id=anilist_id,
-            )
+            if anime_title:
+                # Save current episode as watched (0-indexed)
+                episode_idx = episode_number - 1
+                save_history_from_event(
+                    anime_title=anime_title,
+                    episode_idx=episode_idx,
+                    action="watched",
+                    source=source,
+                    anilist_id=anilist_id,
+                )
 
             # Print terminal feedback
             print(f"▶️  Auto-play ativo: marcando Episódio {episode_number} como assistido")

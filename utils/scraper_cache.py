@@ -12,9 +12,10 @@ from utils.cache_manager import (
     clear_cache_by_prefix,
 )
 from utils.anilist_discovery import auto_discover_anilist_id
+from models.models import ScraperCacheData
 
 
-def get_cache(anime_title: str) -> "ScraperCacheData | None":
+def get_cache(anime_title: str) -> ScraperCacheData | None:
     """Get cached scraper data for an anime (backward compatibility wrapper).
 
     Args:
@@ -24,7 +25,6 @@ def get_cache(anime_title: str) -> "ScraperCacheData | None":
         ScraperCacheData with episode_urls and episode_count or None if not found
 
     """
-    from models.models import ScraperCacheData
 
     try:
         # Try to discover AniList ID for better cache lookup
@@ -36,7 +36,8 @@ def get_cache(anime_title: str) -> "ScraperCacheData | None":
             cache_key = f"episodes:{anime_title}"
 
         # Get from new cache system
-        cached_urls = _get_diskcache(cache_key)
+        cache_obj = _get_diskcache()
+        cached_urls = cache_obj.get(cache_key)
 
         if cached_urls:
             return ScraperCacheData(

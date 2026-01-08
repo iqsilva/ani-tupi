@@ -27,7 +27,7 @@ for query in queries:
     repo.search_anime(query, verbose=True)
 
     # Show results
-    print(f"\nResults:")
+    print("\nResults:")
     titles = list(repo.anime_to_urls.keys())
     print(f"  Total titles: {len(titles)}")
 
@@ -37,14 +37,14 @@ for query in queries:
         for url, source, params in repo.anime_to_urls[title]:
             sources_count[source] = sources_count.get(source, 0) + 1
 
-    print(f"  By source:")
+    print("  By source:")
     for source in ['animesdigital', 'animefire', 'animesonlinecc']:
         count = sources_count.get(source, 0)
         print(f"    {source}: {count}")
 
     # Check metadata
     metadata = repo.get_search_metadata()
-    print(f"\nSearch metadata:")
+    print("\nSearch metadata:")
     print(f"  original_query: {metadata.original_query}")
     print(f"  used_query: {metadata.used_query}")
     print(f"  used_words: {metadata.used_words}")

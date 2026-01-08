@@ -11,18 +11,17 @@ Used by: cli.py, main.py
 from json import dump, load
 
 from models.config import settings
+from models.models import PluginPreferences
 from services.repository import rep
 from ui.components import menu_navigate
 
 
-def load_plugin_preferences() -> "PluginPreferences":
+def load_plugin_preferences() -> PluginPreferences:
     """Load plugin preferences from JSON file.
 
     Returns:
         PluginPreferences with disabled_plugins list
     """
-    from models.models import PluginPreferences
-
     prefs_file = settings.plugins.preferences_file
     try:
         if prefs_file.exists():

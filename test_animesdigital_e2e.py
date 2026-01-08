@@ -55,7 +55,7 @@ if ad_animes:
         print(f"  [{i+1}] {ep}")
 
     # Step 4: Get video URL
-    print(f"\n[4/4] Extracting video URL...")
+    print("\n[4/4] Extracting video URL...")
     result = rep.get_episode_url_and_source(test_anime, 1)
     if result:
         video_url, source = result

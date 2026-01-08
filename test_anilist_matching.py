@@ -14,7 +14,7 @@ print("TEST 1: Busca simples")
 print("="*60)
 repo.clear_search_results()
 AnimesDigital.search_anime("jujutsu kaisen")
-print(f"Query: 'jujutsu kaisen'")
+print("Query: 'jujutsu kaisen'")
 print(f"Resultados: {len(repo.anime_to_urls)}")
 for title in list(repo.anime_to_urls.keys())[:3]:
     print(f"  - {title}")

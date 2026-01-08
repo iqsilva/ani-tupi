@@ -87,12 +87,13 @@ def install_as_cli() -> bool:
         return False
 
     # Adiciona ao GITHUB_PATH se estiver no GitHub Actions
-    if os.getenv("GITHUB_PATH"):
+    github_path = os.getenv("GITHUB_PATH")
+    if github_path:
         tool_bin = Path.home() / ".local" / "bin"
         if platform.system() == "Windows":
             tool_bin = Path.home() / ".local" / "bin"  # UV tool bin no Windows
 
-        with open(os.getenv("GITHUB_PATH"), "a") as f:
+        with open(github_path, "a") as f:
             f.write(f"{tool_bin}\n")
 
     return True
@@ -103,11 +104,11 @@ def show_path_info() -> None:
     system = platform.system()
 
     if system == "Windows":
-        Path.home() / ".cargo" / "bin"
+        bin_path = Path.home() / ".cargo" / "bin"
     else:
-        Path.home() / ".local" / "bin"
+        bin_path = Path.home() / ".local" / "bin"
 
-        "~/.bashrc" if Path.home() / ".bashrc" else "~/.zshrc"
+    shell_rc = "~/.bashrc" if (Path.home() / ".bashrc").exists() else "~/.zshrc"
 
 
 def main() -> None:

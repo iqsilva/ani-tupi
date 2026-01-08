@@ -19,12 +19,12 @@ cached = dc.get(cache_key)
 if cached:
     print(f"✓ Cache HIT for '{cache_key}'")
     print(f"  Cached anime count: {len(cached)}")
-    print(f"  Cached anime (first 5):")
+    print("  Cached anime (first 5):")
     for title in list(cached.keys())[:5]:
         sources = [s for _, s, _ in cached[title]]
         print(f"    - {title} ({','.join(sources)})")
 
-    print(f"\n  Does cache have AnimesDigital? ", end="")
+    print("\n  Does cache have AnimesDigital? ", end="")
     has_ad = any(any(s == "animesdigital" for _, s, _ in sources_list)
                   for sources_list in cached.values())
     print("YES ✓" if has_ad else "NO ✗")
@@ -45,7 +45,7 @@ repo = Repository()
 load_plugins({'pt-br'})
 
 print(f"\nLoaded plugins: {repo.get_active_sources()}")
-print(f"Searching for 'jujutsu kaisen'...")
+print("Searching for 'jujutsu kaisen'...")
 
 repo.search_anime("jujutsu kaisen", verbose=False)
 
@@ -55,8 +55,8 @@ for title in titles:
     for url, source, params in repo.anime_to_urls[title]:
         sources_count[source] = sources_count.get(source, 0) + 1
 
-print(f"\nResults:")
+print("\nResults:")
 print(f"  Total: {len(titles)} anime")
-print(f"  By source:")
+print("  By source:")
 for source in sorted(sources_count.keys()):
     print(f"    {source}: {sources_count[source]}")

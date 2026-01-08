@@ -97,7 +97,7 @@ if episode_titles:
             AnimesDigital.search_player_src(test_episode_url, container, event)
 
             if container:
-                print(f"✓ Video URL found:")
+                print("✓ Video URL found:")
                 print(f"  {container[0]}")
             else:
                 print("✗ No video URL extracted")

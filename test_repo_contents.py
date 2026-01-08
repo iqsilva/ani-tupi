@@ -43,12 +43,12 @@ for title in rep.anime_to_urls.keys():
             ad_results.append(title)
             break
 
-print(f"\nAnimesDigital titles found:")
+print("\nAnimesDigital titles found:")
 if ad_results:
     for title in ad_results:
         print(f"  - {title}")
 else:
-    print(f"  (None found!)")
+    print("  (None found!)")
 
 # Compare with direct plugin search
 print("\n" + "="*60)

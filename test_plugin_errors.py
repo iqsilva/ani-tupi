@@ -3,7 +3,6 @@
 Check if AnimesDigital is throwing errors during search.
 """
 
-import sys
 import traceback
 from scrapers.plugins.animesdigital import AnimesDigital
 from services.repository import Repository
@@ -25,12 +24,12 @@ try:
         s == "animesdigital" for _, s, _ in repo.anime_to_urls[t]
     )]
 
-    print(f"\nResults added to repository:")
+    print("\nResults added to repository:")
     print(f"  Count: {len(titles)}")
     for title in titles:
         print(f"  - {title}")
 
 except Exception as e:
-    print(f"✗ Exception thrown!")
+    print("✗ Exception thrown!")
     print(f"\nError: {e}")
     traceback.print_exc()

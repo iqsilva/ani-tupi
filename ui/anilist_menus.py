@@ -301,6 +301,9 @@ def _show_anime_list(list_type: str) -> tuple[str, int] | None:
                 media = item
                 progress = 0
 
+            if not media:
+                continue
+
             # Format title for display (bilingual)
             display_title = anilist_client.format_title(media.title)
 
@@ -416,7 +419,7 @@ def _show_recent_history() -> None:
                     # Get official AniList name
                     anime_info = anilist_client.get_anime_by_id(anilist_id)
                     if anime_info:
-                        display_name = anilist_client.format_title(anime_info["title"])
+                        display_name = anilist_client.format_title(anime_info.title)
 
                     # Mark this anilist_id as seen
                     seen_anilist_ids[anilist_id] = True

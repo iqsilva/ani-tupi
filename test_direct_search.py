@@ -20,7 +20,7 @@ for query in queries:
     rep.clear_search_results()
 
     # Search
-    print(f"Buscando...")
+    print("Buscando...")
     rep.search_anime(query, verbose=False)
 
     # Get results
@@ -39,6 +39,6 @@ for query in queries:
             for url, source, params in rep.anime_to_urls[title]:
                 sources_count[source] = sources_count.get(source, 0) + 1
 
-        print(f"\nPor fonte:")
+        print("\nPor fonte:")
         for source, count in sorted(sources_count.items(), key=lambda x: -x[1]):
             print(f"  {source}: {count}")

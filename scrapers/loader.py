@@ -62,7 +62,8 @@ def get_resource_path(relative_path):
     """Get the path to resources, whether running as script or executable."""
     if hasattr(sys, "_MEIPASS"):
         # PyInstaller executable
-        return join(sys._MEIPASS, relative_path)
+        meipass = getattr(sys, "_MEIPASS", "")
+        return join(meipass, relative_path)
     # Use directory where this file is located (works for both dev and installed)
     return join(dirname(abspath(__file__)), relative_path)
 

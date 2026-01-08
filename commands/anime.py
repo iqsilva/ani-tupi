@@ -34,7 +34,7 @@ def anime(args) -> None:
     if args.query or args.continue_watching:
         if args.continue_watching:
             selected_anime, episode_idx, anilist_id, anilist_title = load_history()
-            if any([selected_anime, episode_idx, anilist_id, anilist_title]) is None:
+            if not selected_anime or episode_idx is None:
                 raise Exception("Problema ao conseguir informacoes do anime.")
             # Episodes already loaded by load_history()
         else:
@@ -94,6 +94,7 @@ def anime(args) -> None:
                 print("⚠️  Não foi possível encontrar no AniList (continuando sem sincronização)")
 
     # Get episode list for playback
+    assert selected_anime is not None and episode_idx is not None, "selected_anime and episode_idx should be set"
     episode_list = rep.get_episode_list(selected_anime)
     num_episodes = len(episode_list)
 
@@ -207,9 +208,9 @@ def anime(args) -> None:
 
         # Episode navigation menu
         opts = []
-        if episode_idx < num_episodes - 1:
+        if episode_idx is not None and episode_idx < num_episodes - 1:
             opts.append("▶️  Próximo")
-        if episode_idx > 0:
+        if episode_idx is not None and episode_idx > 0:
             opts.append("◀️  Anterior")
         opts.append("🔁 Replay")
         opts.append("📋 Escolher outro episódio")

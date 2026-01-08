@@ -18,7 +18,7 @@ print(f"Searching for: '{query}'")
 
 # Call search_anime directly on plugin
 from scrapers.plugins.animesdigital import AnimesDigital
-print(f"\n1. Direct plugin call:")
+print("\n1. Direct plugin call:")
 repo.clear_search_results()
 AnimesDigital.search_anime(query)
 results = list(repo.anime_to_urls.keys())
@@ -27,7 +27,7 @@ for r in results[:3]:
     print(f"   - {r}")
 
 # Check anime_to_urls structure
-print(f"\n2. Repository data:")
+print("\n2. Repository data:")
 print(f"   anime_to_urls keys: {len(repo.anime_to_urls)}")
 for title, urls_and_sources in list(repo.anime_to_urls.items())[:3]:
     print(f"   - {title}")
@@ -35,6 +35,6 @@ for title, urls_and_sources in list(repo.anime_to_urls.items())[:3]:
         print(f"     source: {source}")
 
 # Check normalized titles
-print(f"\n3. Normalized titles:")
+print("\n3. Normalized titles:")
 for title, norm in list(repo.norm_titles.items())[:3]:
     print(f"   '{title}' -> '{norm}'")

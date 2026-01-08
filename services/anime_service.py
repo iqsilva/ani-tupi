@@ -168,12 +168,14 @@ def normalize_anime_title(title: str):
     return result
 
 
-def offer_sequel_and_continue(anilist_id: int, args) -> bool:
+def offer_sequel_and_continue(anilist_id: int, args, current_episode: int = None, anilist_episodes: int = None) -> bool:
     """Check for sequels when last episode is watched and offer to continue.
 
     Args:
         anilist_id: AniList ID of the anime just watched
         args: Command line arguments
+        current_episode: Current episode number (for checking if series is truly complete)
+        anilist_episodes: Total episodes on AniList (if known)
 
     Returns:
         True if user accepted sequel and it started playback, False otherwise
@@ -186,6 +188,14 @@ def offer_sequel_and_continue(anilist_id: int, args) -> bool:
     if not anilist_client.get_viewer_info():
         print("\n⚠️  Token do AniList expirou. Faça login novamente com: ani-tupi anilist auth")
         return False
+
+    # If we know the AniList episode count, check if series is actually complete
+    # This prevents offering sequels when the current source has fewer episodes
+    if anilist_episodes and current_episode:
+        if current_episode < anilist_episodes:
+            # User has more episodes to watch - don't offer sequel
+            print(f"\n💡 Existem mais {anilist_episodes - current_episode} episódio(s) disponível(is) em outras fontes.")
+            return False
 
     # Get sequels from AniList
     sequels = anilist_client.get_sequels(anilist_id)
@@ -666,7 +676,7 @@ def anilist_anime_flow(
             anilist_id=anilist_id,
         )
 
-        print(f"\n📊 Reprodução encerrada:")
+        print("\n📊 Reprodução encerrada:")
         print(f"   Exit code: {result.exit_code}")
         print(f"   Ação: {result.action}")
 
@@ -680,7 +690,14 @@ def anilist_anime_flow(
                     episode_idx = next_episode - 1
                     # Check for sequels when last episode is watched
                     if next_episode == num_episodes:
-                        if offer_sequel_and_continue(anilist_id, args):
+                        # Get AniList episode count to check if series is truly complete
+                        anilist_episodes = None
+                        if anilist_id:
+                            anime_info = anilist_client.get_anime_by_id(anilist_id)
+                            if anime_info:
+                                anilist_episodes = anime_info.episodes
+
+                        if offer_sequel_and_continue(anilist_id, args, current_episode=next_episode, anilist_episodes=anilist_episodes):
                             return  # Sequel started, exit this flow
                     continue  # Loop to play next episode
             # Fall through to menu if no next episode data
@@ -736,7 +753,14 @@ def anilist_anime_flow(
             else:
                 # Last episode - check for sequels
                 print("✅ Último episódio assistido!")
-                if anilist_id and offer_sequel_and_continue(anilist_id, args):
+                # Get AniList episode count to check if series is truly complete
+                anilist_episodes = None
+                if anilist_id:
+                    anime_info = anilist_client.get_anime_by_id(anilist_id)
+                    if anime_info:
+                        anilist_episodes = anime_info.episodes
+
+                if anilist_id and offer_sequel_and_continue(anilist_id, args, current_episode=current_episode, anilist_episodes=anilist_episodes):
                     return  # Sequel started, exit this flow
                 # No sequel or user declined - return to menu
                 return
@@ -766,8 +790,6 @@ def anilist_anime_flow(
         if result.action != "next":
             # Only clear terminal if playback was successful (exit_code == 0)
             # If there was an error, keep messages visible for 2 seconds
-            import os
-            import time
 
             if result.exit_code != 0:
                 # Error occurred - give user time to see error messages
@@ -827,7 +849,14 @@ def anilist_anime_flow(
 
                     # Check for sequels when last episode is watched
                     if episode == num_episodes:
-                        if offer_sequel_and_continue(anilist_id, args):
+                        # Get AniList episode count to check if series is truly complete
+                        anilist_episodes = None
+                        if anilist_id:
+                            anime_info = anilist_client.get_anime_by_id(anilist_id)
+                            if anime_info:
+                                anilist_episodes = anime_info.episodes
+
+                        if offer_sequel_and_continue(anilist_id, args, current_episode=episode, anilist_episodes=anilist_episodes):
                             return  # Sequel started, exit this flow
             else:
                 # User didn't finish - don't save anything, just continue to menu

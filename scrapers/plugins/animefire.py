@@ -15,32 +15,32 @@ class AnimeFire(PluginInterface):
     languages = ["pt-br"]
     name = "animefire"
 
-    @staticmethod
-    def search_anime(query) -> None:
+    def search_anime(self, query) -> None:
         url = "https://animefire.plus/pesquisar/" + "-".join(query.split())
         html_content = requests.get(url)
         tree = HTMLParser(html_content.text)
         target_class = "col-6 col-sm-4 col-md-3 col-lg-2 mb-1 minWDanime divCardUltimosEps"
-        titles_urls = [
-            div.css_first("article a").attributes.get("href")
-            for div in tree.css(f"div.{target_class.replace(' ', '.')}")
-            if div.css_first("article a") is not None
-        ]
+        titles_urls = []
+        for div in tree.css(f"div.{target_class.replace(' ', '.')}"):
+            article = div.css_first("article a")
+            if article is not None:
+                href = article.attributes.get("href")
+                if href:
+                    titles_urls.append(href)
         titles = [h3.text() for h3 in tree.css("h3.animeTitle")]
         for title, url in zip(titles, titles_urls, strict=False):
-            rep.add_anime(title, url, AnimeFire.name)
+            if url:  # Only add if url is not None
+                rep.add_anime(title, url, self.name)
 
-    @staticmethod
-    def search_episodes(anime, url, params) -> None:
+    def search_episodes(self, anime, url, params) -> None:
         html_episodes_page = requests.get(url)
         tree = HTMLParser(html_episodes_page.text)
         links = tree.css("a.lEp.epT.divNumEp.smallbox.px-2.mx-1.text-left.d-flex")
-        episode_links = [a.attributes.get("href") for a in links]
+        episode_links = [a.attributes.get("href") for a in links if a.attributes.get("href")]
         opts = [a.text() for a in links]
-        rep.add_episode_list(anime, opts, episode_links, AnimeFire.name)
+        rep.add_episode_list(anime, opts, episode_links, self.name)
 
-    @staticmethod
-    def search_player_src(url_episode, container, event) -> None:
+    def search_player_src(self, url, container, event) -> None:
         options = webdriver.FirefoxOptions()
         options.add_argument("--headless")
 
@@ -54,7 +54,7 @@ class AnimeFire(PluginInterface):
             msg = "Firefox not installed."
             raise Exception(msg)
 
-        driver.get(url_episode)
+        driver.get(url)
         try:
             params = (By.ID, "my-video_html5_api")
             WebDriverWait(driver, 7).until(EC.visibility_of_all_elements_located(params))
@@ -85,4 +85,4 @@ def load(languages_dict) -> None:
             break
     if not can_load:
         return
-    rep.register(AnimeFire)
+    rep.register(AnimeFire())

@@ -10,7 +10,7 @@ query = "jujutsu kaisen"
 url = f"https://animesdigital.org/search/{query.replace(' ', '+')}"
 
 print(f"URL: {url}")
-print(f"Fetching...")
+print("Fetching...")
 
 try:
     response = requests.get(url, timeout=20)

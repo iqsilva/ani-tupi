@@ -12,6 +12,7 @@ from typing import Optional
 from diskcache import FanoutCache
 
 from models.config import settings
+from models.models import CacheStats
 
 # Cache global (FanoutCache = 4 shards SQLite for concurrency)
 _cache = None
@@ -220,10 +221,8 @@ def clear_cache_by_prefix(prefix: str) -> None:
         cache.delete(key)
 
 
-def get_cache_stats() -> "CacheStats":
+def get_cache_stats() -> CacheStats:
     """Get cache statistics."""
-    from models.models import CacheStats
-
     cache = get_cache()
     return CacheStats(
         size=len(cache),

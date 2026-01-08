@@ -170,6 +170,9 @@ def main() -> None:
         except KeyboardInterrupt:
             return
 
+        if not selected_label:
+            continue
+
         # Find actual chapter (strip resume hint)
         display_label = selected_label.replace("⮕ Retomar - ", "")
         current_index = next(
