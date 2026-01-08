@@ -537,10 +537,10 @@ class Repository:
         self.anime_episodes_titles[anime].append(episode_titles)
         self.anime_episodes_urls[anime].append((episode_urls, "cache"))
 
-        # Add dummy entry to anime_to_urls so repository knows about this anime
-        # (not needed for playback, but maintains consistency)
-        if anime not in self.anime_to_urls:
-            self.anime_to_urls[anime].append(("cached", "cache", None))
+        # Note: We don't add a "dummy" entry to anime_to_urls here because:
+        # 1. It's not a real scraper source - just cached episode data
+        # 2. It would appear as "[cached]" in user-facing source lists
+        # 3. search_anime() is called later to discover real sources for display
 
     def get_episode_url_and_source(self, anime: str, episode_num: int) -> tuple[str, str] | None:
         """Get episode URL and source name for a specific episode.
