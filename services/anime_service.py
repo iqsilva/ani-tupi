@@ -721,7 +721,7 @@ def anilist_anime_flow(
                     print("📝 Adicionando à sua lista do AniList...")
                     anilist_client.add_to_list(anilist_id, "CURRENT")
                 else:
-                    # Auto-promote from PLANNING to CURRENT, CURRENT to COMPLETED, or COMPLETED to REPEATING
+                    # Auto-promote from PLANNING to CURRENT, or CURRENT to COMPLETED
                     entry = anilist_client.get_media_list_entry(anilist_id)
                     if entry:
                         if entry.status == "PLANNING":
@@ -732,11 +732,8 @@ def anilist_anime_flow(
                             if current_episode == num_episodes:
                                 print("✅ Marcando como 'Completo'...")
                                 anilist_client.change_status(anilist_id, "COMPLETED")
-                        elif entry.status == "COMPLETED":
-                            # If rewatching, mark as repeating
-                            if current_episode == num_episodes:
-                                print("🔄 Mudando para 'Recomassistindo'...")
-                                anilist_client.change_status(anilist_id, "REPEATING")
+                        # If already COMPLETED, leave it as is (don't change to REPEATING)
+                        # User can manually change status to REPEATING if they want to track rewatches
 
                 print(f"🔄 Sincronizando progresso com AniList (Ep {current_episode})...")
                 success = anilist_client.update_progress(anilist_id, current_episode)
@@ -829,7 +826,7 @@ def anilist_anime_flow(
                         print("\n📝 Adicionando à sua lista do AniList...")
                         anilist_client.add_to_list(anilist_id, "CURRENT")
                     else:
-                        # Auto-promote from PLANNING to CURRENT, CURRENT to COMPLETED, or COMPLETED to REPEATING
+                        # Auto-promote from PLANNING to CURRENT, or CURRENT to COMPLETED
                         entry = anilist_client.get_media_list_entry(anilist_id)
                         if entry:
                             if entry.status == "PLANNING":
@@ -840,11 +837,8 @@ def anilist_anime_flow(
                                 if episode == num_episodes:
                                     print("\n✅ Marcando como 'Completo'...")
                                     anilist_client.change_status(anilist_id, "COMPLETED")
-                            elif entry.status == "COMPLETED":
-                                # If rewatching, mark as repeating
-                                if episode == num_episodes:
-                                    print("\n🔄 Mudando para 'Recomassistindo'...")
-                                    anilist_client.change_status(anilist_id, "REPEATING")
+                            # If already COMPLETED, leave it as is (don't change to REPEATING)
+                            # User can manually change status to REPEATING if they want to track rewatches
 
                     print(f"\n🔄 Sincronizando progresso com AniList (Ep {episode})...")
                     success = anilist_client.update_progress(anilist_id, episode)

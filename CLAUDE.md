@@ -804,3 +804,38 @@ AttributeError: 'ScraperCacheData' object has no attribute 'get'
 - Result: 24 episodes instead of 19
 
 **Status**: ✅ Fixed (v7) - AnimesDigital shows all episodes with ?odr=1 parameter
+
+### Anime Marked as "Recomassistindo" Instead of "Completo" After Last Episode (2025-01-08)
+
+**Issue**: When watching the last episode of an anime that's already marked as "COMPLETED" (Completo) on AniList, the app was changing the status to "REPEATING" (Recomassistindo) instead of leaving it as "COMPLETED".
+
+**Root Cause**: The auto-promotion logic had three cases:
+1. PLANNING → CURRENT ✓ (correct)
+2. CURRENT + last episode → COMPLETED ✓ (correct)
+3. COMPLETED + last episode → REPEATING ✗ (incorrect - assumed every rewatch = REPEATING status)
+
+The issue was that the code assumed watching the last episode of a COMPLETED anime meant the user wanted to mark it as REPEATING. But users might just be rewatching their favorite anime or a specific scene, not necessarily tracking a full series rewatch.
+
+**Solution**: Removed the auto-promotion logic for COMPLETED status. When an anime is already COMPLETED and the user watches it again:
+- Status stays as COMPLETED (no automatic change)
+- Progress still syncs to AniList
+- User can manually change status to REPEATING if they want to track a full rewatch
+
+**Files Changed**:
+- `services/anime_service.py` lines 724-736: Removed COMPLETED → REPEATING auto-promotion (Shift+N auto-play path)
+- `services/anime_service.py` lines 829-841: Removed COMPLETED → REPEATING auto-promotion (Menu playback path)
+
+**Before**:
+```
+✅ Último episódio assistido!
+🔄 Mudando para 'Recomassistindo'...  ← WRONG
+```
+
+**After**:
+```
+✅ Último episódio assistido!
+🔄 Sincronizando progresso com AniList (Ep 13)...
+✅ Progresso salvo no AniList!  ← Stays as COMPLETED
+```
+
+**Status**: ✅ Fixed (v8) - Completed anime stays completed even when rewatched
