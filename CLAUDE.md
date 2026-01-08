@@ -970,3 +970,41 @@ Every time you navigate menu and select anime:
 ```
 
 **Status**: ✅ Fixed (v11) - No more duplicate sources in logs
+
+### [cached] Marker Appearing in Source Lists (2025-01-08)
+
+**Issue**: When loading anime from cache and then searching for sources, the source list showed "[cached]" marker:
+
+```
+Yamada-kun to Lv999 no Koi wo Suru [animesdigital, animesonlinecc]
+yamada kun to lv999 no koi wo suru [cached]  ← WRONG, shouldn't appear
+```
+
+**Root Cause**: `load_from_cache()` added a dummy entry to `anime_to_urls` with source="cache":
+```python
+if anime not in self.anime_to_urls:
+    self.anime_to_urls[anime].append(("cached", "cache", None))
+```
+
+This entry would appear in `get_anime_titles_with_sources()` as a source, resulting in "[cached]" in the UI.
+
+**Solution**: Remove the dummy entry from `load_from_cache()`. The reason:
+1. "cache" is not a real scraper source, just an internal marker
+2. Real sources are discovered via `search_anime()` called after `load_from_cache()`
+3. Episode URLs are still properly stored in `anime_episodes_urls` with "cache" marker (which is filtered out during playback)
+
+**Files Changed**:
+- `services/repository.py` lines 540-543: Removed dummy anime_to_urls entry from `load_from_cache()`
+- Added comment explaining why cache shouldn't appear as a source
+
+**Result**:
+```
+Before:
+  yamada kun to lv999 no koi wo suru [cached]
+
+After:
+  Yamada-kun to Lv999 no Koi wo Suru [animesdigital, animesonlinecc]
+  (only real sources shown, no '[cached]' marker)
+```
+
+**Status**: ✅ Fixed (v12) - No more [cached] in source lists
