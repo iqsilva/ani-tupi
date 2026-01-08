@@ -281,6 +281,10 @@ def anilist_anime_flow(
 
     loader.load_plugins({"pt-br"})  # type: ignore
 
+    # Clear previous search results to avoid accumulating data from previous calls
+    # (Repository is singleton, so it keeps data between calls)
+    rep.clear_search_results()
+
     # Store anilist_id in repository for caching (cache key)
     if anilist_id:
         rep.anime_to_anilist_id[anime_title] = anilist_id
@@ -1176,6 +1180,10 @@ def search_anime_flow(args):
 
     Cache-first: Checks cache before searching scrapers to avoid unnecessary requests.
     """
+    # Clear previous search results to avoid accumulating data from previous calls
+    # (Repository is singleton, so it keeps data between calls)
+    rep.clear_search_results()
+
     query = (
         (input("\n🔍 Pesquise anime: ") if not args.query else args.query)
         if not args.debug
