@@ -39,6 +39,30 @@ def set_autoplay_state(enabled: bool) -> None:
     _autoplay_enabled = enabled
 
 
+def _format_episode_progress(episode_num: int, scraper_total: int | None = None, anilist_total: int | None = None) -> str:
+    """Format episode progress with scraper and AniList episode counts.
+
+    Args:
+        episode_num: Current episode number (1-indexed)
+        scraper_total: Total episodes available in scraper
+        anilist_total: Total episodes from AniList
+
+    Returns:
+        Formatted string like "3 / 12" or "3 / 12 (total: 24)"
+    """
+    if scraper_total is None:
+        scraper_total = "?"
+
+    # Show scraper total (primary)
+    result = f"{episode_num} / {scraper_total}"
+
+    # Add AniList total if different and known
+    if anilist_total and anilist_total != scraper_total:
+        result += f" (total: {anilist_total})"
+
+    return result
+
+
 def play_video(url: str, debug=False, ytdl_format: str | None = None) -> int:
     """Play video using python-mpv and return exit code.
 
@@ -465,10 +489,13 @@ def _ipc_event_loop(
                                     # Search for player URL for next episode (this handles racing scrapers)
                                     next_episode_number = episode_number + 1
                                     # Show OSD message that we are searching
+                                    scraper_total = episode_context.get("total_episodes")
+                                    anilist_total = episode_context.get("anilist_episodes")
+                                    progress_str = _format_episode_progress(next_episode_number, scraper_total, anilist_total)
                                     _send_mpv_command(
                                         sock,
                                         "show-text",
-                                        [f"Buscando Episódio {next_episode_number}..."],
+                                        [f"Buscando Episódio {progress_str}..."],
                                     )
                                     # This is a blocking call, but it's what we need to get the stream URL
                                     next_url = rep.search_player(anime_title, next_episode_number)
@@ -478,10 +505,13 @@ def _ipc_event_loop(
                                         _send_mpv_command(sock, "loadfile", [next_url, "replace"])
 
                                         # Show OSD success message
+                                        scraper_total = episode_context.get("total_episodes")
+                                        anilist_total = episode_context.get("anilist_episodes")
+                                        progress_str = _format_episode_progress(next_episode_number, scraper_total, anilist_total)
                                         _send_mpv_command(
                                             sock,
                                             "show-text",
-                                            [f"▶️ Reproduzindo Episódio {next_episode_number}"],
+                                            [f"▶️ Reproduzindo Episódio {progress_str}"],
                                         )
 
                                         # Update episode context for next iteration
@@ -490,7 +520,7 @@ def _ipc_event_loop(
                                         # Preserve anilist_id and source for next episode
 
                                         # Print terminal feedback
-                                        print(f"▶️  Reproduzindo Episódio {next_episode_number}")
+                                        print(f"▶️  Reproduzindo Episódio {progress_str}")
 
                                         # Continue loop to listen for more keybindings
                                         continue
@@ -518,10 +548,13 @@ def _ipc_event_loop(
                                     prev_episode_number = max(1, episode_number - 1)
                                     if prev_episode_number < episode_number:
                                         # Show OSD message that we are searching
+                                        scraper_total = episode_context.get("total_episodes")
+                                        anilist_total = episode_context.get("anilist_episodes")
+                                        progress_str = _format_episode_progress(prev_episode_number, scraper_total, anilist_total)
                                         _send_mpv_command(
                                             sock,
                                             "show-text",
-                                            [f"Buscando Episódio {prev_episode_number}..."],
+                                            [f"Buscando Episódio {progress_str}..."],
                                         )
 
                                         # Search for player URL for previous episode
@@ -536,10 +569,13 @@ def _ipc_event_loop(
                                             )
 
                                             # Show OSD message
+                                            scraper_total = episode_context.get("total_episodes")
+                                            anilist_total = episode_context.get("anilist_episodes")
+                                            progress_str = _format_episode_progress(prev_episode_number, scraper_total, anilist_total)
                                             _send_mpv_command(
                                                 sock,
                                                 "show-text",
-                                                [f"Voltando para Episódio {prev_episode_number}"],
+                                                [f"⏪ Voltando para Episódio {progress_str}"],
                                             )
 
                                             # Update episode context
@@ -548,7 +584,7 @@ def _ipc_event_loop(
 
                                             # Print terminal feedback
                                             print(
-                                                f"⏪ Voltando para Episódio {prev_episode_number}"
+                                                f"⏪ Voltando para Episódio {progress_str}"
                                             )
 
                                             # Continue loop
@@ -699,6 +735,7 @@ def play_episode(
     use_ipc: bool = True,
     debug: bool = False,
     anilist_id: int | None = None,
+    anilist_episodes: int | None = None,
 ) -> VideoPlaybackResult:
     """Play a single episode with optional IPC support for episode navigation.
 
@@ -706,11 +743,12 @@ def play_episode(
         url: Video URL to play
         anime_title: Name of anime being watched
         episode_number: Current episode number (1-indexed)
-        total_episodes: Total episodes in series
+        total_episodes: Total episodes available in scraper
         source: Name of scraper source (e.g., "animefire")
         use_ipc: Enable IPC socket for keybinding events (default True)
         debug: Skip playback and return simulated result
         anilist_id: AniList ID for syncing progress (optional)
+        anilist_episodes: Total episodes from AniList (optional, for display)
 
     Returns:
         VideoPlaybackResult with exit code, action, and optional data
@@ -731,6 +769,7 @@ def play_episode(
         "anime_title": anime_title,
         "episode_number": episode_number,
         "total_episodes": total_episodes,
+        "anilist_episodes": anilist_episodes,
         "source": source,
         "url": url,
         "anilist_id": anilist_id,

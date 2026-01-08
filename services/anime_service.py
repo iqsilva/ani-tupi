@@ -309,8 +309,20 @@ def anilist_anime_flow(
             # Found in cache! Use it directly
             print(f"ℹ️  Usando cache ({cache_data.episode_count} eps disponíveis)")
             rep.load_from_cache(variant, cache_data)
+
+            # Discover available sources for this anime (background search)
+            # This doesn't override cached episodes, just populates anime_to_urls for display
+            rep.search_anime(variant, verbose=False)
+
             used_query = variant
-            titles_with_sources = [variant]  # Only one "result" - the cached anime
+            # Get formatted title with sources from scrapers, or fallback to plain title
+            titles_with_sources = rep.get_anime_titles_with_sources(
+                filter_by_query=variant, original_query=first_variant
+            )
+            if not titles_with_sources:
+                # If no sources found, use plain variant name
+                titles_with_sources = [variant]
+
             metadata = {
                 "variant_tested": variant,
                 "variant_index": current_variant_idx,
@@ -370,7 +382,17 @@ def anilist_anime_flow(
             if cache_data:
                 print(f"ℹ️  Usando cache ({cache_data.episode_count} eps disponíveis)")
                 rep.load_from_cache(manual_query, cache_data)
-                titles_with_sources = [manual_query]
+
+                # Discover available sources for this anime (background search)
+                rep.search_anime(manual_query, verbose=False)
+
+                # Get formatted title with sources from scrapers
+                titles_with_sources = rep.get_anime_titles_with_sources(
+                    filter_by_query=manual_query, original_query=manual_query
+                )
+                if not titles_with_sources:
+                    titles_with_sources = [manual_query]
+
                 used_query = manual_query
                 manual_search = True
             else:
@@ -661,7 +683,9 @@ def anilist_anime_flow(
             continue
 
         # Play episode with IPC support
-        print(f"\n▶️  Iniciando reprodução do episódio {episode}...")
+        from utils.video_player import _format_episode_progress
+        progress_str = _format_episode_progress(episode, num_episodes, total_episodes)
+        print(f"\n▶️  Iniciando reprodução do episódio {progress_str}...")
         print(f"   Fonte: {source or 'unknown'}")
         print(f"   URL: {player_url[:80]}{'...' if len(player_url) > 80 else ''}\n")
 
@@ -674,6 +698,7 @@ def anilist_anime_flow(
             use_ipc=True,
             debug=args.debug,
             anilist_id=anilist_id,
+            anilist_episodes=total_episodes,
         )
 
         print("\n📊 Reprodução encerrada:")
@@ -1166,6 +1191,10 @@ def search_anime_flow(args):
         print(f"ℹ️  Usando cache ({cache_data.episode_count} eps disponíveis)")
         # Populate repository from cache
         rep.load_from_cache(query, cache_data)
+
+        # Discover available sources for this anime (background search)
+        rep.search_anime(query, verbose=False)
+
         selected_anime = query
     else:
         # Not in cache or expired: search scrapers normally

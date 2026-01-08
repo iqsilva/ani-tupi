@@ -43,9 +43,8 @@ def anime(args) -> None:
                 return
 
             # Try to auto-discover AniList ID if authenticated
-            from services.anilist_service import anilist_client
-
-            if anilist_client.is_authenticated():
+            from services.anilist_service import anilist_client as anilist
+            if anilist.is_authenticated():
                 from utils.anilist_discovery import auto_discover_anilist_id
                 print(f"\n🔍 Procurando '{selected_anime}' no AniList...")
                 # Normalize title to remove Portuguese suffixes like (Dublado), (Legendado)
@@ -59,7 +58,7 @@ def anime(args) -> None:
 
                     metadata = get_anilist_metadata(anilist_id)
                     if metadata:
-                        anilist_title = anilist_client.format_title(metadata.title)
+                        anilist_title = anilist.format_title(metadata.title)
                         print(f"✅ Encontrado: {anilist_title}")
                 else:
                     print(
@@ -72,9 +71,8 @@ def anime(args) -> None:
             return
 
         # Try to auto-discover AniList ID if authenticated
-        from services.anilist_service import anilist_client
-
-        if anilist_client.is_authenticated():
+        from services.anilist_service import anilist_client as anilist
+        if anilist.is_authenticated():
             from utils.anilist_discovery import get_anilist_id_from_title
 
             print(f"\n🔍 Procurando '{selected_anime}' no AniList...")
@@ -88,7 +86,7 @@ def anime(args) -> None:
 
                 metadata = get_anilist_metadata(anilist_id)
                 if metadata:
-                    anilist_title = anilist_client.format_title(metadata.title)
+                    anilist_title = anilist.format_title(metadata.title)
                     print(f"✅ Encontrado: {anilist_title}")
             else:
                 print("⚠️  Não foi possível encontrar no AniList (continuando sem sincronização)")
@@ -97,6 +95,22 @@ def anime(args) -> None:
     assert selected_anime is not None and episode_idx is not None, "selected_anime and episode_idx should be set"
     episode_list = rep.get_episode_list(selected_anime)
     num_episodes = len(episode_list)
+
+    # Try to get AniList total episodes if available
+    total_episodes_anilist = None
+    try:
+        from services.anilist_service import anilist_client
+        if anilist_client.is_authenticated():
+            from utils.anilist_discovery import get_anilist_metadata, get_anilist_id_from_title
+
+            normalized_title = normalize_title_for_search(selected_anime)
+            anilist_id = get_anilist_id_from_title(normalized_title)
+            if anilist_id:
+                metadata = get_anilist_metadata(anilist_id)
+                if metadata:
+                    total_episodes_anilist = metadata.episodes
+    except Exception:
+        pass  # Silent fail - just continue without AniList episode count
 
     while True:
         episode = episode_idx + 1
@@ -122,7 +136,9 @@ def anime(args) -> None:
             continue
 
         # Play video
-        print(f"\n▶️  Iniciando reprodução do episódio {episode}...")
+        from utils.video_player import _format_episode_progress
+        progress_str = _format_episode_progress(episode, num_episodes, total_episodes_anilist)
+        print(f"\n▶️  Iniciando reprodução do episódio {progress_str}...")
         print(f"   Fonte: {source or 'unknown'}")
         print(f"   URL: {player_url[:80]}{'...' if len(player_url) > 80 else ''}\n")
 

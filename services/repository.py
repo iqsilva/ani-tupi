@@ -390,8 +390,9 @@ class Repository:
         result = []
         for title in titles:
             urls_and_sources = self.anime_to_urls[title]
-            sources = set(source for _url, source, _params in urls_and_sources)
-            sources_str = ", ".join(sorted(sources))
+            # Filter out "cache" marker - only show real scraper sources
+            sources = set(source for _url, source, _params in urls_and_sources if source != "cache")
+            sources_str = ", ".join(sorted(sources)) if sources else "cached"
             result.append((f"{title} [{sources_str}]", title))
 
         # Rank by relevance if original_query provided
@@ -618,7 +619,9 @@ class Repository:
         selected_urls = []
         for urls, source in self.anime_episodes_urls[anime]:
             if len(urls) >= episode_num:
-                selected_urls.append((urls[episode_num - 1], source))
+                # Skip "cache" marker - use actual scraper sources instead
+                if source != "cache":
+                    selected_urls.append((urls[episode_num - 1], source))
 
         # Defensive check: No sources have this episode available
         if not selected_urls:
