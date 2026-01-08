@@ -898,3 +898,28 @@ After:
 ```
 
 **Status**: ✅ Fixed (v9) - Cache sources properly displayed and no more KeyError
+
+### Missing norm_titles Entry When Adding Cached Anime (2025-01-08)
+
+**Issue**: When anime was loaded from cache, then `search_anime()` tried to find sources, app crashed:
+```
+KeyError: 'yamada kun to lv999 no koi wo suru' at line 335 in add_anime()
+```
+
+**Root Cause**:
+1. `load_from_cache()` adds anime to `anime_to_urls` but NOT to `norm_titles`
+2. Later, `search_anime()` calls `add_anime()` to add scraped sources
+3. `add_anime()` tries to access `self.norm_titles[key]` for deduplication
+4. Key doesn't exist because anime was only in cache, not searched via `add_anime()` before
+
+**Solution**: Use `.get()` with fallback normalization in `add_anime()`:
+```python
+key_normalized = self.norm_titles.get(key, self._normalize_for_filter(key))
+```
+
+This allows `add_anime()` to handle anime titles that exist in `anime_to_urls` but not yet in `norm_titles` (from cache loading).
+
+**Files Changed**:
+- `services/repository.py` line 336: Use `.get()` with fallback for norm_titles lookup
+
+**Status**: ✅ Fixed (v10) - Cache + search_anime flow works without KeyError
