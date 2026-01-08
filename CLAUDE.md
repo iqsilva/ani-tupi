@@ -839,3 +839,62 @@ The issue was that the code assumed watching the last episode of a COMPLETED ani
 ```
 
 **Status**: ✅ Fixed (v8) - Completed anime stays completed even when rewatched
+
+### Cache KeyError and Missing Sources Display (2025-01-08)
+
+**Issue 1**: When playing cached anime from AniList, app crashed with `KeyError: 'cache'`
+- User loads anime from AniList cache
+- App tries to access `self.sources["cache"]` which doesn't exist
+- Results in: `KeyError: 'cache' at line 707 in search_player()`
+
+**Issue 2**: Cached anime showed title without source information
+- Expected: "Dandadan [animesdigital, animesonlinecc]"
+- Actual: "dandadan" (no sources shown)
+- User couldn't see which sources had the anime
+
+**Root Cause**:
+1. `load_from_cache()` marks episode data with source="cache" as placeholder
+2. `search_player()` tried using "cache" as a real scraper source → KeyError
+3. `get_anime_titles_with_sources()` included "cache" in source list, then filtered it out leaving empty sources
+
+**Solution**:
+1. **Filter "cache" marker in search_player()** (line 622-623):
+   ```python
+   if source != "cache":
+       selected_urls.append((urls[episode_num - 1], source))
+   ```
+
+2. **Filter "cache" from display sources** (lines 394-395):
+   ```python
+   sources = set(source for _url, source, _params in urls_and_sources if source != "cache")
+   sources_str = ", ".join(sorted(sources)) if sources else "cached"
+   ```
+
+3. **Discover real sources after loading cache** (anime_service.py, 3 locations):
+   - After `load_from_cache()`, call `rep.search_anime(variant)` to find actual sources
+   - Then use `get_anime_titles_with_sources()` to format with sources
+   - Applied to all 3 cache-loading paths: AniList variants, manual search, CLI search
+
+**Files Changed**:
+- `services/repository.py` lines 622-623: Skip "cache" when searching for video URLs
+- `services/repository.py` lines 394-395: Filter "cache" from display, show "cached" fallback
+- `services/anime_service.py` lines 311-325: AniList cache path with source discovery
+- `services/anime_service.py` lines 384-397: Manual search cache path with source discovery
+- `services/anime_service.py` lines 1193-1198: CLI cache path with source discovery
+
+**Result**:
+Before:
+```
+ℹ️  Usando cache (13 eps disponíveis)
+► yamada kun to lv999 no koi wo suru
+KeyError: 'cache'
+```
+
+After:
+```
+ℹ️  Usando cache (13 eps disponíveis)
+🔄 Buscando fontes disponíveis...
+► Yamada-kun to Lv999 no Koi wo Suru [animesdigital, animesonlinecc]
+```
+
+**Status**: ✅ Fixed (v9) - Cache sources properly displayed and no more KeyError
