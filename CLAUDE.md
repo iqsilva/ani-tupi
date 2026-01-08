@@ -923,3 +923,50 @@ This allows `add_anime()` to handle anime titles that exist in `anime_to_urls` b
 - `services/repository.py` line 336: Use `.get()` with fallback for norm_titles lookup
 
 **Status**: ✅ Fixed (v10) - Cache + search_anime flow works without KeyError
+
+### Duplicate Sources in Logs When Returning to Menu (2025-01-08)
+
+**Issue**: When navigating AniList menu and selecting the same anime multiple times, logs showed exponentially increasing duplicate sources:
+
+```
+First time:
+  🔄 Tentando fontes: animesonlinecc, animesdigital
+
+Second time:
+  🔄 Tentando fontes: animesonlinecc, animesdigital, animesdigital, animesdigital, animesonlinecc, animesonlinecc
+
+Third time:
+  🔄 Tentando fontes: (12 sources with many duplicates)
+```
+
+**Root Cause**: Repository is a singleton that persists data between function calls. When the same anime was loaded again:
+1. First load: `anime_episodes_urls[anime]` had 2 source entries
+2. Second load: Same anime loaded again, old entries still there, new entries added = 4 total
+3. Third load: Now 6 + new ones = more duplicates
+
+**Solution**: Clear Repository state at the start of each main flow function that uses cached/searched data:
+1. `anilist_anime_flow()` - Called when selecting anime from AniList menu (line 286)
+2. `search_anime_flow()` - Called for CLI anime search (line 1185)
+
+By calling `rep.clear_search_results()` early, we ensure a clean state for each new selection.
+
+**Code**:
+```python
+# In anilist_anime_flow() after loader.load_plugins():
+rep.clear_search_results()
+
+# In search_anime_flow() at start:
+rep.clear_search_results()
+```
+
+**Files Changed**:
+- `services/anime_service.py` line 286: Clear state in `anilist_anime_flow()`
+- `services/anime_service.py` line 1185: Clear state in `search_anime_flow()`
+
+**Result**:
+```
+Every time you navigate menu and select anime:
+  🔄 Tentando fontes: animesonlinecc, animesdigital (no duplicates, always clean)
+```
+
+**Status**: ✅ Fixed (v11) - No more duplicate sources in logs
