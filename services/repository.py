@@ -332,7 +332,9 @@ class Repository:
 
         # Exact matching: only consolidate if normalized titles are identical
         for key in self.anime_to_urls:
-            if title_ == self.norm_titles[key]:
+            # Handle case where anime was loaded from cache and not in norm_titles yet
+            key_normalized = self.norm_titles.get(key, self._normalize_for_filter(key))
+            if title_ == key_normalized:
                 self.anime_to_urls[key].append((url, source, params))
                 return
         self.anime_to_urls[title].append((url, source, params))
