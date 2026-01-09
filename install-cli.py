@@ -99,18 +99,6 @@ def install_as_cli() -> bool:
     return True
 
 
-def show_path_info() -> None:
-    """Mostra informações sobre o PATH."""
-    system = platform.system()
-
-    if system == "Windows":
-        bin_path = Path.home() / ".cargo" / "bin"
-    else:
-        bin_path = Path.home() / ".local" / "bin"
-
-    shell_rc = "~/.bashrc" if (Path.home() / ".bashrc").exists() else "~/.zshrc"
-
-
 def main() -> None:
     # Verifica/instala UV
     if not check_uv_installed():
@@ -126,9 +114,6 @@ def main() -> None:
     # Instala CLI
     if not install_as_cli():
         sys.exit(1)
-
-    # Mostra informações
-    show_path_info()
 
 
 if __name__ == "__main__":

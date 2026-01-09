@@ -13,8 +13,7 @@ class AnimesDigital(PluginInterface):
     languages = ["pt-br"]
     name = "animesdigital"
 
-    @staticmethod
-    def search_anime(query) -> None:
+    def search_anime(self, query) -> None:
         """Search for anime on AnimesDigital.
 
         Constructs search URL and extracts anime titles and links.
@@ -40,23 +39,13 @@ class AnimesDigital(PluginInterface):
                 urls.append(href)
                 titles.append(title)
 
-        # Prioritize subtitled versions over dubbed versions
-        # Dubbed versions have "Dublado" in title, subtitled are without it
-        # Sort so subtitled (no "Dublado") comes before dubbed ones
         titled_urls = list(zip(titles, urls))
-        titled_urls.sort(
-            key=lambda x: (
-                "dublado" in x[0].lower(),  # False (0) for subtitled, True (1) for dubbed
-                x[0]  # Then by title alphabetically
-            )
-        )
 
         # Add anime to repository in priority order
         for title, url in titled_urls:
             rep.add_anime(title, url, AnimesDigital.name)
 
-    @staticmethod
-    def search_episodes(anime, url, params) -> None:
+    def search_episodes(self, anime: str, url: str, params: dict | None) -> None:
         """Fetch episode list from anime page.
 
         Ensures all episodes are displayed by adding ?odr=1 parameter.
@@ -105,8 +94,7 @@ class AnimesDigital(PluginInterface):
         # Add episodes to repository
         rep.add_episode_list(anime, episode_titles, episode_urls, AnimesDigital.name)
 
-    @staticmethod
-    def search_player_src(url_episode, container, event) -> None:
+    def search_player_src(self, url: str, container: list, event) -> None:
         """Extract video URL from episode player.
 
         AnimesDigital loads iframes dynamically via JavaScript.
@@ -121,7 +109,7 @@ class AnimesDigital(PluginInterface):
                 page = browser.new_page()
 
                 # Navigate to episode page with timeout
-                page.goto(url_episode, wait_until="networkidle", timeout=REQUEST_TIMEOUT * 1000)
+                page.goto(url, wait_until="networkidle", timeout=REQUEST_TIMEOUT * 1000)
 
                 # Extract all iframe sources
                 iframes = page.query_selector_all("iframe[src]")
