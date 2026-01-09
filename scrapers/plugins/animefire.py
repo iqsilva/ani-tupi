@@ -1,4 +1,3 @@
-import re
 import requests
 from selectolax.parser import HTMLParser
 from selenium import webdriver
@@ -11,58 +10,10 @@ from services.repository import rep
 
 from .utils import is_firefox_installed_as_snap
 
-# Quality preferences for Blogger videos (in order of preference)
-PREFERRED_QUALITIES = ["720", "hd", "480", "360"]
-
 
 class AnimeFire(PluginInterface):
     languages = ["pt-br"]
     name = "animefire"
-
-    def _extract_best_quality_source(self, sources: list) -> str:
-        """
-        Extract the best quality video source from a list of source elements.
-        Tries to find 720p first, then HD, then falls back to lower qualities.
-
-        Args:
-            sources: List of Selenium source elements
-
-        Returns:
-            Best quality source URL found, or None if no sources available
-        """
-        quality_sources = {}
-
-        for source in sources:
-            try:
-                src = source.get_attribute("src")
-                data_quality = source.get_attribute("data-quality")
-
-                if not src:
-                    continue
-
-                # Check src for quality indicators
-                for quality in PREFERRED_QUALITIES:
-                    if quality in src.lower():
-                        if quality not in quality_sources:
-                            quality_sources[quality] = src
-                        break
-
-                # Check data-quality attribute
-                if data_quality:
-                    for quality in PREFERRED_QUALITIES:
-                        if quality in data_quality.lower():
-                            if quality not in quality_sources:
-                                quality_sources[quality] = src
-                            break
-            except Exception:
-                continue
-
-        # Return the highest quality source found
-        for quality in PREFERRED_QUALITIES:
-            if quality in quality_sources:
-                return quality_sources[quality]
-
-        return None
 
     def search_anime(self, query) -> None:
         url = "https://animefire.plus/pesquisar/" + "-".join(query.split())
@@ -89,7 +40,7 @@ class AnimeFire(PluginInterface):
         opts = [a.text() for a in links]
         rep.add_episode_list(anime, opts, episode_links, self.name)
 
-    def search_player_src(self, url, container, event) -> None:
+    def search_player_src(self, url: str, container: list, event) -> None:
         options = webdriver.FirefoxOptions()
         options.add_argument("--headless")
 
@@ -118,21 +69,7 @@ class AnimeFire(PluginInterface):
                 raise Exception(msg)
 
         product = driver.find_element(params[0], params[1])
-        link = product.get_property("src")
-
-        # Try to get the best quality (720p) from the video element
-        # Look for source tags with quality information
-        try:
-            video_element = driver.find_element(By.CSS_SELECTOR, "video")
-            sources = video_element.find_elements(By.TAG_NAME, "source")
-
-            if sources:
-                best_quality_link = self._extract_best_quality_source(sources)
-                if best_quality_link:
-                    link = best_quality_link
-        except Exception:
-            # If no source tags found, use the original link
-            pass
+        link = str(product.get_property("src"))
 
         # Prefer HD quality for direct video URLs
         # If URL contains /sd/, try to upgrade to /hd/
