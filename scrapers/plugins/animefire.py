@@ -36,7 +36,7 @@ class AnimeFire(PluginInterface):
         html_episodes_page = requests.get(url)
         tree = HTMLParser(html_episodes_page.text)
         links = tree.css("a.lEp.epT.divNumEp.smallbox.px-2.mx-1.text-left.d-flex")
-        episode_links = [a.attributes.get("href") for a in links if a.attributes.get("href")]
+        episode_links = [href for a in links if (href := a.attributes.get("href")) is not None]
         opts = [a.text() for a in links]
         rep.add_episode_list(anime, opts, episode_links, self.name)
 
@@ -82,6 +82,15 @@ class AnimeFire(PluginInterface):
                     link = hd_link
             except Exception:
                 # If HD version doesn't exist or check fails, use original SD link
+                pass
+
+        elif "480p" in link:
+            hd_link = link.replace("/480p", "/720p")
+            try:
+                response = requests.head(hd_link, timeout=5)
+                if response.status_code == 200:
+                    link = hd_link
+            except Exception:
                 pass
 
         # If the link is a Blogger URL, try to add quality parameters

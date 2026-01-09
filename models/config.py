@@ -159,11 +159,11 @@ class AppSettings(BaseSettings):
         extra="ignore",  # Ignore unknown env vars
     )
 
-    anilist: AniListSettings = Field(default_factory=AniListSettings)
-    cache: CacheSettings = Field(default_factory=CacheSettings)
-    search: SearchSettings = Field(default_factory=SearchSettings)
-    plugins: PluginSettings = Field(default_factory=PluginSettings)
-    manga: MangaSettings = Field(default_factory=MangaSettings)
+    anilist: AniListSettings = AniListSettings()  # type: ignore[call-arg]
+    cache: CacheSettings = CacheSettings()  # type: ignore[call-arg]
+    search: SearchSettings = SearchSettings()  # type: ignore[call-arg]
+    plugins: PluginSettings = PluginSettings()  # type: ignore[call-arg]
+    manga: MangaSettings = MangaSettings()  # type: ignore[call-arg]
 
 
 # Singleton instance - import and use throughout the app

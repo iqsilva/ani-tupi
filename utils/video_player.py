@@ -40,7 +40,7 @@ def set_autoplay_state(enabled: bool) -> None:
 
 
 def _format_episode_progress(
-    episode_num: int, scraper_total: int | None = None, anilist_total: int | None = None
+    episode_num: int, scraper_total: int | None | str = None, anilist_total: int | None = None
 ) -> str:
     """Format episode progress with scraper and AniList episode counts.
 

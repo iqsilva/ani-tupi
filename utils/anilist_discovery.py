@@ -124,7 +124,9 @@ def get_anilist_metadata(anilist_id: int) -> AniListAnime | None:
         # Handle both dict (cached) and AniListAnime (new format)
         if isinstance(cached, dict):
             return AniListAnime.model_validate(cached)
-        return cached
+        if isinstance(cached, AniListAnime):
+            return cached
+        # Invalid cache entry - fall through to re-fetch
 
     try:
         from services.anilist_service import anilist_client

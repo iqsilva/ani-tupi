@@ -167,7 +167,7 @@ def get_cached_video_url(cache_key, episode: int, source: Optional[str] = None) 
     """Direct cache lookup for video URLs (without calling scraper)."""
     cache = get_cache()
     key = f"video:{cache_key}:{episode}:{source or 'any'}"
-    return cache.get(key)
+    return cache.get(key)  # type: ignore[return-value]  # diskcache returns Any
 
 
 def save_video_url(cache_key, episode: int, source: str, url: str) -> None:

@@ -9,7 +9,7 @@ import sys
 from collections.abc import Callable
 from contextlib import contextmanager
 
-from InquirerPy import inquirer
+from InquirerPy import inquirer  # type: ignore[import-untyped]
 from InquirerPy.separator import Separator
 from rich.console import Console
 from rich.live import Live
@@ -80,7 +80,7 @@ def menu(
     answer = None
     if enable_search:
         # Use fuzzy search for large menus
-        answer = inquirer.fuzzy(
+        answer = inquirer.fuzzy(  # type: ignore[attr-defined]
             message=msg or "Menu",
             choices=choices,
             default=None,
@@ -100,7 +100,7 @@ def menu(
         ).execute()
     else:
         # Use simple select for small menus
-        answer = inquirer.select(
+        answer = inquirer.select(  # type: ignore[attr-defined]
             message=msg or "Menu",
             choices=choices,
             default=None,
@@ -174,7 +174,7 @@ def menu_navigate(
     answer = None
     if enable_search:
         # Use fuzzy search for large menus
-        answer = inquirer.fuzzy(
+        answer = inquirer.fuzzy(  # type: ignore[attr-defined]
             message=msg or "Menu",
             choices=choices,
             default=None,
@@ -194,7 +194,7 @@ def menu_navigate(
         ).execute()
     else:
         # Use simple select for small menus
-        answer = inquirer.select(
+        answer = inquirer.select(  # type: ignore[attr-defined]
             message=msg or "Menu",
             choices=choices,
             default=None,

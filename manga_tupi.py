@@ -108,7 +108,7 @@ def main() -> None:
     service = MangaDexClient(config)
 
     # Get search query
-    query = inquirer.text(message="Pesquise mangá").execute()
+    query = inquirer.text(message="Pesquise mangá").execute()  # type: ignore[attr-defined]
     if not query.strip():
         print("Pesquisa vazia")
         return

@@ -53,6 +53,7 @@ build-backend = "hatchling.build"
 
 [dependency-groups]
 dev = [
+    "mypy>=1.19.1",
     "pyinstaller>=6.11.1",
     "pyright>=1.1.407",
     "pytest>=9.0.2",
@@ -120,3 +121,9 @@ ignore = [
     "S112",      # Log without exc_info
     "B904",      # raise within except without from
 ]
+
+[tool.mypy]
+disallow_untyped_defs = false
+disallow_untyped_calls = false
+disallow_untyped_decorators = false
+check_untyped_defs = false

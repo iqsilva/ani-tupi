@@ -69,7 +69,7 @@ class AnimesOnlineCC(PluginInterface):
 
         rep.add_episode_list(anime, titles, urls, AnimesOnlineCC.name)
 
-    def search_player_src(self, url_episode: str, container: list, event) -> None:
+    def search_player_src(self, url: str, container: list, event) -> None:
         options = webdriver.FirefoxOptions()
         options.add_argument("--headless")
 
@@ -83,7 +83,7 @@ class AnimesOnlineCC(PluginInterface):
             msg = "Firefox not installed."
             raise RuntimeError(msg) from e
 
-        driver.get(url_episode)
+        driver.get(url)
 
         try:
             xpath = "/html/body/div[1]/div[2]/div[2]/div[2]/div[1]/div[1]/div[1]/iframe"

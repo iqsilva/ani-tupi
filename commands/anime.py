@@ -98,6 +98,9 @@ def anime(args) -> None:
     assert selected_anime is not None and episode_idx is not None, (
         "selected_anime and episode_idx should be set"
     )
+    # Type narrowing: assertion above proves these are not None
+    from typing import cast
+    episode_idx = cast(int, episode_idx)  # for pyright
     episode_list = rep.get_episode_list(selected_anime)
     num_episodes = len(episode_list)
 
@@ -119,7 +122,7 @@ def anime(args) -> None:
         pass  # Silent fail - just continue without AniList episode count
 
     while True:
-        episode = episode_idx + 1
+        episode = episode_idx + 1  # type: ignore[operator]
 
         # Get episode URL and source to determine quality extraction method
         episode_info = rep.get_episode_url_and_source(selected_anime, episode)
@@ -178,7 +181,7 @@ def anime(args) -> None:
 
         # Only save history if user watched until the end
         if confirm == "✅ Sim, assisti até o final":
-            save_history(selected_anime, episode_idx, anilist_id, source)
+            save_history(selected_anime, episode_idx, anilist_id, source)  # type: ignore[arg-type]
         else:
             # User didn't finish - go back to episode menu without saving
             continue
@@ -244,9 +247,9 @@ def anime(args) -> None:
         if not selected_opt or selected_opt == "🔙 Voltar":
             return  # Exit to main menu
         if selected_opt == "▶️  Próximo":
-            episode_idx += 1
+            episode_idx += 1  # type: ignore[operator]
         elif selected_opt == "◀️  Anterior":
-            episode_idx -= 1
+            episode_idx -= 1  # type: ignore[operator]
         elif selected_opt == "🔁 Replay":
             # Keep same episode_idx, loop continues to replay
             pass
