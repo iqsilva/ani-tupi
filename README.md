@@ -4,8 +4,6 @@ Assista anime direto do terminal sem anúncios! Interface CLI em português bras
 
 > Estava cansado de anúncios e o ani-cli não tinha conteúdo em português brasileiro, então criei esta ferramenta.
 
-Para ver mangás, confira: [manga-tupi](https://github.com/manga-tupi)
-
 ## 📺 Demo no YouTube
 [![Demo](https://img.youtube.com/vi/eug6gKLTD3I/maxresdefault.jpg)](https://youtu.be/eug6gKLTD3I)
 
