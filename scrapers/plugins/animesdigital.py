@@ -109,34 +109,55 @@ class AnimesDigital(PluginInterface):
     def search_player_src(url_episode, container, event) -> None:
         """Extract video URL from episode player.
 
-        AnimesDigital embeds video URLs directly in iframe src attributes,
-        so we can extract them directly from HTML without Selenium.
+        AnimesDigital loads iframes dynamically via JavaScript.
+        Uses Playwright to render the page and extract iframe sources.
+        Prioritizes api.anivideo.net iframes which are most reliable.
         """
         try:
-            response = requests.get(url_episode, timeout=REQUEST_TIMEOUT)
-            tree = HTMLParser(response.text)
+            from playwright.sync_api import sync_playwright
 
-            # Look for iframes with video URLs
-            iframes = tree.css("iframe[src]")
+            with sync_playwright() as p:
+                browser = p.chromium.launch(headless=True)
+                page = browser.new_page()
 
-            if not iframes:
-                msg = "No iframe found in AnimesDigital episode page."
-                raise RuntimeError(msg)
+                # Navigate to episode page with timeout
+                page.goto(url_episode, wait_until="networkidle", timeout=REQUEST_TIMEOUT * 1000)
 
-            # Get the first iframe src (contains the video URL)
-            for iframe in iframes:
-                src = iframe.attributes.get("src", "")
-                if src and ("m3u8" in src or "mp4" in src or "anivideo" in src):
-                    if not event.is_set():
-                        container.append(src)
-                        event.set()
-                    return
+                # Extract all iframe sources
+                iframes = page.query_selector_all("iframe[src]")
 
-            # If no obvious video iframe found, try the first iframe
-            src = iframes[0].attributes.get("src", "")
-            if src and not event.is_set():
-                container.append(src)
-                event.set()
+                if not iframes:
+                    browser.close()
+                    msg = "No iframe found in AnimesDigital episode page."
+                    raise RuntimeError(msg)
+
+                # Priority 1: Look for api.anivideo.net iframes (most reliable)
+                for iframe in iframes:
+                    src = iframe.get_attribute("src")
+                    if src and "api.anivideo.net" in src:
+                        if not event.is_set():
+                            container.append(src)
+                            event.set()
+                        browser.close()
+                        return
+
+                # Priority 2: Look for m3u8 or mp4 iframes
+                for iframe in iframes:
+                    src = iframe.get_attribute("src")
+                    if src and ("m3u8" in src or "mp4" in src):
+                        if not event.is_set():
+                            container.append(src)
+                            event.set()
+                        browser.close()
+                        return
+
+                # Priority 3: Use the first iframe as fallback
+                src = iframes[0].get_attribute("src")
+                if src and not event.is_set():
+                    container.append(src)
+                    event.set()
+
+                browser.close()
 
         except Exception as e:
             msg = f"Could not extract video from AnimesDigital: {e}"
