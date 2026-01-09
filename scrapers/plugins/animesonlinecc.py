@@ -16,8 +16,7 @@ class AnimesOnlineCC(PluginInterface):
     languages = ["pt-br"]
     name = "animesonlinecc"
 
-    @staticmethod
-    def search_anime(query):
+    def search_anime(self, query):
         url = "https://animesonlinecc.to/search/" + "+".join(query.split())
         html_content = requests.get(url, timeout=10)
         tree = HTMLParser(html_content.text)
@@ -41,8 +40,7 @@ class AnimesOnlineCC(PluginInterface):
             for title, url in zip(titles, titles_urls):
                 pool.apply(parse_seasons, args=(title, url))
 
-    @staticmethod
-    def search_episodes(anime, url, season):
+    def search_episodes(self, anime, url, season):
         html_episodes_page = requests.get(url, timeout=10)
         tree = HTMLParser(html_episodes_page.text)
 
@@ -59,8 +57,7 @@ class AnimesOnlineCC(PluginInterface):
 
         rep.add_episode_list(anime, titles, urls, AnimesOnlineCC.name)
 
-    @staticmethod
-    def search_player_src(url_episode, container, event):
+    def search_player_src(self, url_episode, container, event):
         options = webdriver.FirefoxOptions()
         options.add_argument("--headless")
 
