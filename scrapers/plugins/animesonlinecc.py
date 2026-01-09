@@ -16,14 +16,24 @@ class AnimesOnlineCC(PluginInterface):
     languages = ["pt-br"]
     name = "animesonlinecc"
 
-    def search_anime(self, query):
+    def search_anime(self, query: str) -> None:
         url = "https://animesonlinecc.to/search/" + "+".join(query.split())
         html_content = requests.get(url, timeout=10)
         tree = HTMLParser(html_content.text)
 
         divs = tree.css("div.data")
-        titles_urls = [div.css_first("h3 a").attributes.get("href") for div in divs]
-        titles = [div.css_first("h3 a").text() for div in divs]
+        titles_urls = []
+        titles = []
+        for div in divs:
+            n = div.css_first("h3 a")
+            if not n:
+                continue
+            url = n.attributes.get("href")
+            title = n.text()
+            if not url or not title:
+                continue
+            titles_urls.append(url)
+            titles.append(title)
 
         for title, url in zip(titles, titles_urls):
             rep.add_anime(title, url, AnimesOnlineCC.name)
@@ -40,11 +50,13 @@ class AnimesOnlineCC(PluginInterface):
             for title, url in zip(titles, titles_urls):
                 pool.apply(parse_seasons, args=(title, url))
 
-    def search_episodes(self, anime, url, season):
+    def search_episodes(self, anime: str, url: str, params: dict | None) -> None:
         html_episodes_page = requests.get(url, timeout=10)
         tree = HTMLParser(html_episodes_page.text)
 
         seasons = tree.css("ul.episodios")
+        # Extract season number from params (backwards compatible with int)
+        season = params if isinstance(params, int) else (params.get("season") if params else None)
         season_idx = season - 1 if season is not None else 0
         season_ul = seasons[season_idx] if season_idx < len(seasons) else seasons[0]
 
@@ -57,7 +69,7 @@ class AnimesOnlineCC(PluginInterface):
 
         rep.add_episode_list(anime, titles, urls, AnimesOnlineCC.name)
 
-    def search_player_src(self, url_episode, container, event):
+    def search_player_src(self, url_episode: str, container: list, event) -> None:
         options = webdriver.FirefoxOptions()
         options.add_argument("--headless")
 
@@ -92,7 +104,7 @@ class AnimesOnlineCC(PluginInterface):
             event.set()
 
 
-def load(languages_dict):
+def load(languages_dict) -> None:
     can_load = False
     for language in AnimesOnlineCC.languages:
         if language in languages_dict:
@@ -100,4 +112,4 @@ def load(languages_dict):
             break
     if not can_load:
         return
-    rep.register(AnimesOnlineCC)
+    rep.register(AnimesOnlineCC())

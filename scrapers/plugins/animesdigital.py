@@ -161,4 +161,4 @@ def load(languages_dict) -> None:
             break
     if not can_load:
         return
-    rep.register(AnimesDigital)
+    rep.register(AnimesDigital())

@@ -91,7 +91,7 @@ def load_plugins(languages: dict, plugins=None) -> None:
             from plugin_manager import load_plugin_preferences
 
             prefs = load_plugin_preferences()
-            disabled_plugins = set(prefs.get("disabled_plugins", []))
+            disabled_plugins = set(prefs.disabled_plugins)
 
             # Filter out disabled plugins
             plugins = [p for p in all_plugin_files if p not in disabled_plugins]
