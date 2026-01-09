@@ -4,6 +4,7 @@ When user does manual search without AniList, automatically match results
 against AniList API to get anilist_id. This enables better caching and
 metadata enrichment.
 """
+
 from fuzzywuzzy import fuzz
 
 from models.models import AniListAnime, AniListSearchResult
@@ -41,7 +42,6 @@ def auto_discover_anilist_id(scraper_title: str) -> list[AniListSearchResult]:
                     pass
             # Old format or malformed, fall through to re-fetch
 
-
         # Query AniList API
         from services.anilist_service import anilist_client
 
@@ -64,10 +64,14 @@ def auto_discover_anilist_id(scraper_title: str) -> list[AniListSearchResult]:
 
             # Check both titles using token_sort_ratio for better word order tolerance
             score_romaji = (
-                fuzz.token_sort_ratio(scraper_title.lower(), title_romaji.lower()) if title_romaji else 0
+                fuzz.token_sort_ratio(scraper_title.lower(), title_romaji.lower())
+                if title_romaji
+                else 0
             )
             score_english = (
-                fuzz.token_sort_ratio(scraper_title.lower(), title_english.lower()) if title_english else 0
+                fuzz.token_sort_ratio(scraper_title.lower(), title_english.lower())
+                if title_english
+                else 0
             )
             score = max(score_romaji, score_english)
 
@@ -85,9 +89,7 @@ def auto_discover_anilist_id(scraper_title: str) -> list[AniListSearchResult]:
         sorted_matches = sorted(matches, key=lambda x: x.score, reverse=True)
 
         # Cache for 30 days
-        cache.set(
-            cache_key, [match.model_dump() for match in sorted_matches], expire=2592000
-        )
+        cache.set(cache_key, [match.model_dump() for match in sorted_matches], expire=2592000)
         return sorted_matches
 
     except Exception as e:
@@ -101,7 +103,6 @@ def get_anilist_id_from_title(anime_title: str) -> int | None:
     if results:
         return results[0].anilist_id
     return None
-
 
 
 def get_anilist_metadata(anilist_id: int) -> AniListAnime | None:

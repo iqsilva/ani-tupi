@@ -111,8 +111,6 @@ class AniListSearchResult(BaseModel):
     title: str
 
 
-
-
 class VideoUrl(BaseModel):
     """Video playback URL with optional headers.
 
@@ -308,7 +306,9 @@ class AniListMediaListEntry(BaseModel):
     progress: int | None = Field(None, ge=0, description="Episode progress")
     score: int | None = Field(None, ge=0, le=100, description="User score")
     startedAt: dict[str, int] | None = Field(None, description="Start date (year, month, day)")
-    completedAt: dict[str, int] | None = Field(None, description="Completion date (year, month, day)")
+    completedAt: dict[str, int] | None = Field(
+        None, description="Completion date (year, month, day)"
+    )
     media: AniListAnime | None = Field(None, description="Anime media object")
     createdAt: int | None = Field(None, description="Creation timestamp")
 

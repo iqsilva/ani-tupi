@@ -97,7 +97,9 @@ def normalize_anime_title(title: str):
     # 2. Extract season numbers BEFORE removing season patterns
     # This preserves "2" from "2nd Season" or "Season 2"
     extracted_season = None
-    season_match = re.search(r"(?:Season\s+|Temporada\s+)(\d+)|(\d+)(?:st|nd|rd|th)?\s+Season", title, re.IGNORECASE)
+    season_match = re.search(
+        r"(?:Season\s+|Temporada\s+)(\d+)|(\d+)(?:st|nd|rd|th)?\s+Season", title, re.IGNORECASE
+    )
     if season_match:
         extracted_season = season_match.group(1) or season_match.group(2)
 
@@ -168,7 +170,9 @@ def normalize_anime_title(title: str):
     return result
 
 
-def offer_sequel_and_continue(anilist_id: int, args, current_episode: int = None, anilist_episodes: int = None) -> bool:
+def offer_sequel_and_continue(
+    anilist_id: int, args, current_episode: int = None, anilist_episodes: int = None
+) -> bool:
     """Check for sequels when last episode is watched and offer to continue.
 
     Args:
@@ -194,7 +198,9 @@ def offer_sequel_and_continue(anilist_id: int, args, current_episode: int = None
     if anilist_episodes and current_episode:
         if current_episode < anilist_episodes:
             # User has more episodes to watch - don't offer sequel
-            print(f"\n💡 Existem mais {anilist_episodes - current_episode} episódio(s) disponível(is) em outras fontes.")
+            print(
+                f"\n💡 Existem mais {anilist_episodes - current_episode} episódio(s) disponível(is) em outras fontes."
+            )
             return False
 
     # Get sequels from AniList
@@ -302,7 +308,9 @@ def anilist_anime_flow(
     current_variant_idx = 0  # Track which variation we're currently using
     cache_data = None  # Track if we found the anime in cache
     source = None  # Track which source user selected
-    first_variant = title_variations[0] if title_variations else anime_title  # Store first for ranking
+    first_variant = (
+        title_variations[0] if title_variations else anime_title
+    )  # Store first for ranking
 
     while current_variant_idx < len(title_variations):
         variant = title_variations[current_variant_idx]
@@ -688,6 +696,7 @@ def anilist_anime_flow(
 
         # Play episode with IPC support
         from utils.video_player import _format_episode_progress
+
         progress_str = _format_episode_progress(episode, num_episodes, total_episodes)
         print(f"\n▶️  Iniciando reprodução do episódio {progress_str}...")
         print(f"   Fonte: {source or 'unknown'}")
@@ -726,7 +735,12 @@ def anilist_anime_flow(
                             if anime_info:
                                 anilist_episodes = anime_info.episodes
 
-                        if offer_sequel_and_continue(anilist_id, args, current_episode=next_episode, anilist_episodes=anilist_episodes):
+                        if offer_sequel_and_continue(
+                            anilist_id,
+                            args,
+                            current_episode=next_episode,
+                            anilist_episodes=anilist_episodes,
+                        ):
                             return  # Sequel started, exit this flow
                     continue  # Loop to play next episode
             # Fall through to menu if no next episode data
@@ -798,7 +812,12 @@ def anilist_anime_flow(
                     if anime_info:
                         anilist_episodes = anime_info.episodes
 
-                if anilist_id and offer_sequel_and_continue(anilist_id, args, current_episode=current_episode, anilist_episodes=anilist_episodes):
+                if anilist_id and offer_sequel_and_continue(
+                    anilist_id,
+                    args,
+                    current_episode=current_episode,
+                    anilist_episodes=anilist_episodes,
+                ):
                     return  # Sequel started, exit this flow
                 # No sequel or user declined - return to menu
                 return
@@ -891,7 +910,12 @@ def anilist_anime_flow(
                             if anime_info:
                                 anilist_episodes = anime_info.episodes
 
-                        if offer_sequel_and_continue(anilist_id, args, current_episode=episode, anilist_episodes=anilist_episodes):
+                        if offer_sequel_and_continue(
+                            anilist_id,
+                            args,
+                            current_episode=episode,
+                            anilist_episodes=anilist_episodes,
+                        ):
                             return  # Sequel started, exit this flow
             else:
                 # User didn't finish - don't save anything, just continue to menu
@@ -1227,6 +1251,7 @@ def search_anime_flow(args):
             ranking_query = used_query
             try:
                 from utils.anilist_discovery import auto_discover_anilist_id
+
                 anilist_results = auto_discover_anilist_id(used_query)
                 if anilist_results:
                     # Use the best match's romaji name for ranking scraper results

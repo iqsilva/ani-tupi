@@ -246,7 +246,9 @@ class AniListClient:
         except Exception:
             return []
 
-    def get_user_list(self, status: str, page: int = 1, per_page: int = 50) -> list[AniListMediaListEntry]:
+    def get_user_list(
+        self, status: str, page: int = 1, per_page: int = 50
+    ) -> list[AniListMediaListEntry]:
         """Get authenticated user's anime list by status.
 
         Args:

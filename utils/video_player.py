@@ -39,7 +39,9 @@ def set_autoplay_state(enabled: bool) -> None:
     _autoplay_enabled = enabled
 
 
-def _format_episode_progress(episode_num: int, scraper_total: int | None = None, anilist_total: int | None = None) -> str:
+def _format_episode_progress(
+    episode_num: int, scraper_total: int | None = None, anilist_total: int | None = None
+) -> str:
     """Format episode progress with scraper and AniList episode counts.
 
     Args:
@@ -491,7 +493,9 @@ def _ipc_event_loop(
                                     # Show OSD message that we are searching
                                     scraper_total = episode_context.get("total_episodes")
                                     anilist_total = episode_context.get("anilist_episodes")
-                                    progress_str = _format_episode_progress(next_episode_number, scraper_total, anilist_total)
+                                    progress_str = _format_episode_progress(
+                                        next_episode_number, scraper_total, anilist_total
+                                    )
                                     _send_mpv_command(
                                         sock,
                                         "show-text",
@@ -507,7 +511,9 @@ def _ipc_event_loop(
                                         # Show OSD success message
                                         scraper_total = episode_context.get("total_episodes")
                                         anilist_total = episode_context.get("anilist_episodes")
-                                        progress_str = _format_episode_progress(next_episode_number, scraper_total, anilist_total)
+                                        progress_str = _format_episode_progress(
+                                            next_episode_number, scraper_total, anilist_total
+                                        )
                                         _send_mpv_command(
                                             sock,
                                             "show-text",
@@ -550,7 +556,9 @@ def _ipc_event_loop(
                                         # Show OSD message that we are searching
                                         scraper_total = episode_context.get("total_episodes")
                                         anilist_total = episode_context.get("anilist_episodes")
-                                        progress_str = _format_episode_progress(prev_episode_number, scraper_total, anilist_total)
+                                        progress_str = _format_episode_progress(
+                                            prev_episode_number, scraper_total, anilist_total
+                                        )
                                         _send_mpv_command(
                                             sock,
                                             "show-text",
@@ -571,7 +579,9 @@ def _ipc_event_loop(
                                             # Show OSD message
                                             scraper_total = episode_context.get("total_episodes")
                                             anilist_total = episode_context.get("anilist_episodes")
-                                            progress_str = _format_episode_progress(prev_episode_number, scraper_total, anilist_total)
+                                            progress_str = _format_episode_progress(
+                                                prev_episode_number, scraper_total, anilist_total
+                                            )
                                             _send_mpv_command(
                                                 sock,
                                                 "show-text",
@@ -583,9 +593,7 @@ def _ipc_event_loop(
                                             episode_context["url"] = prev_url
 
                                             # Print terminal feedback
-                                            print(
-                                                f"⏪ Voltando para Episódio {progress_str}"
-                                            )
+                                            print(f"⏪ Voltando para Episódio {progress_str}")
 
                                             # Continue loop
                                             continue
@@ -655,9 +663,11 @@ def _ipc_event_loop(
 
         # Check stderr for error messages
         stderr_output = ""
-        if hasattr(mpv_process, 'stderr') and mpv_process.stderr:
+        if hasattr(mpv_process, "stderr") and mpv_process.stderr:
             try:
-                stderr_output = mpv_process.stderr.read() if hasattr(mpv_process.stderr, 'read') else ""
+                stderr_output = (
+                    mpv_process.stderr.read() if hasattr(mpv_process.stderr, "read") else ""
+                )
             except:
                 pass
 
@@ -666,7 +676,9 @@ def _ipc_event_loop(
             print(f"⚠️  MPV exited with code {exit_code}")
             if "error" in stderr_output.lower():
                 # Extract relevant error messages
-                error_lines = [line for line in stderr_output.split('\n') if 'error' in line.lower()]
+                error_lines = [
+                    line for line in stderr_output.split("\n") if "error" in line.lower()
+                ]
                 for error_line in error_lines[:3]:  # Show first 3 errors
                     if error_line.strip():
                         print(f"   ❌ {error_line.strip()[:100]}")
@@ -674,7 +686,9 @@ def _ipc_event_loop(
                 if "400" in stderr_output:
                     print("\n   ℹ️  AnimesonlineCC: Token expirado (URLs temporárias)")
                     print("   💡 Solução: Use AnimeFire ou AnimesDigital (sem expiration)")
-                    print("   Modifique: export ANI_TUPI__PLUGINS__PRIORITY_ORDER='[\"animesdigital\", \"animefire\"]'")
+                    print(
+                        '   Modifique: export ANI_TUPI__PLUGINS__PRIORITY_ORDER=\'["animesdigital", "animefire"]\''
+                    )
             print("   Tente ativar debug: ANI_TUPI_DEBUG_MPV=1 uv run ani-tupi")
 
         # Check if auto-play is enabled (declared at function level)
@@ -712,7 +726,9 @@ def _ipc_event_loop(
         # Return the final episode_number so anime_service can sync episode_idx
         # This is important when Shift+N was used to load a different episode
         final_episode = episode_context.get("episode_number", 1)
-        return VideoPlaybackResult(exit_code=exit_code, action="quit", data={"episode": final_episode})
+        return VideoPlaybackResult(
+            exit_code=exit_code, action="quit", data={"episode": final_episode}
+        )
 
     finally:
         try:

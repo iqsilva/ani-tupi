@@ -402,7 +402,7 @@ class Repository:
             import re
 
             # Extract numeric tokens from query (e.g., "0" from "jujutsu kaisen 0")
-            query_numbers = set(re.findall(r'\d+', original_query))
+            query_numbers = set(re.findall(r"\d+", original_query))
 
             # Calculate fuzzy matching score for each title against the original query
             scored_results = []
@@ -413,7 +413,7 @@ class Repository:
                 # Boost scoring if title contains the same numbers as query
                 # Example: query="jujutsu kaisen 0" should prioritize titles with "0"
                 if query_numbers:
-                    title_numbers = set(re.findall(r'\d+', original_title))
+                    title_numbers = set(re.findall(r"\d+", original_title))
                     if query_numbers.issubset(title_numbers):
                         # Strong boost: title has all the numbers from query
                         # This fixes "Jujutsu Kaisen 0 Movie" ranking below "Jujutsu Kaisen 2"
@@ -439,7 +439,6 @@ class Repository:
             result = [item[0] for item in sorted(result, key=lambda x: x[1])]
 
         return result
-
 
     def search_episodes(self, anime: str, source_filter: str | None = None) -> None:
         """Search for episodes from all sources or a specific source.
@@ -521,7 +520,7 @@ class Repository:
             return
 
         # Handle both Pydantic models and dicts
-        if hasattr(cache_data, 'episode_urls'):
+        if hasattr(cache_data, "episode_urls"):
             # It's a Pydantic model
             episode_urls = cache_data.episode_urls
         else:
@@ -688,8 +687,7 @@ class Repository:
 
             # Sort sources by priority
             sorted_sources = sorted(
-                sources_urls.keys(),
-                key=lambda s: priority_map.get(s, len(priority_order))
+                sources_urls.keys(), key=lambda s: priority_map.get(s, len(priority_order))
             )
 
             with ThreadPoolExecutor(max_workers=cpu_count()) as executor:
@@ -700,7 +698,9 @@ class Repository:
                         break
 
                     source_urls = sources_urls[source_name]
-                    is_priority = (priority_map.get(source_name, len(priority_order)) < len(priority_order))
+                    is_priority = priority_map.get(source_name, len(priority_order)) < len(
+                        priority_order
+                    )
 
                     # Create tasks for this source
                     source_tasks = [
@@ -722,9 +722,7 @@ class Repository:
                     while pending and not container:
                         try:
                             done, pending = await asyncio.wait(
-                                pending,
-                                return_when=asyncio.FIRST_COMPLETED,
-                                timeout=timeout
+                                pending, return_when=asyncio.FIRST_COMPLETED, timeout=timeout
                             )
                         except asyncio.TimeoutError:
                             # Timeout reached, stop waiting for this source
