@@ -33,7 +33,9 @@ def load_plugin_preferences() -> PluginPreferences:
         return PluginPreferences()
 
 
-def save_plugin_preferences(disabled_plugins: list[str], priority_order: list[str] | None = None) -> None:
+def save_plugin_preferences(
+    disabled_plugins: list[str], priority_order: list[str] | None = None
+) -> None:
     """Save plugin preferences to JSON file.
 
     Args:
@@ -63,7 +65,7 @@ def get_all_available_plugins() -> list[str]:
     from os import listdir
     from os.path import isfile, join
 
-    from loader import get_resource_path
+    from scrapers.loader import get_resource_path
 
     # Scan plugins directory
     path = get_resource_path("plugins/")

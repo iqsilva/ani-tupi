@@ -15,7 +15,7 @@ class AnimeFire(PluginInterface):
     languages = ["pt-br"]
     name = "animefire"
 
-    def search_anime(self, query) -> None:
+    def search_anime(self, query: str) -> None:
         url = "https://animefire.plus/pesquisar/" + "-".join(query.split())
         html_content = requests.get(url)
         tree = HTMLParser(html_content.text)
@@ -32,7 +32,7 @@ class AnimeFire(PluginInterface):
             if url:  # Only add if url is not None
                 rep.add_anime(title, url, self.name)
 
-    def search_episodes(self, anime, url, params) -> None:
+    def search_episodes(self, anime: str, url: str, params: dict | None) -> None:
         html_episodes_page = requests.get(url)
         tree = HTMLParser(html_episodes_page.text)
         links = tree.css("a.lEp.epT.divNumEp.smallbox.px-2.mx-1.text-left.d-flex")
