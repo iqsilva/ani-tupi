@@ -83,12 +83,16 @@ def save_anilist_mapping(
         logger.error(f"Failed to save AniList mapping: {e}")
 
 
-def normalize_anime_title(title: str):
+def normalize_anime_title(title: str, is_english: bool = False):
     """Generate sensible title variations for searching.
 
     For AniList titles with format "Romaji / English", extracts just the english part.
     Example: "Kimetsu no Yaiba: Hashira Geiko-hen / Demon Slayer: Hashira Training Arc"
              → ["demon slayer hashira training arc", "demon slayer hashira training", "demon slayer hashira", "demon slayer"]
+
+    Args:
+        title: Title to normalize
+        is_english: If True, preserves apostrophes (for English titles like "Hell's Paradise")
 
     Returns variations in lowercase, from most specific to most generic.
     """
@@ -98,6 +102,7 @@ def normalize_anime_title(title: str):
         parts = title.split(" / ")
         # Use english if available (after " / "), otherwise keep original
         title = parts[1] if len(parts) > 1 else parts[0]
+        is_english = True  # Auto-detect: if we split, second part is English
 
     # 2. Extract season numbers BEFORE removing season patterns
     # This preserves "2" from "2nd Season" or "Season 2"
@@ -131,8 +136,13 @@ def normalize_anime_title(title: str):
     if extracted_season:
         cleaned = f"{cleaned} {extracted_season}"
 
-    # 3. Keep only letters, numbers and spaces
-    cleaned = re.sub(r"[^A-Za-z0-9\s]", " ", cleaned)
+    # 3. Keep only letters, numbers, spaces (and apostrophes if English)
+    if is_english:
+        # Preserve apostrophes for English titles (e.g., "Hell's Paradise")
+        cleaned = re.sub(r"[^A-Za-z0-9\s']", " ", cleaned)
+    else:
+        # Remove all special characters including apostrophes for Romaji
+        cleaned = re.sub(r"[^A-Za-z0-9\s]", " ", cleaned)
     # Remove multiple spaces and trim
     cleaned = re.sub(r"\s+", " ", cleaned).strip()
 
@@ -291,6 +301,35 @@ def anilist_anime_flow(
     # Use display_title if provided, otherwise fall back to anime_title
     if not display_title:
         display_title = anime_title
+
+    # Get full anime info from AniList to access both English and Romaji titles
+    is_english_search = False  # Track if user chose English title for apostrophe handling
+    anime_info = anilist_client.get_anime_by_id(anilist_id)
+    if anime_info:
+        english_title = anime_info.title.english
+        romaji_title = anime_info.title.romaji
+
+        # Build language selection menu (only if both titles exist and are different)
+        if english_title and romaji_title and english_title != romaji_title:
+            language_options = [
+                f"🇬🇧 Inglês: {english_title}",
+                f"🇯🇵 Romanji: {romaji_title}",
+            ]
+            language_choice = menu_navigate(
+                language_options, msg="Escolha o idioma para buscar:"
+            )
+
+            if not language_choice:
+                return  # User cancelled
+
+            # Set anime_title based on choice
+            if language_choice.startswith("🇬🇧"):
+                anime_title = english_title
+                is_english_search = True
+            else:
+                anime_title = romaji_title
+                is_english_search = False
+
     from utils.scraper_cache import get_cache, set_cache
 
     loader.load_plugins({"pt-br"})  # type: ignore
@@ -309,7 +348,7 @@ def anilist_anime_flow(
         print(f"ℹ️  Fontes ativas: {', '.join(active_sources)}")
 
     # Try different title variations with support for "Continue searching with fewer words"
-    title_variations = normalize_anime_title(anime_title)
+    title_variations = normalize_anime_title(anime_title, is_english=is_english_search)
     titles = []
     used_query = None  # Track which query was actually used
     metadata = {}  # Track search metadata

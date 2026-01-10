@@ -51,7 +51,7 @@ class AniListSettings(BaseModel):
         description="Path to stored access token",
     )
     prefer_english_title: bool = Field(
-        True,
+        False,
         description="Use English title for searches (True) or Romaji (False)",
     )
 
