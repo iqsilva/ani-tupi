@@ -50,6 +50,10 @@ class AniListSettings(BaseModel):
         default_factory=lambda: get_data_path() / "anilist_token.json",
         description="Path to stored access token",
     )
+    prefer_english_title: bool = Field(
+        True,
+        description="Use English title for searches (True) or Romaji (False)",
+    )
 
 
 class CacheSettings(BaseModel):

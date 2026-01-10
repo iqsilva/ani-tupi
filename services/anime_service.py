@@ -10,19 +10,22 @@ This module contains the core business logic for:
 Used by: main.py, ui modules
 """
 
-import re
 import json
+import re
+from typing import Optional
 
-from scrapers import loader
 from models.config import get_data_path, settings
 from services.anilist_service import anilist_client
-from services.history_service import reset_history, save_history
+from services.history_service import save_history
 from services.repository import rep
 from ui.components import loading, menu_navigate
-from utils.video_player import play_episode
-from utils.persistence import JSONStore
 from utils.exceptions import PersistenceError
 from utils.logging import get_logger
+from utils.persistence import JSONStore
+from utils.video_player import play_episode
+from models import EpisodeContext
+from scrapers import loader
+
 
 logger = get_logger(__name__)
 
@@ -83,16 +86,18 @@ def save_anilist_mapping(
 def normalize_anime_title(title: str):
     """Generate sensible title variations for searching.
 
-    For AniList titles with format "Romaji / English", extracts just the romaji part.
-    Example: "Kimetsu no Yaiba: Hashira Geiko-hen / Demon Slayer..."
-             → ["kimetsu no yaiba hashira geiko hen", "kimetsu no yaiba hashira", "kimetsu no yaiba"]
+    For AniList titles with format "Romaji / English", extracts just the english part.
+    Example: "Kimetsu no Yaiba: Hashira Geiko-hen / Demon Slayer: Hashira Training Arc"
+             → ["demon slayer hashira training arc", "demon slayer hashira training", "demon slayer hashira", "demon slayer"]
 
     Returns variations in lowercase, from most specific to most generic.
     """
     # 1. Handle AniList bilingual format "Romaji / English"
-    # Take only the romaji part (before the " / ")
+    # Take only the english part (after the " / ")
     if " / " in title:
-        title = title.split(" / ")[0]
+        parts = title.split(" / ")
+        # Use english if available (after " / "), otherwise keep original
+        title = parts[1] if len(parts) > 1 else parts[0]
 
     # 2. Extract season numbers BEFORE removing season patterns
     # This preserves "2" from "2nd Season" or "Season 2"
@@ -171,7 +176,10 @@ def normalize_anime_title(title: str):
 
 
 def offer_sequel_and_continue(
-    anilist_id: int, args, current_episode: int = None, anilist_episodes: int = None
+    anilist_id: int,
+    args,
+    current_episode: Optional[int] = None,
+    anilist_episodes: Optional[int] = None,
 ) -> bool:
     """Check for sequels when last episode is watched and offer to continue.
 
@@ -311,6 +319,7 @@ def anilist_anime_flow(
     first_variant = (
         title_variations[0] if title_variations else anime_title
     )  # Store first for ranking
+    titles_with_sources = None
 
     while current_variant_idx < len(title_variations):
         variant = title_variations[current_variant_idx]
@@ -1155,7 +1164,7 @@ def switch_anime_source(
 def get_next_episode_context(
     anime_title: str,
     current_episode: int,
-) -> "EpisodeContext | None":
+) -> EpisodeContext | None:
     """Get episode context for next episode (used by IPC handlers).
 
     Args:
@@ -1165,11 +1174,6 @@ def get_next_episode_context(
     Returns:
         EpisodeContext with url, title, episode info, or None if no next episode
     """
-    from typing import TYPE_CHECKING
-
-    if TYPE_CHECKING:
-        from models.models import EpisodeContext
-    from models.models import EpisodeContext
 
     episode_list = rep.get_episode_list(anime_title)
     if not episode_list:
@@ -1185,6 +1189,9 @@ def get_next_episode_context(
         next_episode_title = episode_list[next_idx]
         # Get URL from repository if available
         next_url = rep.get_episode_url(anime_title, next_idx)
+        if not next_url:
+            print("Nao foi possivel encontrar a url do proximo episodio")
+            return None
 
         return EpisodeContext(
             url=next_url,
@@ -1214,6 +1221,7 @@ def search_anime_flow(args):
         else "eva"
     )
 
+    source = None
     from utils.scraper_cache import get_cache
 
     # Cache-first: Check if query is in cache before searching scrapers

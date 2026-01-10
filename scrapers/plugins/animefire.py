@@ -84,6 +84,7 @@ class AnimeFire(PluginInterface):
                 # If HD version doesn't exist or check fails, use original SD link
                 pass
 
+        # if url contains 480p, try to upgrade to 720p
         elif "480p" in link:
             hd_link = link.replace("/480p", "/720p")
             try:

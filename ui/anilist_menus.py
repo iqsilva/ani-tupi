@@ -7,11 +7,27 @@ import os
 import webbrowser
 
 from services.anilist_service import anilist_client
-from models.config import get_data_path
+from models.config import get_data_path, settings
 from ui.components import loading, menu_navigate
+from models.models import AniListTitle
 
 # History file path (centralized from config)
 HISTORY_PATH = get_data_path()
+
+
+def get_search_title(title: AniListTitle, display_title: str = "") -> str:
+    """Get preferred title for search based on config.
+
+    Args:
+        title: AniListTitle object with romaji/english/native
+        display_title: Fallback display title
+
+    Returns:
+        Title to use for searching (english or romaji based on config)
+    """
+    if settings.anilist.prefer_english_title:
+        return title.english or title.romaji or display_title
+    return title.romaji or title.english or display_title
 
 
 def anilist_main_menu() -> tuple[str, int] | None:
@@ -157,7 +173,7 @@ def _show_account_menu() -> None:
             progress = activity.progress
             media = activity.media
             if media:
-                title = media.title.romaji or media.title.english or "Unknown"
+                title = get_search_title(media.title, "Unknown")
                 episodes = media.episodes
             else:
                 title = "Unknown"
@@ -307,8 +323,8 @@ def _show_anime_list(list_type: str) -> tuple[str, int] | None:
             # Format title for display (bilingual)
             display_title = anilist_client.format_title(media.title)
 
-            # Get romaji first, then english
-            search_title = media.title.romaji or media.title.english or display_title
+            # Get preferred search title based on config
+            search_title = get_search_title(media.title, display_title)
 
             anime_id = media.id
             episodes = media.episodes or "?"
@@ -454,7 +470,7 @@ def _show_recent_history() -> None:
             anime_info = anilist_client.get_anime_by_id(saved_anilist_id)
             if anime_info:
                 display_title = anilist_client.format_title(anime_info.title)
-                search_title = anime_info.title.romaji or anime_info.title.english or display_title
+                search_title = get_search_title(anime_info.title, display_title)
                 # Get total episodes from AniList
                 total_episodes = anime_info.episodes
 
@@ -535,7 +551,7 @@ def _search_and_add_anime(is_logged_in: bool) -> tuple[str, int] | None:
             display += f" ⭐{score}%"
 
         options.append(display)
-        search_title = anime.title.romaji or anime.title.english or display_title
+        search_title = get_search_title(anime.title, display_title)
         anime_map[display] = (display_title, search_title, anime_id)
 
     # Show results

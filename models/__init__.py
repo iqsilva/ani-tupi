@@ -5,7 +5,7 @@ Pydantic models and configuration:
 - config: Centralized configuration (Pydantic Settings)
 """
 
-from models.models import AnimeMetadata, EpisodeData, VideoUrl
+from models.models import AnimeMetadata, EpisodeData, VideoUrl, EpisodeContext
 from models.config import settings, get_data_path
 
 __all__ = [
@@ -14,4 +14,5 @@ __all__ = [
     "VideoUrl",
     "settings",
     "get_data_path",
+    "EpisodeContext",
 ]

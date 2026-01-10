@@ -49,7 +49,7 @@ class AniListClient:
         token_file.parent.mkdir(parents=True, exist_ok=True)
         data = {"access_token": token}
         if user_id:
-            data["user_id"] = user_id
+            data["user_id"] = str(user_id)
         with token_file.open("w") as f:
             json.dump(data, f)
 
@@ -233,7 +233,7 @@ class AniListClient:
         }
         """
 
-        variables = {"page": page, "perPage": per_page}
+        variables: dict[str, int | str] = {"page": page, "perPage": per_page}
         if year:
             variables["seasonYear"] = year
         if season:

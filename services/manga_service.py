@@ -235,6 +235,7 @@ class MangaDexClient:
                     status=MangaStatus(attrs.get("status", "ongoing")),
                     year=attrs.get("year"),
                     tags=[tag["attributes"]["name"]["en"] for tag in attrs.get("tags", [])],
+                    cover_url=None,
                 )
                 results.append(manga)
             except (KeyError, ValueError):

@@ -26,7 +26,7 @@ HISTORY_PATH = get_data_path()
 _history_store = JSONStore(HISTORY_PATH / "history.json")
 
 
-def load_history() -> tuple[str, int, int | None, str | None]:
+def load_history() -> tuple[str, int, int | None, str | None] | None:
     """Load watch history and let user choose episode (-1/0/+1 from last watched).
 
     Format:
