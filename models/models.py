@@ -12,20 +12,9 @@ Defines DTOs (Data Transfer Objects) for:
 
 from datetime import datetime
 from enum import Enum
-from typing import Any, TypeAlias
+from typing import Any
 
 from pydantic import BaseModel, Field, field_validator, model_validator
-
-# Type aliases for common patterns
-AnimeTitle: TypeAlias = str
-EpisodeNumber: TypeAlias = int
-AnimeURL: TypeAlias = str
-PluginName: TypeAlias = str
-AnimeTuple: TypeAlias = tuple[str, str, dict[str, Any] | None]  # (url, source, params)
-EpisodeList: TypeAlias = list[str]
-EpisodeURLList: TypeAlias = list[str]
-AniListID: TypeAlias = int | None
-TimestampSeconds: TypeAlias = int
 
 
 class AnimeMetadata(BaseModel):
