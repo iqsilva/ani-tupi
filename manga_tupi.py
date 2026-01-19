@@ -18,6 +18,8 @@ from services.manga_service import (
     MangaNotFoundError,
 )
 from ui.components import loading, menu_navigate
+from utils.manga_reader import open_pdf_reader
+from utils.pdf_converter import create_pdf_from_images
 
 
 def _find_image_viewer() -> str | None:
@@ -201,34 +203,59 @@ def main() -> None:
         output_path = config.output_directory / selected_manga.title / selected_chapter.number
         output_path.mkdir(parents=True, exist_ok=True)
 
-        # Download pages
-        print(f"Baixando {len(pages)} páginas...")
-        try:
-            import requests
-            from tqdm import tqdm
+        # Define PDF path
+        pdf_path = output_path / f"{selected_chapter.number}.pdf"
 
-            for i, url in enumerate(tqdm(pages, desc="Download")):
-                img_path = output_path / f"{i:03d}.png"
-                if not img_path.exists():
-                    img_data = requests.get(url, timeout=10).content
-                    img_path.write_bytes(img_data)
+        # Check if PDF already exists
+        if pdf_path.exists():
+            print("📖 Abrindo capítulo existente...")
+        else:
+            # Download pages
+            print(f"Baixando {len(pages)} páginas...")
+            try:
+                import requests
+                from tqdm import tqdm
 
-            # Open viewer
-            open_viewer(str(output_path))
+                for i, url in enumerate(tqdm(pages, desc="Download")):
+                    img_path = output_path / f"{i:03d}.png"
+                    if not img_path.exists():
+                        img_data = requests.get(url, timeout=10).content
+                        img_path.write_bytes(img_data)
 
-            # Save reading progress
-            history.update(
-                selected_manga.title,
-                selected_chapter.number,
-                chapter_id=selected_chapter.id,
-                manga_id=selected_manga.id,
-            )
+                if not config.auto_create_pdf:
+                    print(f"✓ Capítulo salvo em: {output_path}")
+                    continue
 
-            print(f"✓ Capítulo salvo em: {output_path}")
+                # Create PDF from downloaded images
+                print("📄 Criando PDF...")
+                create_pdf_from_images(
+                    output_path,
+                    pdf_path,
+                    quality=config.pdf_quality,
+                )
 
-        except Exception as e:
-            print(f"❌ Erro ao baixar capítulo: {e}")
-            continue
+                # Optional: Delete PNG images after PDF creation
+                if config.delete_images_after_pdf:
+                    for img in output_path.glob("*.png"):
+                        img.unlink()
+                    print("🗑️  Imagens PNG removidas (mantendo apenas PDF)")
+
+                print(f"✓ PDF criado: {pdf_path}")
+
+            except Exception as e:
+                print(f"❌ Erro ao processar capítulo: {e}")
+                continue
+
+        # Open PDF reader
+        open_pdf_reader(pdf_path)
+
+        # Save reading progress
+        history.update(
+            selected_manga.title,
+            selected_chapter.number,
+            chapter_id=selected_chapter.id,
+            manga_id=selected_manga.id,
+        )
 
         # Ask for next action
         try:

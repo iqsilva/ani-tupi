@@ -141,6 +141,24 @@ class MangaSettings(BaseModel):
         default_factory=lambda: ["pt-br", "en"],
         description="Preferred languages in order (pt-br, en, ja, etc)",
     )
+    pdf_reader: str | None = Field(
+        None,
+        description="PDF reader to use (zathura, evince, okular, mupdf). None = auto-detect",
+    )
+    delete_images_after_pdf: bool = Field(
+        False,
+        description="Delete PNG images after PDF creation (keeps only PDF)",
+    )
+    pdf_quality: int = Field(
+        85,
+        ge=1,
+        le=100,
+        description="JPEG quality for images inside PDF (0-100, lower = smaller file)",
+    )
+    auto_create_pdf: bool = Field(
+        True,
+        description="Automatically create PDF after downloading images",
+    )
 
 
 class AppSettings(BaseSettings):

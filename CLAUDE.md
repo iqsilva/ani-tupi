@@ -158,6 +158,26 @@ The application follows the **MVCP pattern** (Model-View-Controller-Plugin):
 - Fuzzy matching maps AniList titles to scraper titles (with caching)
 - Supports all AniList list types: Watching, Planning, Completed, etc.
 
+### Manga PDF Reader Workflow
+
+**Pattern**: Similar to anime (external player + cache)
+
+1. User selects manga and chapter
+2. System checks if PDF already exists in chapter directory
+3. If not: Downloads images from MangaDex → Converts to PDF (Pillow)
+4. Opens PDF with Zathura (or auto-detected reader: evince, okular, mupdf)
+5. Saves reading progress to history
+
+**Reader Detection** (utils/manga_reader.py):
+- Priority: User config → Zathura → Evince → Okular → MuPDF → xdg-open
+- Configurable via `ANI_TUPI__MANGA__PDF_READER=reader_name`
+- Graceful fallback if no reader found
+
+**PDF Conversion** (utils/pdf_converter.py):
+- Converts PNG images to single multi-page PDF
+- Configurable JPEG quality (default 85) via `ANI_TUPI__MANGA__PDF_QUALITY`
+- Optional PNG deletion after PDF creation via `ANI_TUPI__MANGA__DELETE_IMAGES_AFTER_PDF`
+
 ## Project Structure
 
 ```
@@ -188,6 +208,8 @@ ani-tupi/
 │   └── anilist_menus.py       # AniList-specific menu UI
 ├── utils/
 │   ├── video_player.py        # MPV integration (IPC commands)
+│   ├── manga_reader.py        # PDF reader launcher (Zathura, auto-detect)
+│   ├── pdf_converter.py       # PNG to PDF conversion (Pillow)
 │   ├── cache_manager.py       # Cache operations (diskcache)
 │   ├── scraper_cache.py       # Scraper result caching
 │   ├── history_service.py     # Watch history management
@@ -286,6 +308,45 @@ Current scrapers available:
 1. GraphQL queries are in `services/anilist_service.py` as string constants
 2. Update query, add new method, call from commands
 3. Test authentication with `uv run ani-tupi anilist auth`
+
+### Using the Manga PDF Reader
+
+**Reading Manga**:
+```bash
+uv run manga_tupi
+```
+
+Workflow:
+1. Search for manga title
+2. Select manga from results
+3. Browse available chapters
+4. Select chapter → System downloads images → Creates PDF → Opens Zathura
+5. Read PDF in Zathura (navigate with arrow keys, q to quit)
+6. System saves reading progress automatically
+
+**Configuration**:
+```bash
+# Use specific PDF reader
+export ANI_TUPI__MANGA__PDF_READER="zathura"
+
+# Delete PNG files after PDF creation (saves space)
+export ANI_TUPI__MANGA__DELETE_IMAGES_AFTER_PDF=true
+
+# Adjust PDF quality (lower = smaller file, 1-100)
+export ANI_TUPI__MANGA__PDF_QUALITY=80
+
+# Disable auto PDF creation (download images only)
+export ANI_TUPI__MANGA__AUTO_CREATE_PDF=false
+```
+
+**Supported PDF Readers** (auto-detected in order):
+- Zathura (recommended, keyboard-driven)
+- Evince (GNOME default)
+- Okular (KDE default)
+- MuPDF (minimal, fast)
+- xdg-open (system default)
+
+If no reader found, images are saved and you can open them manually.
 
 ### Working with the Cache
 
