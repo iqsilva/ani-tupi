@@ -1,7 +1,7 @@
 """PDF converter for manga chapters.
 
-Converts directories of PNG images into multi-page PDF files with optional
-compression for efficient storage.
+Converts directories of images (PNG, JPG, JPEG, WebP) into multi-page PDF files
+with optional compression for efficient storage.
 """
 
 from pathlib import Path
@@ -14,13 +14,14 @@ def create_pdf_from_images(
     output_pdf: Path,
     quality: int = 85,
 ) -> Path:
-    """Convert directory of PNG images to single PDF.
+    """Convert directory of images to single PDF.
 
+    Supports PNG, JPG, JPEG, and WebP image formats.
     Processes images in sorted order, maintains reading sequence,
     and applies JPEG compression within the PDF for file size optimization.
 
     Args:
-        image_dir: Directory containing PNG images (in reading order)
+        image_dir: Directory containing images (in reading order)
         output_pdf: Output PDF file path
         quality: JPEG quality for compression (0-100, default 85)
 
@@ -28,11 +29,17 @@ def create_pdf_from_images(
         Path to created PDF file
 
     Raises:
-        ValueError: If no PNG images found in directory
+        ValueError: If no images found in directory
         Exception: If image processing or PDF creation fails
     """
     # List and sort images by filename (ensures correct reading order)
-    images = sorted(image_dir.glob("*.png"))
+    # Support multiple image formats: png, jpg, jpeg, webp
+    images = []
+    for ext in ["*.png", "*.jpg", "*.jpeg", "*.webp"]:
+        images.extend(image_dir.glob(ext))
+
+    # Sort by filename
+    images = sorted(images)
 
     if not images:
         msg = f"No images found in {image_dir}"

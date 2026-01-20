@@ -13,6 +13,7 @@ from services.repository import rep
 from ui.components import loading, menu_navigate
 from utils.video_player import play_video
 from utils.title_utils import normalize_title_for_search
+from models.models import Status
 
 
 def anime(args) -> None:
@@ -195,24 +196,24 @@ def anime(args) -> None:
                     # Check if anime is in any list
                     if not anilist_client.is_in_any_list(anilist_id):
                         print("\n📝 Adicionando à sua lista do AniList...")
-                        anilist_client.add_to_list(anilist_id, "CURRENT")
+                        anilist_client.add_to_list(anilist_id, Status.CURRENT)
                     else:
                         # Auto-promote from PLANNING to CURRENT, CURRENT to COMPLETED, or COMPLETED to REPEATING
                         entry = anilist_client.get_media_list_entry(anilist_id)
                         if entry:
                             if entry.status == "PLANNING":
                                 print("\n📝 Movendo de 'Planejo Assistir' para 'Assistindo'...")
-                                anilist_client.add_to_list(anilist_id, "CURRENT")
+                                anilist_client.add_to_list(anilist_id, Status.CURRENT)
                             elif entry.status == "CURRENT":
                                 # If finishing last episode of a watched anime, mark as completed
                                 if episode == num_episodes:
                                     print("\n✅ Marcando como 'Completo'...")
-                                    anilist_client.change_status(anilist_id, "COMPLETED")
+                                    anilist_client.change_status(anilist_id, Status.COMPLETED)
                             elif entry.status == "COMPLETED":
                                 # If rewatching, mark as repeating
                                 if episode == num_episodes:
                                     print("\n🔄 Mudando para 'Recomassistindo'...")
-                                    anilist_client.change_status(anilist_id, "REPEATING")
+                                    anilist_client.change_status(anilist_id, Status.REPEATING)
 
                     print(f"\n🔄 Sincronizando progresso com AniList (Ep {episode})...")
                     success = anilist_client.update_progress(anilist_id, episode)

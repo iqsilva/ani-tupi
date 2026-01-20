@@ -25,6 +25,7 @@ from utils.persistence import JSONStore
 from utils.video_player import play_episode
 from models import EpisodeContext
 from scrapers import loader
+from models.models import Status
 
 
 logger = get_logger(__name__)
@@ -810,19 +811,19 @@ def anilist_anime_flow(
                 # Check if anime is in any list
                 if not anilist_client.is_in_any_list(anilist_id):
                     print("📝 Adicionando à sua lista do AniList...")
-                    anilist_client.add_to_list(anilist_id, "CURRENT")
+                    anilist_client.add_to_list(anilist_id, Status.CURRENT)
                 else:
                     # Auto-promote from PLANNING to CURRENT, or CURRENT to COMPLETED
                     entry = anilist_client.get_media_list_entry(anilist_id)
                     if entry:
                         if entry.status == "PLANNING":
                             print("📝 Movendo de 'Planejo Assistir' para 'Assistindo'...")
-                            anilist_client.add_to_list(anilist_id, "CURRENT")
+                            anilist_client.add_to_list(anilist_id, Status.CURRENT)
                         elif entry.status == "CURRENT":
                             # If finishing last episode of a watched anime, mark as completed
                             if current_episode == num_episodes:
                                 print("✅ Marcando como 'Completo'...")
-                                anilist_client.change_status(anilist_id, "COMPLETED")
+                                anilist_client.change_status(anilist_id, Status.COMPLETED)
                         # If already COMPLETED, leave it as is (don't change to REPEATING)
                         # User can manually change status to REPEATING if they want to track rewatches
 
@@ -932,7 +933,7 @@ def anilist_anime_flow(
                                 # If finishing last episode of a watched anime, mark as completed
                                 if episode == num_episodes:
                                     print("\n✅ Marcando como 'Completo'...")
-                                    anilist_client.change_status(anilist_id, "COMPLETED")
+                                    anilist_client.change_status(anilist_id, Status.COMPLETED)
                             # If already COMPLETED, leave it as is (don't change to REPEATING)
                             # User can manually change status to REPEATING if they want to track rewatches
 

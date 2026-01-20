@@ -427,3 +427,12 @@ class PluginPreferences(BaseModel):
     """
 
     disabled_plugins: list[str] = Field(default_factory=list, description="Disabled plugins")
+
+
+class Status(str, Enum):
+    CURRENT = "CURRENT"
+    PLANNING = "PLANNING"
+    COMPLETED = "COMPLETED"
+    PAUSED = "PAUSED"
+    DROPPED = "DROPPED"
+    REPEATING = "REPEATING"

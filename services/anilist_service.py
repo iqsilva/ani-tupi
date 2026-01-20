@@ -18,6 +18,7 @@ from models.models import (
     AniListRelationEdge,
     AniListRelationNode,
     AniListTitle,
+    Status,
 )
 
 
@@ -317,12 +318,12 @@ class AniListClient:
         except Exception:
             return []
 
-    def change_status(self, anime_id: int, status: str) -> bool:
+    def change_status(self, anime_id: int, status: Status) -> bool:
         """Change anime list status.
 
         Args:
             anime_id: AniList anime ID
-            status: New status (CURRENT, PLANNING, COMPLETED, PAUSED, DROPPED, REPEATING)
+            status: New status (Status.CURRENT, Status.PLANNING, Status.COMPLETED, Status.PAUSED, Status.DROPPED, Status.REPEATING)
 
         Returns:
             True if successful
@@ -339,7 +340,7 @@ class AniListClient:
         }
         """
 
-        variables = {"mediaId": anime_id, "status": status}
+        variables = {"mediaId": anime_id, "status": Status(status).value}
 
         try:
             result = self._query(mutation, variables)

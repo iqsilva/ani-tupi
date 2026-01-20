@@ -18,6 +18,7 @@ from utils.persistence import JSONStore
 from utils.title_utils import clean_title_for_display
 from utils.exceptions import PersistenceError
 from utils.logging import get_logger
+from models.models import Status
 
 logger = get_logger(__name__)
 
@@ -435,7 +436,7 @@ def save_history_from_event(
                         # If user is rewatching, check if they want to move back to CURRENT
                         # For now, just change to REPEATING as it's the most logical
                         logger.info(f"Changing '{anime_title}' to REPEATING")
-                        anilist_client.change_status(anilist_id, "REPEATING")
+                        anilist_client.change_status(anilist_id, Status.REPEATING)
 
                 # Update progress (episode_idx is 0-based, convert to 1-based)
                 episode_number = episode_idx + 1

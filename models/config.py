@@ -134,7 +134,7 @@ class MangaSettings(BaseModel):
         description="How long to cache chapter lists (hours)",
     )
     output_directory: Path = Field(
-        default_factory=lambda: Path.home() / "Downloads",
+        default_factory=lambda: Path.home() / ".manga_tupi",
         description="Where to save downloaded manga chapters",
     )
     languages: list[str] = Field(
@@ -146,7 +146,7 @@ class MangaSettings(BaseModel):
         description="PDF reader to use (zathura, evince, okular, mupdf). None = auto-detect",
     )
     delete_images_after_pdf: bool = Field(
-        False,
+        True,
         description="Delete PNG images after PDF creation (keeps only PDF)",
     )
     pdf_quality: int = Field(

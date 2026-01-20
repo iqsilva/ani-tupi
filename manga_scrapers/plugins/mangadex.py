@@ -1,0 +1,227 @@
+"""MangaDex API scraper plugin.
+
+Refactored from the original manga_service.py to fit the plugin architecture.
+"""
+
+from typing import Any
+
+import requests
+
+
+class MangaDex:
+    """MangaDex API scraper plugin."""
+
+    name = "mangadex"
+    languages = ["pt-br", "en", "ja", "es", "fr"]  # Supports multiple languages
+    base_url = "https://api.mangadex.org"
+
+    def __init__(self, preferred_languages: list[str] | None = None):
+        """Initialize MangaDex scraper.
+
+        Args:
+            preferred_languages: List of preferred language codes (default: ["pt-br", "en"])
+        """
+        self.preferred_languages = preferred_languages or ["pt-br", "en"]
+
+    def search_manga(self, query: str) -> list[dict[str, Any]]:
+        """Search for manga by title.
+
+        Args:
+            query: Search query string
+
+        Returns:
+            List of manga results
+        """
+        try:
+            resp = requests.get(
+                f"{self.base_url}/manga",
+                params={"title": query, "limit": 100},
+                timeout=10,
+            )
+            resp.raise_for_status()
+            data = resp.json()
+        except requests.RequestException:
+            return []
+
+        if not data.get("data"):
+            return []
+
+        results = []
+        for item in data["data"]:
+            try:
+                attrs = item["attributes"]
+                manga_id = item["id"]
+                title = self._get_title(attrs)
+                description = attrs.get("description", {}).get("en")
+                status = attrs.get("status", "ongoing")
+                year = attrs.get("year")
+                tags = [tag["attributes"]["name"]["en"] for tag in attrs.get("tags", [])]
+
+                results.append(
+                    {
+                        "id": manga_id,
+                        "title": title,
+                        "url": f"https://mangadex.org/title/{manga_id}",
+                        "cover_url": None,  # Can be fetched separately if needed
+                        "description": description,
+                        "status": status,
+                        "year": year,
+                        "tags": tags,
+                    }
+                )
+            except (KeyError, ValueError):
+                continue
+
+        return results
+
+    def get_chapters(self, manga_id: str, manga_url: str) -> list[dict[str, Any]]:
+        """Fetch chapter list for a manga.
+
+        Args:
+            manga_id: MangaDex manga ID
+            manga_url: Manga URL (not used for API)
+
+        Returns:
+            List of chapters
+        """
+        try:
+            chapters = []
+            offset = 0
+
+            while True:
+                resp = requests.get(
+                    f"{self.base_url}/manga/{manga_id}/feed",
+                    params={
+                        "limit": 500,
+                        "offset": offset,
+                        "translatedLanguage[]": self.preferred_languages,
+                        "order[chapter]": "asc",
+                        "includeEmptyPages": 0,
+                        "includeFuturePublishAt": 0,
+                    },
+                    timeout=10,
+                )
+                resp.raise_for_status()
+                data = resp.json()
+
+                if not data.get("data"):
+                    break
+
+                for item in data["data"]:
+                    try:
+                        attrs = item["attributes"]
+                        if attrs.get("chapter") is None:
+                            continue
+
+                        chapter_id = item["id"]
+                        number = str(attrs["chapter"])
+                        title = attrs.get("title")
+
+                        chapters.append(
+                            {
+                                "id": chapter_id,
+                                "number": number,
+                                "title": title,
+                                "url": f"https://mangadex.org/chapter/{chapter_id}",
+                            }
+                        )
+                    except (KeyError, ValueError):
+                        continue
+
+                offset += 500
+                if len(data["data"]) < 500:
+                    break
+
+            # Sort by chapter number (descending - latest first)
+            chapters.sort(
+                key=lambda c: float(c["number"]),
+                reverse=True,
+            )
+
+            return chapters
+
+        except requests.RequestException:
+            return []
+
+    def get_chapter_pages(self, chapter_id: str, chapter_url: str) -> list[str]:
+        """Fetch image URLs for a chapter.
+
+        Args:
+            chapter_id: MangaDex chapter ID
+            chapter_url: Chapter URL (not used for API)
+
+        Returns:
+            List of image URLs
+        """
+        try:
+            resp = requests.get(
+                f"{self.base_url}/at-home/server/{chapter_id}",
+                timeout=10,
+            )
+            resp.raise_for_status()
+            data = resp.json()
+
+            base_url = data["baseUrl"]
+            hash_code = data["chapter"]["hash"]
+            files = data["chapter"]["data"]
+
+            return [f"{base_url}/data/{hash_code}/{filename}" for filename in files]
+
+        except requests.RequestException:
+            return []
+
+    @staticmethod
+    def _get_title(attrs: dict[str, Any]) -> str:
+        """Extract manga title from attributes.
+
+        Tries preferred languages first, then fallbacks.
+
+        Args:
+            attrs: Manga attributes from API
+
+        Returns:
+            Manga title in preferred language
+        """
+        # Try Portuguese first (altTitles is a list of dicts)
+        alt_titles = attrs.get("altTitles", [])
+        if isinstance(alt_titles, list):
+            for alt_title in alt_titles:
+                if isinstance(alt_title, dict):
+                    if "pt-br" in alt_title:
+                        return alt_title["pt-br"]
+
+        # Try English in title
+        title = attrs.get("title", {})
+        if isinstance(title, dict):
+            if "en" in title:
+                return title["en"]
+
+        # Try Japanese in title
+        if isinstance(title, dict):
+            if "ja" in title:
+                return title["ja"]
+
+        # Try Romanized Japanese (ja-ro)
+        if isinstance(title, dict):
+            if "ja-ro" in title:
+                return title["ja-ro"]
+
+        # Fallback to first available language in title
+        if isinstance(title, dict):
+            return next(iter(title.values()))
+
+        return "Unknown"
+
+
+def load(languages: set[str]):
+    """Load MangaDex plugin.
+
+    Args:
+        languages: Set of supported languages
+
+    Returns:
+        Plugin instance (MangaDex supports many languages so always loads)
+    """
+    # Convert set to list for preferred_languages
+    preferred_langs = list(languages) if languages else ["pt-br", "en"]
+    return MangaDex(preferred_languages=preferred_langs)

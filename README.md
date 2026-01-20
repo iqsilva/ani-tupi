@@ -48,32 +48,52 @@ Mesmo método usado por [viu-media](https://github.com/viu-media/viu) - simples 
 
 - **Python 3.12+** (obrigatório)
 - **mpv** (player de vídeo)
-- **Firefox** (para scraping)
+- **Firefox** (para scraping com Selenium)
 - **geckodriver** (driver para Selenium + Firefox)
+- **Playwright** (para scraping avançado com suporte a múltiplos browsers)
 - **git** (para clonar o repositório)
 
 ### Instalando dependências
 
 #### Linux (Arch)
 ```bash
-sudo pacman -S python mpv firefox geckodriver git
+# Instalar dependências do sistema
+sudo pacman -S python mpv firefox geckodriver git libxml2 libvpx flite webkit2gtk-4.1
+
+# Depois de clonar e instalar ani-tupi, instalar Playwright:
+uv run playwright install
 ```
 
 #### Linux (Ubuntu/Debian)
 ```bash
+# Instalar dependências do sistema
 sudo apt install python3 mpv firefox git
 # Instale geckodriver separadamente ou compile:
 # https://github.com/mozilla/geckodriver/releases
+
+# Instalar dependências para Playwright
+sudo apt install libxml2 libvpx libflite1 webkit2gtk-4.1
+
+# Depois de clonar e instalar ani-tupi, instalar Playwright:
+uv run playwright install
 ```
 
 #### Linux (Fedora)
 ```bash
-sudo dnf install python3 mpv firefox git geckodriver
+# Instalar dependências do sistema
+sudo dnf install python3 mpv firefox git geckodriver libxml2 libvpx flite webkit2gtk-4.1
+
+# Depois de clonar e instalar ani-tupi, instalar Playwright:
+uv run playwright install
 ```
 
 #### macOS
 ```bash
+# Instalar dependências do sistema
 brew install python@3.12 mpv firefox git geckodriver
+
+# Depois de clonar e instalar ani-tupi, instalar Playwright:
+uv run playwright install
 ```
 
 #### Windows
@@ -81,6 +101,9 @@ Recomendamos usar [Chocolatey](https://chocolatey.org/install):
 ```powershell
 # Como administrador
 choco install python mpv firefox git geckodriver
+
+# Depois de clonar e instalar ani-tupi, instalar Playwright:
+uv run playwright install
 ```
 
 ## 🚀 Instalação
@@ -365,6 +388,44 @@ chmod +x ./ani-tupi
 ```
 
 ## 🐛 Problemas Conhecidos
+
+### AnimesDigital falha: "Executable doesn't exist at /home/..."
+
+**Causa:** Playwright browser binaries não estão instalados ou faltam dependências do sistema.
+
+**Solução:**
+
+```bash
+# 1. Instale os binários do Playwright
+uv run playwright install
+
+# 2. Instale dependências do sistema para seu OS
+```
+
+**Para Arch Linux:**
+```bash
+sudo pacman -S libxml2 libvpx flite webkit2gtk-4.1 xdg-utils
+```
+
+**Para Ubuntu/Debian:**
+```bash
+sudo apt install libxml2 libvpx libflite1 webkit2gtk-4.1 xdg-utils
+```
+
+**Para Fedora:**
+```bash
+sudo dnf install libxml2 libvpx flite webkit2gtk-4.1 xdg-utils
+```
+
+**Para macOS:**
+```bash
+brew install libxml2 libvpx flite webkit2gtk
+```
+
+Depois de instalar, teste:
+```bash
+uv run python -c "from playwright.sync_api import sync_playwright; print('✓ Playwright funcionando')"
+```
 
 ### Vídeo não abre (mostra "Buscando vídeo..." e pula para menu)
 
