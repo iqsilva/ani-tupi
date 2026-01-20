@@ -9,6 +9,7 @@ Provides:
 
 import json
 import time
+from datetime import datetime
 from typing import Any
 
 import requests
@@ -159,6 +160,7 @@ class MangaHistory:
         chapter_number: str,
         chapter_id: str | None = None,
         manga_id: str | None = None,
+        anilist_id: int | None = None,
     ) -> None:
         """Update reading progress.
 
@@ -167,12 +169,20 @@ class MangaHistory:
             chapter_number: Chapter number read
             chapter_id: Optional MangaDex chapter ID
             manga_id: Optional MangaDex manga ID
+            anilist_id: Optional AniList manga ID
         """
         history = cls.load()
+        entry = history.get(manga_title)
+
+        # Preserve existing AniList data if not provided
+        if entry and not anilist_id:
+            anilist_id = entry.anilist_id
+
         history[manga_title] = MangaHistoryEntry(
             last_chapter=chapter_number,
             last_chapter_id=chapter_id,
             manga_id=manga_id,
+            anilist_id=anilist_id,
         )
         cls.save(history)
 
@@ -414,3 +424,153 @@ class MangaDexClient:
                 except KeyError:
                     pass
         return None
+
+
+class DownloadedChaptersTracker:
+    """Tracks and persists downloaded chapters across the application.
+
+    Maintains a JSON file mapping manga IDs to their downloaded chapters
+    with metadata like file size and download timestamp.
+    """
+
+    _downloads_file = get_data_path() / "manga_downloads.json"
+
+    @classmethod
+    def _ensure_dir(cls) -> None:
+        """Ensure downloads directory exists."""
+        cls._downloads_file.parent.mkdir(parents=True, exist_ok=True)
+
+    @classmethod
+    def _load_raw(cls) -> dict[str, Any]:
+        """Load raw download state from JSON file.
+
+        Returns:
+            Dictionary mapping manga_id -> manga download state
+        """
+        cls._ensure_dir()
+
+        if not cls._downloads_file.exists():
+            return {}
+
+        try:
+            with cls._downloads_file.open("r", encoding="utf-8") as f:
+                return json.load(f)
+        except (json.JSONDecodeError, IOError):
+            return {}
+
+    @classmethod
+    def _save_raw(cls, data: dict[str, Any]) -> None:
+        """Save raw download state to JSON file.
+
+        Args:
+            data: Download state dictionary
+        """
+        cls._ensure_dir()
+
+        try:
+            with cls._downloads_file.open("w", encoding="utf-8") as f:
+                json.dump(data, f, indent=2, default=str)
+        except IOError as e:
+            raise MangaError(f"Failed to save downloads: {e}")
+
+    @classmethod
+    def is_downloaded(cls, manga_id: str, chapter_number: str) -> bool:
+        """Check if a chapter is already downloaded.
+
+        Args:
+            manga_id: Manga ID
+            chapter_number: Chapter number (e.g., "42", "42.5")
+
+        Returns:
+            True if chapter is downloaded, False otherwise
+        """
+        data = cls._load_raw()
+        manga_state = data.get(manga_id, {})
+        downloaded = manga_state.get("downloaded_chapters", {})
+        return chapter_number in downloaded
+
+    @classmethod
+    def mark_downloaded(
+        cls,
+        manga_id: str,
+        manga_title: str,
+        chapter_number: str,
+        file_path: str,
+        file_size_mb: float,
+        source: str = "mangadex",
+    ) -> None:
+        """Mark a chapter as downloaded and persist metadata.
+
+        Args:
+            manga_id: Manga ID
+            manga_title: Manga title for reference
+            chapter_number: Chapter number
+            file_path: Path to downloaded PDF file
+            file_size_mb: File size in megabytes
+            source: Source (default: "mangadex")
+        """
+        data = cls._load_raw()
+
+        if manga_id not in data:
+            data[manga_id] = {
+                "manga_title": manga_title,
+                "source": source,
+                "downloaded_chapters": {},
+                "last_download_at": None,
+            }
+
+        data[manga_id]["downloaded_chapters"][chapter_number] = {
+            "file_path": file_path,
+            "file_size_mb": file_size_mb,
+            "downloaded_at": str(datetime.now()),
+        }
+        data[manga_id]["last_download_at"] = str(datetime.now())
+
+        cls._save_raw(data)
+
+    @classmethod
+    def get_downloaded_chapters(cls, manga_id: str) -> dict[str, Any]:
+        """Get all downloaded chapters for a manga.
+
+        Args:
+            manga_id: Manga ID
+
+        Returns:
+            Dictionary mapping chapter numbers to metadata
+        """
+        data = cls._load_raw()
+        manga_state = data.get(manga_id, {})
+        return manga_state.get("downloaded_chapters", {})
+
+    @classmethod
+    def get_download_path(cls, manga_id: str, chapter_number: str) -> str | None:
+        """Get file path for a downloaded chapter.
+
+        Args:
+            manga_id: Manga ID
+            chapter_number: Chapter number
+
+        Returns:
+            File path if downloaded, None otherwise
+        """
+        data = cls._load_raw()
+        manga_state = data.get(manga_id, {})
+        downloaded = manga_state.get("downloaded_chapters", {})
+        chapter_data = downloaded.get(chapter_number)
+        return chapter_data.get("file_path") if chapter_data else None
+
+    @classmethod
+    def cleanup_download(cls, manga_id: str, chapter_number: str) -> None:
+        """Remove a chapter from the download tracker (and optionally delete file).
+
+        Args:
+            manga_id: Manga ID
+            chapter_number: Chapter number
+        """
+        data = cls._load_raw()
+
+        if manga_id in data:
+            downloaded = data[manga_id].get("downloaded_chapters", {})
+            if chapter_number in downloaded:
+                del downloaded[chapter_number]
+                cls._save_raw(data)

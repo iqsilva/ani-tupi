@@ -54,6 +54,18 @@ class AniListSettings(BaseModel):
         False,
         description="Use English title for searches (True) or Romaji (False)",
     )
+    manga_prefer_english_title: bool = Field(
+        False,
+        description="Use English title for manga searches (True) or Romaji (False)",
+    )
+    manga_auto_sync: bool = Field(
+        True,
+        description="Automatically sync manga progress with AniList when confirmed",
+    )
+    manga_progress_confirmation: bool = Field(
+        True,
+        description="Ask for chapter completion confirmation after reading",
+    )
 
 
 class CacheSettings(BaseModel):
@@ -121,7 +133,7 @@ class PluginSettings(BaseModel):
 
 
 class MangaSettings(BaseModel):
-    """MangaDex manga reader settings."""
+    """Manga reader settings with multi-source support."""
 
     api_url: str = Field(
         "https://api.mangadex.org",
@@ -141,6 +153,10 @@ class MangaSettings(BaseModel):
         default_factory=lambda: ["pt-br", "en"],
         description="Preferred languages in order (pt-br, en, ja, etc)",
     )
+    preferred_sources: list[str] = Field(
+        default_factory=lambda: ["mugiwaras", "mangadex"],
+        description="Preferred manga sources in priority order",
+    )
     pdf_reader: str | None = Field(
         None,
         description="PDF reader to use (zathura, evince, okular, mupdf). None = auto-detect",
@@ -158,6 +174,29 @@ class MangaSettings(BaseModel):
     auto_create_pdf: bool = Field(
         True,
         description="Automatically create PDF after downloading images",
+    )
+    zathura_auto_config: bool = Field(
+        True,
+        description="Automatically configure Zathura for fit-width zoom",
+    )
+    # Download for later settings
+    default_download_range: int = Field(
+        5,
+        ge=1,
+        le=100,
+        description="Default chapters to download when user selects 'download'",
+    )
+    auto_open_after_download: bool = Field(
+        False,
+        description="Auto-open PDF reader after downloading (False = stay in menu)",
+    )
+    skip_already_downloaded: bool = Field(
+        True,
+        description="Skip already-downloaded chapters in batch operations",
+    )
+    download_storage_dir: str | None = Field(
+        None,
+        description="Custom directory for downloaded PDFs (None = use output_directory)",
     )
 
 

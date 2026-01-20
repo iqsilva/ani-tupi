@@ -42,7 +42,13 @@ def anilist_main_menu() -> tuple[str, int] | None:
     is_logged_in = anilist_client.is_authenticated()
 
     # Build menu options
-    menu_options = ["📈 Trending", "📅 Recentes (Local)", "🔍 Buscar Anime"]
+    menu_options = [
+        "📈 Trending",
+        "📚 Trending Manga",
+        "📅 Recentes (Local)",
+        "🔍 Buscar Anime",
+        "🔍 Buscar Manga",
+    ]
 
     if is_logged_in:
         # Get user info
@@ -54,11 +60,12 @@ def anilist_main_menu() -> tuple[str, int] | None:
                 f"👤 {username}",
                 "─" * 30,
                 "📺 Watching",
+                "📚 Reading",
                 "📋 Planning",
                 "✅ Completed",
                 "⏸️  Paused",
                 "❌ Dropped",
-                "🔁 Rewatching",
+                "🔁 Rewatching/Rereading",
             ]
         )
     else:
@@ -74,28 +81,36 @@ def anilist_main_menu() -> tuple[str, int] | None:
     if selection == "📈 Trending":
         _show_anime_list("trending")  # Now loops internally
         return anilist_main_menu()
+    if selection == "📚 Trending Manga":
+        _show_manga_list("trending")  # Now loops internally
+        return anilist_main_menu()
     if selection == "📅 Recentes (Local)":
         _show_recent_history()  # Now loops internally
         return anilist_main_menu()
     if selection == "🔍 Buscar Anime":
         return _search_and_add_anime(is_logged_in)
+    if selection == "🔍 Buscar Manga":
+        return _search_and_add_manga(is_logged_in)
     if selection == "📺 Watching":
         _show_anime_list("CURRENT")  # Now loops internally
         return anilist_main_menu()
+    if selection == "📚 Reading":
+        _show_manga_list("CURRENT")  # Now loops internally
+        return anilist_main_menu()
     if selection == "📋 Planning":
-        _show_anime_list("PLANNING")  # Now loops internally
+        _show_unified_list("PLANNING")  # Now loops internally
         return anilist_main_menu()
     if selection == "✅ Completed":
-        _show_anime_list("COMPLETED")  # Now loops internally
+        _show_unified_list("COMPLETED")  # Now loops internally
         return anilist_main_menu()
     if selection == "⏸️  Paused":
-        _show_anime_list("PAUSED")  # Now loops internally
+        _show_unified_list("PAUSED")  # Now loops internally
         return anilist_main_menu()
     if selection == "❌ Dropped":
-        _show_anime_list("DROPPED")  # Now loops internally
+        _show_unified_list("DROPPED")  # Now loops internally
         return anilist_main_menu()
-    if selection == "🔁 Rewatching":
-        _show_anime_list("REPEATING")  # Now loops internally
+    if selection == "🔁 Rewatching/Rereading":
+        _show_unified_list("REPEATING")  # Now loops internally
         return anilist_main_menu()
     if selection.startswith("👤"):
         # Show account management menu
@@ -679,6 +694,265 @@ def _choose_season() -> str | None:
         return None
 
     return season_map.get(selection)
+
+
+def _show_manga_list(list_type: str) -> None:
+    """Show manga list (trending or by status)."""
+    while True:  # Loop to allow browsing multiple manga
+        try:
+            # Fetch data with loading spinner
+            with loading(f"Carregando {list_type}..."):
+                if list_type == "trending":
+                    manga_list = anilist_client.get_trending_manga()
+                else:
+                    manga_list = anilist_client.get_user_manga_list(list_type)
+
+            if not manga_list:
+                print(f"\n📂 Nenhum mangá encontrado na lista '{list_type}'")
+                input("\nPressione Enter para voltar...")
+                return
+
+            # Format display options
+            display_options = []
+            for i, manga in enumerate(manga_list, 1):
+                # Format progress for user lists
+                progress_str = ""
+                if list_type != "trending" and manga.progress:
+                    total_chapters = (
+                        f"/{manga.media.chapters}" if manga.media and manga.media.chapters else ""
+                    )
+                    progress_str = f" - Cap. {manga.progress}{total_chapters}"
+
+                # Format title
+                title = anilist_client.format_title(manga.media.title) if manga.media else "Unknown"
+                display_options.append(f"{i:2d}. {title}{progress_str}")
+
+            # Show selection menu
+            selection = menu_navigate(display_options, f"Manga - {list_type.title()}")
+
+            if selection is None:
+                return
+
+            # Extract number from selection
+            try:
+                idx = int(selection.split(".")[0]) - 1
+                if 0 <= idx < len(manga_list):
+                    selected_manga = manga_list[idx]
+                    media = selected_manga.media
+                    if media:
+                        print(f"\n📚 Selecionado: {anilist_client.format_title(media.title)}")
+                        print(f"   Capítulos: {media.chapters or 'Desconhecido'}")
+                        print(f"   Volumes: {media.volumes or 'Desconhecido'}")
+                        print(f"   Score: {media.averageScore or 'N/A'}/100")
+
+                        # Show action menu
+                        actions = ["📖 Ler", "📋 Ver detalhes"]
+                        action = menu_navigate(actions, "Ações")
+
+                        if action == "📖 Ler":
+                            # TODO: Integrate with manga_tupi.py workflow
+                            print("🔗 Para ler, use: ani-tupi manga")
+                            input("Pressione Enter para continuar...")
+                        elif action == "📋 Ver detalhes":
+                            webbrowser.open(f"https://anilist.co/manga/{media.id}")
+                        # Continue loop for next selection
+            except (ValueError, IndexError):
+                continue
+
+        except Exception as e:
+            print(f"❌ Erro ao carregar lista: {e}")
+            input("\nPressione Enter para voltar...")
+            return
+
+
+def _show_unified_list(status: str) -> None:
+    """Show unified anime and manga list by status."""
+    while True:  # Loop to allow browsing multiple items
+        try:
+            # Fetch both anime and manga with loading spinner
+            with loading(f"Carregando {status}..."):
+                anime_list = anilist_client.get_user_list(status)
+                manga_list = anilist_client.get_user_manga_list(status)
+
+            # Combine and categorize
+            all_items = []
+
+            # Add anime
+            for anime in anime_list:
+                if anime.media:
+                    title = anilist_client.format_title(anime.media.title)
+                    progress = anime.progress or 0
+                    total_episodes = anime.media.episodes or "?"
+                    all_items.append(
+                        ("anime", f"📺 {title} - Ep. {progress}/{total_episodes}", anime)
+                    )
+
+            # Add manga
+            for manga in manga_list:
+                if manga.media:
+                    title = anilist_client.format_title(manga.media.title)
+                    progress = manga.progress or 0
+                    total_chapters = manga.media.chapters or "?"
+                    all_items.append(
+                        ("manga", f"📚 {title} - Cap. {progress}/{total_chapters}", manga)
+                    )
+
+            if not all_items:
+                print(f"\n📂 Nenhum item encontrado na lista '{status}'")
+                input("\nPressione Enter para voltar...")
+                return
+
+            # Extract just the display strings for menu
+            display_options = [item[1] for item in all_items]
+
+            # Show selection menu
+            selection = menu_navigate(display_options, f"{status.title()} - Anime & Manga")
+
+            if selection is None:
+                return
+
+            # Find selected item
+            selected_item = None
+            for item_type, display_str, item_data in all_items:
+                if display_str == selection:
+                    selected_item = (item_type, item_data)
+                    break
+
+            if selected_item:
+                item_type, item_data = selected_item
+                media = item_data.media
+                if media:
+                    icon = "📺" if item_type == "anime" else "📚"
+                    print(f"\n{icon} Selecionado: {anilist_client.format_title(media.title)}")
+
+                    if item_type == "anime":
+                        print(f"   Episódios: {media.episodes or 'Desconhecido'}")
+                        print(f"   Score: {media.averageScore or 'N/A'}/100")
+
+                        # Show action menu
+                        actions = ["▶️ Assistir", "📋 Ver detalhes"]
+                        action = menu_navigate(actions, "Ações")
+
+                        if action == "▶️ Assistir":
+                            # TODO: Integrate with anime_tupi.py workflow
+                            print("🔗 Para assistir, use: ani-tupi anime")
+                            input("Pressione Enter para continuar...")
+                        elif action == "📋 Ver detalhes":
+                            webbrowser.open(f"https://anilist.co/anime/{media.id}")
+
+                    else:  # manga
+                        print(f"   Capítulos: {media.chapters or 'Desconhecido'}")
+                        print(f"   Volumes: {media.volumes or 'Desconhecido'}")
+                        print(f"   Score: {media.averageScore or 'N/A'}/100")
+
+                        # Show action menu
+                        actions = ["📖 Ler", "📋 Ver detalhes"]
+                        action = menu_navigate(actions, "Ações")
+
+                        if action == "📖 Ler":
+                            # TODO: Integrate with manga_tupi.py workflow
+                            print("🔗 Para ler, use: ani-tupi manga")
+                            input("Pressione Enter para continuar...")
+                        elif action == "📋 Ver detalhes":
+                            webbrowser.open(f"https://anilist.co/manga/{media.id}")
+
+        except Exception as e:
+            print(f"❌ Erro ao carregar lista: {e}")
+            input("\nPressione Enter para voltar...")
+            return
+
+
+def _search_and_add_manga(is_logged_in: bool) -> tuple[str, int] | None:
+    """Search manga and optionally add to list."""
+    # Get search query
+    query = input("🔍 Pesquisar mangá: ").strip()
+    if not query:
+        return None
+
+    # Search with loading spinner
+    with loading("Pesquisando..."):
+        results = anilist_client.search_manga(query)
+
+    if not results:
+        print("❌ Nenhum mangá encontrado")
+        input("Pressione Enter para continuar...")
+        return None
+
+    # Display search results
+    display_options = []
+    for i, manga in enumerate(results, 1):
+        title = anilist_client.format_title(manga.title)
+        chapters = f"{manga.chapters}" if manga.chapters else "?"
+        display_options.append(f"{i:2d}. {title} ({chapters} caps)")
+
+    selection = menu_navigate(display_options, "Resultados da busca")
+
+    if selection is None:
+        return None
+
+    # Extract number from selection
+    try:
+        idx = int(selection.split(".")[0]) - 1
+        if 0 <= idx < len(results):
+            selected_manga = results[idx]
+            title = anilist_client.format_title(selected_manga.title)
+
+            # Show manga details
+            print(f"\n📚 {title}")
+            print(f"   Capítulos: {selected_manga.chapters or 'Desconhecido'}")
+            print(f"   Volumes: {selected_manga.volumes or 'Desconhecido'}")
+            print(f"   Score: {selected_manga.averageScore or 'N/A'}/100")
+
+            if is_logged_in:
+                # Check if already in list
+                list_entry = anilist_client.get_manga_list_entry(selected_manga.id)
+                if list_entry:
+                    print(f"   ✅ Já na lista: {list_entry.status or 'Desconhecido'}")
+                    input("Pressione Enter para continuar...")
+                    return None
+
+                # Ask to add to list
+                actions = [
+                    "📖 Reading",
+                    "📋 Planning",
+                    "✅ Completed",
+                    "⏸️  Paused",
+                    "❌ Dropped",
+                    "🔁 Rereading",
+                    "← Cancelar",
+                ]
+                action = menu_navigate(actions, "Adicionar à lista")
+
+                if action is None or action == "← Cancelar":
+                    return None
+
+                # Map action to status
+                status_map = {
+                    "📖 Reading": "CURRENT",
+                    "📋 Planning": "PLANNING",
+                    "✅ Completed": "COMPLETED",
+                    "⏸️  Paused": "PAUSED",
+                    "❌ Dropped": "DROPPED",
+                    "🔁 Rereading": "REPEATING",
+                }
+
+                status = status_map.get(action)
+                if status:
+                    if anilist_client.add_manga_to_list(selected_manga.id, status):
+                        print(f"✅ Adicionado à lista: {title}")
+                        input("Pressione Enter para continuar...")
+                    else:
+                        print("❌ Falha ao adicionar à lista")
+                        input("Pressione Enter para continuar...")
+
+                return None
+            else:
+                print("🔐 Faça login para adicionar à sua lista")
+                input("Pressione Enter para continuar...")
+                return None
+
+    except (ValueError, IndexError):
+        return None
 
 
 def authenticate_flow() -> None:

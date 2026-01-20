@@ -13,6 +13,7 @@ Assista anime direto do terminal sem anúncios! Interface CLI em português bras
 
 ani-tupi agora possui integração completa com AniList, permitindo:
 
+### 📺 Anime
 - 📈 **Trending** - Descubra os animes mais populares do momento
 - 📅 **Recentes** - Continue de onde parou (histórico local)
 - 📺 **Watching** - Acesse sua lista "Assistindo" do AniList
@@ -20,10 +21,19 @@ ani-tupi agora possui integração completa com AniList, permitindo:
 - ✅ **Completed** - Histórico de animes completos
 - 🔄 **Sincronização automática** - Progresso atualiza no AniList após cada episódio
 - 📝 **Adição automática à Watching** - Adiciona anime à sua lista ao começar a assistir
-- 💾 **Mapeamento inteligente** - Lembra do título correto do scraper para cada anime
-- ⚡ **Cache de episódios** - Carrega lista de episódios instantaneamente na segunda vez
+
+### 📚 Manga (Novo!)
+- 📚 **Trending Manga** - Descubra os mangás mais populares do momento
+- 🔍 **Buscar Manga** - Encontre mangás para adicionar à sua lista
+- 📖 **Reading** - Acesse sua lista "Lendo" do AniList
+- 🔄 **Sincronização de capítulos** - Atualiza progresso no AniList após confirmar leitura
+- ✅ **Confirmação de capítulo** - Pergunta se leu até o final antes de sincronizar
+- 📋 **Status unificados** - Veja animes e mangás juntos nas listas (Planning, Completed, etc.)
+
+### 🔧 Recursos Gerais
+- 💾 **Mapeamento inteligente** - Lembra do título correto do scraper para cada anime/mangá
+- ⚡ **Cache de episódios/capítulos** - Carrega lista instantaneamente na segunda vez
 - 🚀 **Cache de scrapers** - Resultados de busca salvos para acesso rápido
-- ✅ **Confirmação de progresso** - Pergunta se assistiu até o final antes de atualizar
 - 👤 **Menu de conta AniList** - Veja seu perfil e estatísticas
 - 🎯 **Títulos bilíngues** - Veja nomes em romaji + inglês
 - ⌨️ **Navegação rápida** - Use ESC para voltar, setas para navegar
@@ -187,8 +197,8 @@ ani-tupi -q "dandadan"
 ani-tupi anilist auth      # Fazer login (apenas uma vez)
 ani-tupi anilist           # Navegar listas e trending
 
-# Ler mangá
-manga-tupi
+# Ler mangá (com integração AniList!)
+ani-tupi manga
 
 # Ver ajuda
 ani-tupi --help
@@ -196,8 +206,9 @@ ani-tupi --help
 
 **AniList Integration:**
 - `ani-tupi anilist auth` - Autentica com AniList.co (necessário apenas uma vez)
-- `ani-tupi anilist` - Navega trending, watching, planning, completed e outras listas
-- Sincronização automática - Seu progresso atualiza automaticamente após assistir cada episódio
+- `ani-tupi anilist` - Navega trending, watching, planning, completed e outras listas (anime + manga)
+- `ani-tupi manga` - Lê mangás com sincronização automática de progresso
+- Sincronização automática - Seu progresso atualiza automaticamente após assistir cada episódio/lê cada capítulo
 
 ### Atalhos Durante Reprodução (MPV)
 
@@ -240,6 +251,7 @@ manga-tupi
 - 🔄 **Cache de capítulos**: Carrega lista de capítulos instantaneamente
 - ⚙️ **Configurável**: Customize pasta de download, idiomas preferidos, etc
 - ⏳ **Loading spinners**: Feedback visual durante API calls
+- 📱 **Leitor de PDF integrado**: Gera PDF automaticamente e abre no Zathura com zoom fit-width
 
 **Configuração (opcional):**
 
@@ -250,7 +262,19 @@ manga-tupi
 export ANI_TUPI__MANGA__OUTPUT_DIRECTORY=~/Mangas
 export ANI_TUPI__MANGA__CACHE_DURATION_HOURS=48
 export ANI_TUPI__MANGA__LANGUAGES=pt-br,en,ja
+export ANI_TUPI__MANGA__PDF_READER=zathura        # Forçar leitor específico
+export ANI_TUPI__MANGA__ZATHURA_AUTO_CONFIG=true  # Auto-configurar zoom fit-width
 ```
+
+**Leitores de PDF Suportados:**
+- **Zathura** (padrão - leve, focado em teclado, auto-configurado com zoom fit-width)
+- Evince (padrão GNOME)
+- Okular (padrão KDE)
+- MuPDF (minimalista)
+- xdg-open (genérico)
+
+**Configuração Zathura:**
+O ani-tupi configura automaticamente o Zathura para abrir mangás com `zoom fit-width`, ideal para leitura de páginas. Preserva configurações existentes em `~/.config/zathura/zathurarc`.
 
 ### Integração AniList
 

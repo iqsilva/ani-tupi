@@ -29,8 +29,57 @@ class UnifiedMangaService:
         if not self.plugins:
             raise RuntimeError("Nenhum plugin de mangá disponível")
 
-        # Default source (prefer MugiwarasOficial for Portuguese, MangaDex as fallback)
-        self.current_source = "mugiwaras" if "mugiwaras" in self.plugins else "mangadex"
+        # Default source (prioritize MugiwarasOficial for Brazilian Portuguese, MangaDex as fallback)
+        self.current_source = self._determine_default_source()
+
+    def _determine_default_source(self) -> str:
+        """Determine the default manga source based on availability and preferences.
+
+        Uses configured preferred sources, prioritizing MugiwarasOficial for Brazilian
+        Portuguese users, with MangaDex as fallback.
+
+        Returns:
+            The chosen source name
+        """
+        # Use configured preferred sources
+        source_priority = self.config.preferred_sources
+
+        # Try sources in priority order
+        for source in source_priority:
+            if source in self.plugins:
+                return source
+
+        # Fallback to any available source
+        available_sources = list(self.plugins.keys())
+        if available_sources:
+            return available_sources[0]
+
+        # This should not happen due to the check in __init__
+        raise RuntimeError("Nenhum plugin de mangá disponível")
+
+    def _get_fallback_source(self, failed_source: str) -> str | None:
+        """Get a fallback source when the current source fails.
+
+        Args:
+            failed_source: The source that just failed
+
+        Returns:
+            Fallback source name or None if no fallback available
+        """
+        # Use configured preferred sources for fallback logic
+        preferred_sources = self.config.preferred_sources
+
+        # Try other preferred sources first
+        for source in preferred_sources:
+            if source != failed_source and source in self.plugins:
+                return source
+
+        # Try any other available source
+        for source in self.plugins:
+            if source != failed_source:
+                return source
+
+        return None
 
     def get_available_sources(self) -> list[str]:
         """Get list of available manga sources.
@@ -72,6 +121,35 @@ class UnifiedMangaService:
         if source_name not in self.plugins:
             raise ValueError(f"Fonte '{source_name}' não disponível")
 
+        # Try primary source
+        try:
+            return self._search_manga_from_source(query, source_name)
+        except Exception as e:
+            # Try fallback source if this wasn't a specific source request
+            if source is None:
+                fallback_source = self._get_fallback_source(source_name)
+                if fallback_source:
+                    print(
+                        f"⚠️  Falha na fonte {source_name}, tentando fallback {fallback_source}: {e}"
+                    )
+                    try:
+                        return self._search_manga_from_source(query, fallback_source)
+                    except Exception as fallback_error:
+                        print(f"⚠️  Falha no fallback {fallback_source}: {fallback_error}")
+
+            # Re-raise the original error
+            raise e
+
+    def _search_manga_from_source(self, query: str, source_name: str) -> list[MangaMetadata]:
+        """Search for manga from a specific source.
+
+        Args:
+            query: Search query string
+            source_name: Source name to search
+
+        Returns:
+            List of MangaMetadata objects
+        """
         plugin = self.plugins[source_name]
         raw_results = plugin.search_manga(query)
 
@@ -128,6 +206,38 @@ class UnifiedMangaService:
         if source_name not in self.plugins:
             raise ValueError(f"Fonte '{source_name}' não disponível")
 
+        # Try primary source
+        try:
+            return self._get_chapters_from_source(manga_id, manga_url, source_name)
+        except Exception as e:
+            # Try fallback source if this wasn't a specific source request
+            if source is None:
+                fallback_source = self._get_fallback_source(source_name)
+                if fallback_source:
+                    print(
+                        f"⚠️  Falha na fonte {source_name}, tentando fallback {fallback_source}: {e}"
+                    )
+                    try:
+                        return self._get_chapters_from_source(manga_id, None, fallback_source)
+                    except Exception as fallback_error:
+                        print(f"⚠️  Falha no fallback {fallback_source}: {fallback_error}")
+
+            # Re-raise the original error
+            raise e
+
+    def _get_chapters_from_source(
+        self, manga_id: str, manga_url: str | None, source_name: str
+    ) -> list[ChapterData]:
+        """Get chapters from a specific source.
+
+        Args:
+            manga_id: Manga ID
+            manga_url: Optional manga URL
+            source_name: Source name
+
+        Returns:
+            List of ChapterData objects
+        """
         plugin = self.plugins[source_name]
 
         # Some plugins need the URL, others just the ID

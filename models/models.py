@@ -12,7 +12,7 @@ Defines DTOs (Data Transfer Objects) for:
 
 from datetime import datetime
 from enum import Enum
-from typing import Any
+from typing import Any, Optional
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
@@ -150,6 +150,8 @@ class MangaMetadata(BaseModel):
         year: Publication year
         cover_url: Optional cover image URL
         tags: List of tags/genres
+        anilist_id: Optional AniList manga ID for integration
+        anilist_data: Optional AniList manga data
     """
 
     id: str = Field(..., min_length=1, description="MangaDex UUID")
@@ -159,6 +161,8 @@ class MangaMetadata(BaseModel):
     year: int | None = Field(None, ge=1900, le=2100, description="Publication year")
     cover_url: str | None = Field(None, description="Cover image URL")
     tags: list[str] = Field(default_factory=list, description="Tags/genres")
+    anilist_id: int | None = Field(None, description="AniList manga ID")
+    anilist_data: "Optional[AniListManga]" = Field(None, description="AniList manga data")
 
 
 class ChapterData(BaseModel):
@@ -199,12 +203,20 @@ class MangaHistoryEntry(BaseModel):
         last_chapter_id: Optional MangaDex chapter ID
         timestamp: When the chapter was read
         manga_id: Optional MangaDex manga ID
+        anilist_id: Optional AniList manga ID for integration
+        manga_status: Optional AniList status for this manga
+        downloaded_chapters: List of chapter numbers downloaded for later reading
     """
 
     last_chapter: str = Field(..., min_length=1, description="Chapter number")
     last_chapter_id: str | None = Field(None, description="MangaDex chapter ID")
     timestamp: datetime = Field(default_factory=datetime.now, description="Read timestamp")
     manga_id: str | None = Field(None, description="MangaDex manga ID")
+    anilist_id: int | None = Field(None, description="AniList manga ID")
+    manga_status: str | None = Field(None, description="AniList status for this manga")
+    downloaded_chapters: list[str] = Field(
+        default_factory=list, description="Chapter numbers downloaded for later"
+    )
 
 
 # AniList API Models
@@ -274,6 +286,32 @@ class AniListAnime(BaseModel):
     averageScore: int | None = Field(None, ge=0, le=100, description="Average score")
     seasonYear: int | None = Field(None, ge=1900, le=2100, description="Release year")
     season: str | None = Field(None, description="Season (WINTER, SPRING, SUMMER, FALL)")
+    type: str | None = Field(None, description="Media type")
+
+
+class AniListManga(BaseModel):
+    """AniList manga media object.
+
+    Attributes:
+        id: AniList manga ID
+        title: Title object with multiple languages
+        chapters: Total chapters (None if unknown)
+        volumes: Total volumes (None if unknown)
+        coverImage: Cover image URLs
+        averageScore: Average score (0-100)
+        startDate: Start date (year, month, day - values can be None)
+        endDate: End date (year, month, day - values can be None for ongoing)
+        type: Media type (ANIME, MANGA)
+    """
+
+    id: int = Field(..., description="AniList manga ID")
+    title: AniListTitle = Field(..., description="Title object")
+    chapters: int | None = Field(None, description="Total chapters")
+    volumes: int | None = Field(None, description="Total volumes")
+    coverImage: AniListCoverImage | None = Field(None, description="Cover images")
+    averageScore: int | None = Field(None, ge=0, le=100, description="Average score")
+    startDate: dict[str, int | None] | None = Field(None, description="Start date (year, month, day - values can be None)")
+    endDate: dict[str, int | None] | None = Field(None, description="End date (year, month, day - values can be None for ongoing)")
     type: str | None = Field(None, description="Media type")
 
 
