@@ -12,6 +12,7 @@ Defines DTOs (Data Transfer Objects) for:
 
 from datetime import datetime
 from enum import Enum
+from pathlib import Path
 from typing import Any, Optional
 
 from pydantic import BaseModel, Field, field_validator, model_validator
@@ -193,6 +194,39 @@ class ChapterData(BaseModel):
         if self.title:
             return f"Cap. {self.number} - {self.title}"
         return f"Cap. {self.number}"
+
+
+class LocalChapter(BaseModel):
+    """Local chapter metadata for offline reading.
+
+    Attributes:
+        chapter_number: Chapter number (e.g., "01", "42", "42.5")
+        pdf_path: Path to PDF file (None if doesn't exist)
+        has_pdf: Whether PDF file exists
+        has_images: Whether chapter has any image files
+        image_count: Number of image files in chapter directory
+        file_size_mb: Total size of chapter directory in MB
+    """
+
+    chapter_number: str = Field(..., min_length=1, description="Chapter number")
+    pdf_path: Path | None = Field(None, description="Path to PDF file")
+    has_pdf: bool = Field(..., description="Whether PDF file exists")
+    has_images: bool = Field(..., description="Whether chapter has image files")
+    image_count: int = Field(default=0, ge=0, description="Number of image files")
+    file_size_mb: float = Field(default=0.0, ge=0.0, description="Total size in MB")
+
+    def display_name(self) -> str:
+        """Format chapter for display.
+
+        Returns:
+            Formatted string like "Cap. 01 (PDF, 20.7 MB)" or "Cap. 01 (Images: 42)"
+        """
+        if self.has_pdf and self.file_size_mb > 0:
+            return f"Cap. {self.chapter_number} (PDF, {self.file_size_mb:.1f} MB)"
+        elif self.has_images and self.image_count > 0:
+            return f"Cap. {self.chapter_number} (Imagens: {self.image_count})"
+        else:
+            return f"Cap. {self.chapter_number}"
 
 
 class MangaHistoryEntry(BaseModel):

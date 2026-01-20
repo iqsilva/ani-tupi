@@ -11,7 +11,7 @@ import subprocess
 from InquirerPy import inquirer
 
 from models.config import settings
-from models.models import Status
+from models.models import LocalChapter, Status
 from services.anilist_service import anilist_client
 from services.manga_service import (
     MangaDexError,
@@ -120,6 +120,7 @@ def _show_manga_main_menu() -> str | None:
         "📅 Recent",
         "📈 Trending",
         "🔍 Search",
+        "📂 Local Library",
     ]
 
     return menu_navigate(menu_options, "Manga Tupi - Menu Principal")
@@ -1152,6 +1153,207 @@ def _process_chapter(
         )
 
 
+def _handle_local_library() -> None:
+    """Handle local library browsing (offline mode)."""
+    from services.local_manga_service import LocalMangaService
+
+    config = settings.manga
+    local_service = LocalMangaService(config.output_directory)
+
+    # Scan library
+    with loading("Escaneando biblioteca local..."):
+        manga_list = local_service.get_manga_list()
+
+    if not manga_list:
+        print("📂 Nenhum mangá baixado encontrado")
+        print(f"   Diretório: {config.output_directory}")
+        input("Pressione Enter para continuar...")
+        return
+
+    # Show manga selection with back button
+    selection = menu_navigate(manga_list, "Local Library - Selecione Mangá")
+    if selection is None:
+        return
+
+    # Extract manga title (remove " (X caps)" suffix)
+    manga_title = selection.split(" (")[0]
+
+    # Show chapters for selected manga
+    _show_local_chapters(local_service, manga_title)
+
+
+def _show_local_chapters(local_service: "LocalMangaService", manga_title: str) -> None:
+    """Show chapters for selected manga from local library.
+
+    Args:
+        local_service: LocalMangaService instance
+        manga_title: Manga title (directory name)
+    """
+    # Load chapters
+    with loading("Carregando capítulos..."):
+        chapters = local_service.get_chapters_for_manga(manga_title)
+
+    if not chapters:
+        print(f"❌ Nenhum capítulo encontrado para: {manga_title}")
+        input("Pressione Enter para continuar...")
+        return
+
+    # Check reading history for resume hint
+    history = MangaHistory()
+    last_chapter = history.get_last_chapter(manga_title)
+
+    # Build chapter menu
+    chapter_labels = [ch.display_name() for ch in chapters]
+
+    # Add resume hint if applicable (⮕ Retomar)
+    if last_chapter:
+        for i, ch in enumerate(chapters):
+            if ch.chapter_number == last_chapter:
+                chapter_labels[i] = f"⮕ Retomar: {chapter_labels[i]}"
+                break
+
+    # Chapter selection loop
+    while True:
+        selected_label = menu_navigate(chapter_labels, f"{manga_title} - Selecione capítulo")
+        if not selected_label:
+            return
+
+        # Find selected chapter (handle resume prefix)
+        clean_label = selected_label.replace("⮕ Retomar: ", "")
+        chapter_index = [ch.display_name() for ch in chapters].index(clean_label)
+        selected_chapter = chapters[chapter_index]
+
+        # Process chapter (auto-create PDF if needed)
+        _process_local_chapter(
+            local_service,
+            manga_title,
+            selected_chapter,
+            chapters,
+            chapter_index,
+            history,
+        )
+
+
+def _process_local_chapter(
+    local_service: "LocalMangaService",
+    manga_title: str,
+    chapter: "LocalChapter",
+    all_chapters: list["LocalChapter"],
+    current_index: int,
+    history: MangaHistory,
+) -> None:
+    """Process and open local chapter with AniList sync.
+
+    Args:
+        local_service: LocalMangaService instance
+        manga_title: Manga title (directory name)
+        chapter: LocalChapter object
+        all_chapters: List of all chapters for navigation
+        current_index: Current chapter index
+        history: MangaHistory service
+    """
+
+    # Auto-create PDF if needed
+    pdf_path = chapter.pdf_path
+    if not chapter.has_pdf and chapter.has_images:
+        print("📄 Criando PDF a partir das imagens...")
+        pdf_path = local_service.auto_create_pdf_if_needed(
+            manga_title,
+            chapter.chapter_number,
+        )
+        if not pdf_path:
+            print("❌ Erro ao criar PDF")
+            input("Pressione Enter para continuar...")
+            return
+    elif not chapter.has_pdf:
+        print("❌ Capítulo não disponível (sem PDF ou imagens)")
+        input("Pressione Enter para continuar...")
+        return
+
+    # Open PDF reader and track the process
+    reader_process = open_pdf_reader(pdf_path)
+
+    # Update local history (always, even offline)
+    history.update(
+        manga_title,
+        chapter.chapter_number,
+        chapter_id=None,  # No online ID in local mode
+        manga_id=None,
+    )
+
+    # Try to sync to AniList (forward-only)
+    try:
+        from services.anilist_service import AniListService
+
+        anilist_service = AniListService()
+
+        # Only sync if authenticated
+        if anilist_service.is_authenticated():
+            synced = local_service.sync_to_anilist_if_ahead(
+                manga_title,
+                chapter.chapter_number,
+                anilist_service,
+            )
+            if synced:
+                print("✅ Progresso sincronizado com AniList")
+    except Exception:
+        # Silent fail if offline or error
+        pass
+
+    # Wait for reader to close (track specific process, not any zathura instance)
+    if reader_process:
+        print("\n📖 Feche o leitor de PDF para continuar.")
+        reader_process.wait()
+
+    # Post-reading actions
+    actions = [
+        "Próximo capítulo",
+        "Capítulo anterior",
+        "Ler novamente",
+    ]
+    action = menu_navigate(actions, "O que deseja fazer?")
+
+    if action == "Próximo capítulo":
+        if current_index + 1 < len(all_chapters):
+            next_chapter = all_chapters[current_index + 1]
+            _process_local_chapter(
+                local_service,
+                manga_title,
+                next_chapter,
+                all_chapters,
+                current_index + 1,
+                history,
+            )
+        else:
+            print("📚 Você chegou ao último capítulo disponível!")
+            input("Pressione Enter para continuar...")
+
+    elif action == "Capítulo anterior":
+        if current_index > 0:
+            prev_chapter = all_chapters[current_index - 1]
+            _process_local_chapter(
+                local_service,
+                manga_title,
+                prev_chapter,
+                all_chapters,
+                current_index - 1,
+                history,
+            )
+        else:
+            print("📚 Este é o primeiro capítulo!")
+            input("Pressione Enter para continuar...")
+
+    elif action == "Ler novamente":
+        _process_local_chapter(
+            local_service,
+            manga_title,
+            chapter,
+            all_chapters,
+            current_index,
+            history,
+        )
+
+
 def main() -> None:
     """Main manga CLI entry point."""
     # Initialize service with config
@@ -1181,6 +1383,8 @@ def main() -> None:
         elif choice == "🔍 Search":
             # Original search flow
             _handle_search_flow(service)
+        elif choice == "📂 Local Library":
+            _handle_local_library()
         else:
             return
 
