@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Overview
 
-**ani-tupi** is a Brazilian Portuguese CLI anime viewer that streams anime directly in the terminal with support for multiple scraper sources and AniList integration. It uses MPV as the video player and provides an interactive menu system for searching, browsing, and watching anime.
+**ani-tupi** é um aplicativo CLI em português brasileiro para assistir anime e ler mangá direto no terminal. Suporta múltiplas fontes de scraping com integração AniList, usa MPV como player de vídeo e oferece um sistema de menus interativo para buscar, navegar e assistir anime. Inclui leitor PDF integrado para mangá com download automático de capítulos e detecção de leitores de PDF.
 
 ## Development Commands
 
@@ -151,12 +151,55 @@ The application follows the **MVCP pattern** (Model-View-Controller-Plugin):
 4. User selects episode → MPV player launches with video URL
 5. After playback → Service updates history and optionally syncs to AniList
 
-### AniList Integration
+### AniList Integration (Detalhes Técnicos)
 
-- OAuth flow stores token in `anilist_token.json`
-- Automatic sync after each episode if authenticated
-- Fuzzy matching maps AniList titles to scraper titles (with caching)
-- Supports all AniList list types: Watching, Planning, Completed, etc.
+**OAuth Flow:**
+- User runs: `ani-tupi anilist auth`
+- System opens browser to AniList OAuth endpoint
+- User authorizes ani-tupi application
+- AniList returns authorization token
+- Token stored securely in: `~/.local/state/ani-tupi/anilist_token.json`
+- Token valid for ~6 months before re-auth needed
+
+**GraphQL API Communication:**
+- Uses AniList GraphQL endpoint: `https://graphql.anilist.co`
+- Queries fetch: user lists, trending anime/manga, specific titles
+- Updates sent via mutations: user progress, list status
+- Handles rate limiting gracefully (500 requests/minute limit)
+
+**Automatic Synchronization:**
+- After episode/chapter completes, system shows confirmation: "✅ Assistiu até o final?"
+- On confirmation, GraphQL mutation sent to AniList
+- Updates fields: `progress`, `updatedAt`, `status`
+- Retroactive sync on next episode if network failed
+
+**Intelligent Title Mapping:**
+- Problem: AniList title ≠ Scraper title (e.g., "My Hero Academia" vs "Boku no Hero")
+- Solution: Fuzzy matching (Levenshtein distance) finds closest scraper match
+- Once matched, saves mapping in: `~/.local/state/ani-tupi/anilist_mappings.json`
+- Next time: Uses saved mapping, zero search delay
+- Format: `{"anilist_id": "scraper_title"}`
+
+**Search Strategy:**
+1. Try exact romaji match first (via GraphQL query)
+2. Try exact English title match
+3. Apply fuzzy matching across all scraper results
+4. If multiple matches within threshold, show user to choose
+5. Cache winning match for future sessions
+
+**List Types Supported:**
+- WATCHING - Current anime/manga
+- PLANNING - Want to start
+- COMPLETED - Finished
+- PAUSED - On hold
+- DROPPED - Abandoned
+- REPEATING - Re-watching/re-reading
+
+**Score/Rating Sync:**
+- Can update score/rating when syncing (optional)
+- Uses `score` field in GraphQL mutation
+- User can edit in AniList UI later
+- Currently only auto-syncs progress, not scores
 
 ### Manga PDF Reader Workflow
 
@@ -303,50 +346,218 @@ Current scrapers available:
 3. Add to CLI parser in `cli()` function
 4. Route from appropriate menu or CLI argument
 
-### Modifying AniList Integration
+### Modificando Integração AniList
 
-1. GraphQL queries are in `services/anilist_service.py` as string constants
-2. Update query, add new method, call from commands
-3. Test authentication with `uv run ani-tupi anilist auth`
+**Arquivos principais:**
+- `services/anilist_service.py` - Classe AniListService com métodos GraphQL
+- `commands/anilist.py` - CLI commands e menu handling
+- `ui/anilist_menus.py` - Interface/menus específicos do AniList
+- `utils/anilist_discovery.py` - Fuzzy matching e busca de títulos
 
-### Using the Manga PDF Reader
+**Adicionar nova query GraphQL:**
 
-**Reading Manga**:
-```bash
-uv run manga_tupi
+```python
+# Em services/anilist_service.py
+
+def get_user_favorites(self):
+    """Fetch user's favorite anime/manga"""
+    query = """
+    query {
+      Viewer {
+        favourites {
+          anime {
+            nodes {
+              id
+              title { romaji english }
+            }
+          }
+        }
+      }
+    }
+    """
+    return self._request(query)
 ```
 
-Workflow:
-1. Search for manga title
-2. Select manga from results
-3. Browse available chapters
-4. Select chapter → System downloads images → Creates PDF → Opens Zathura
-5. Read PDF in Zathura (navigate with arrow keys, q to quit)
-6. System saves reading progress automatically
+**Adicionar comando CLI:**
 
-**Configuration**:
+1. Criar função em `commands/anilist.py`:
+```python
+def favorites_command(args):
+    service = AniListService(settings.anilist_token)
+    favorites = service.get_user_favorites()
+    # Display/process
+```
+
+2. Registrar em `main.py`:
+```python
+elif args.command == "anilist" and args.subcommand == "favorites":
+    from commands.anilist import favorites_command
+    favorites_command(args)
+```
+
+**Testar autenticação:**
 ```bash
-# Use specific PDF reader
+uv run ani-tupi anilist auth        # Fazer login
+uv run ani-tupi anilist account     # Verificar se funciona
+uv run main.py --debug              # Ver logs detalhados
+```
+
+**Debugging de sincronização:**
+```bash
+# Ver logs completos
+export ANI_TUPI__LOG_LEVEL=DEBUG
+uv run ani-tupi
+
+# Resetar token se expirou
+rm ~/.local/state/ani-tupi/anilist_token.json
+uv run ani-tupi anilist auth
+```
+
+### Fluxo Completo de Leitura de Mangá
+
+O ani-tupi oferece um fluxo integrado de leitura de mangá do MangaDex com suporte a PDF e sincronização AniList.
+
+**Entrada Principal:**
+```bash
+# Iniciar leitor de mangá
+uv run manga_tupi
+# ou (após instalar globalmente):
+manga-tupi
+```
+
+**Fluxo de Leitura Passo a Passo:**
+
+1. **Busca Interativa**
+   - Sistema mostra prompt de busca
+   - Digite nome do manga para filtrar resultados em tempo real
+   - Resultados buscados no MangaDex API
+   - Navegue com setas (↑/↓) e pressione Enter para selecionar
+
+2. **Seleção de Manga**
+   - Mostra título em romaji + inglês se disponível
+   - Exibe status (ongoing, completed, etc)
+   - Mostra último capítulo disponível
+   - Histórico local destacado com "⮕ Retomar"
+
+3. **Seleção de Capítulo**
+   - Lista todos os capítulos disponíveis em ordem (mais recente primeiro)
+   - Sistema detecta último capítulo lido
+   - Hint visual mostra onde você parou
+   - Pode pular para qualquer capítulo
+
+4. **Download e Processamento Automático**
+   - Sistema baixa imagens em alta qualidade do MangaDex
+   - Converte automaticamente para PDF multi-página
+   - Otimiza qualidade baseado em `PDF_QUALITY` env var
+   - Cache garante PDFs já criados abrem instantaneamente
+   - Spinner mostra progresso durante download
+
+5. **Abertura no Leitor**
+   - Detecta leitor PDF instalado automaticamente
+   - Zathura: auto-configura zoom fit-width
+   - Evince/Okular: abre com defaults
+   - MuPDF: minimalista, apenas renderiza
+   - Fallback: xdg-open sistema padrão
+
+6. **Navegação no Leitor**
+   - Zathura: setas + Page Up/Down, zoom com +/-, q para sair
+   - Cada leitor tem seus próprios keybindings
+   - Progresso salvo quando você sai (EOF ou q)
+
+7. **Sincronização Automática**
+   - Sistema detecta se você leu até o final
+   - Se autenticado AniList: sincroniza automaticamente
+   - Atualiza capítulo/episódio na lista "Reading"
+   - Salva timestamp de leitura em histórico local
+
+**Configuração Avançada:**
+
+```bash
+# Especificar leitor de PDF (detecta automaticamente se não configurado)
 export ANI_TUPI__MANGA__PDF_READER="zathura"
 
-# Delete PNG files after PDF creation (saves space)
+# Deletar imagens PNG após criação PDF (economiza ~60% espaço)
 export ANI_TUPI__MANGA__DELETE_IMAGES_AFTER_PDF=true
 
-# Adjust PDF quality (lower = smaller file, 1-100)
-export ANI_TUPI__MANGA__PDF_QUALITY=80
+# Ajustar qualidade JPEG do PDF (1-100, padrão 85)
+export ANI_TUPI__MANGA__PDF_QUALITY=75
 
-# Disable auto PDF creation (download images only)
-export ANI_TUPI__MANGA__AUTO_CREATE_PDF=false
+# Duração do cache em horas (padrão 24)
+export ANI_TUPI__MANGA__CACHE_DURATION_HOURS=48
+
+# Idiomas preferidos (padrão: pt-br,en,ja)
+export ANI_TUPI__MANGA__LANGUAGES=pt-br,en
+
+# Pasta de download (padrão ~/Downloads)
+export ANI_TUPI__MANGA__OUTPUT_DIRECTORY=$HOME/Mangas
+
+# Auto-configurar Zathura com zoom fit-width (padrão true)
+export ANI_TUPI__MANGA__ZATHURA_AUTO_CONFIG=true
 ```
 
-**Supported PDF Readers** (auto-detected in order):
-- Zathura (recommended, keyboard-driven)
-- Evince (GNOME default)
-- Okular (KDE default)
-- MuPDF (minimal, fast)
-- xdg-open (system default)
+**Leitores de PDF Suportados (Auto-detectados):**
 
-If no reader found, images are saved and you can open them manually.
+A detecção ocorre nesta ordem de prioridade:
+
+1. **Zathura** (recomendado) ⭐
+   - Leve e keyboard-driven
+   - Auto-configurado com zoom fit-width
+   - Perfeito para leitura de mangá
+   - Disponível: `pacman -S zathura` (Arch), `apt install zathura` (Ubuntu)
+
+2. **Evince** (GNOME padrão)
+   - Mais pesado mas com mais features
+   - Interface GUI completa
+   - Disponível: `pacman -S evince` (Arch), incluído GNOME (Ubuntu)
+
+3. **Okular** (KDE padrão)
+   - Interface completa para KDE
+   - Gerenciamento de anotações
+   - Disponível: `pacman -S okular` (Arch), `apt install okular` (Ubuntu)
+
+4. **MuPDF** (Minimalista)
+   - Extremamente leve e rápido
+   - Apenas renderização básica
+   - Disponível: `pacman -S mupdf` (Arch), `apt install mupdf` (Ubuntu)
+
+5. **xdg-open** (Fallback)
+   - Usa associação padrão do sistema
+   - Pode abrir em navegador ou outro app
+   - Sempre disponível no Linux
+
+**Histórico de Leitura:**
+
+O ani-tupi mantém histórico em `~/.local/state/ani-tupi/manga_history.json`:
+
+```json
+{
+  "mangá_id": {
+    "title": "Manga Title",
+    "last_chapter": 42,
+    "last_read_timestamp": "2025-12-30T15:30:00",
+    "url": "https://mangadex.org/title/..."
+  }
+}
+```
+
+Ao iniciar `manga-tupi`, sistema mostra qual foi o último manga lido com hint "⮕ Retomar".
+
+**Integração AniList:**
+
+Se você autenticou com `ani-tupi anilist auth`:
+
+```bash
+# Seu progresso sincroniza automaticamente para:
+1. Manga "Reading" → Atualiza capítulo atual
+2. Score e status (se configurado)
+3. Data de última leitura
+
+# Como funciona:
+1. Você abre um manga da lista AniList
+2. Lê até o final (ani-tupi detecta automaticamente)
+3. Sistema sincroniza: "Manga Reading → Capítulo X"
+4. Seu progresso fica visível em AniList.co
+```
 
 ### Working with the Cache
 
