@@ -12,11 +12,11 @@ from InquirerPy import inquirer
 
 from models.config import settings
 from services.manga_service import (
-    MangaDexClient,
     MangaDexError,
     MangaHistory,
     MangaNotFoundError,
 )
+from services.unified_manga_service import UnifiedMangaService
 from ui.components import loading, menu_navigate
 from utils.manga_reader import open_pdf_reader
 from utils.pdf_converter import create_pdf_from_images
@@ -107,7 +107,31 @@ def main() -> None:
     """Main manga CLI entry point."""
     # Initialize service with config
     config = settings.manga
-    service = MangaDexClient(config)
+    try:
+        service = UnifiedMangaService(config)
+    except RuntimeError as e:
+        print(f"❌ {e}")
+        return
+
+    # Let user select source
+    available_sources = service.get_available_sources()
+    if len(available_sources) > 1:
+        source_labels = {
+            "mugiwaras": "MugiwarasOficial (PT-BR) ⭐",
+            "mangadex": "MangaDex (Multi-idioma)",
+        }
+        source_choices = [source_labels.get(s, s) for s in available_sources]
+        try:
+            selected_label = menu_navigate(source_choices, "Selecione a fonte")
+            # Find the actual source name from the label
+            selected_source = next(
+                s for s in available_sources if source_labels.get(s, s) == selected_label
+            )
+            service.set_source(selected_source)
+        except KeyboardInterrupt:
+            return
+    else:
+        selected_source = service.current_source
 
     # Get search query
     query = inquirer.text(message="Pesquise mangá").execute()  # type: ignore[attr-defined]
@@ -117,7 +141,7 @@ def main() -> None:
 
     # Search with loading spinner
     try:
-        with loading("Buscando mangás..."):
+        with loading(f"Buscando mangás em {selected_source}..."):
             results = service.search_manga(query.strip())
     except MangaNotFoundError:
         print("❌ Mangá não encontrado. Tente outra pesquisa.")
@@ -129,6 +153,10 @@ def main() -> None:
         print(f"❌ Erro inesperado: {e}")
         return
 
+    if not results:
+        print("❌ Nenhum mangá encontrado. Tente outra pesquisa.")
+        return
+
     # Select manga
     manga_titles = [m.title for m in results]
     try:
@@ -138,10 +166,19 @@ def main() -> None:
 
     selected_manga = next(m for m in results if m.title == selected_title)
 
+    # Construct manga URL for scrapers that need it
+    manga_url = None
+    if selected_source == "mugiwaras":
+        manga_url = f"https://mugiwarasoficial.com/manga/{selected_manga.id}/"
+    elif selected_source == "mangadex":
+        manga_url = f"https://mangadex.org/title/{selected_manga.id}"
+
     # Load chapters with loading spinner
     try:
         with loading("Carregando capítulos..."):
-            chapters = service.get_chapters(selected_manga.id)
+            chapters = service.get_chapters(
+                selected_manga.id, manga_url=manga_url, source=selected_source
+            )
     except MangaDexError as e:
         print(f"⚠️  {e.user_message}")
         return
@@ -152,6 +189,9 @@ def main() -> None:
     if not chapters:
         print("❌ Nenhum capítulo disponível")
         return
+
+    # Sort chapters in ascending order (1 → 2 → 3 → ...)
+    chapters.reverse()
 
     # Load reading history
     history = MangaHistory()
@@ -166,28 +206,43 @@ def main() -> None:
 
     # Chapter selection loop
     current_index = 0
+    auto_load_next = False
     while True:
-        try:
-            selected_label = menu_navigate(chapter_labels, "Selecione capítulo")
-        except KeyboardInterrupt:
-            return
+        # Only show chapter selection menu if not auto-loading next
+        if not auto_load_next:
+            try:
+                selected_label = menu_navigate(chapter_labels, "Selecione capítulo")
+            except KeyboardInterrupt:
+                return
 
-        if not selected_label:
-            continue
+            if not selected_label:
+                continue
 
-        # Find actual chapter (strip resume hint)
-        display_label = selected_label.replace("⮕ Retomar - ", "")
-        current_index = next(
-            i
-            for i, label in enumerate(chapter_labels)
-            if label.replace("⮕ Retomar - ", "") == display_label
-        )
+            # Find actual chapter (strip resume hint)
+            display_label = selected_label.replace("⮕ Retomar - ", "")
+            current_index = next(
+                i
+                for i, label in enumerate(chapter_labels)
+                if label.replace("⮕ Retomar - ", "") == display_label
+            )
+
+        auto_load_next = False  # Reset flag for next iteration
         selected_chapter = chapters[current_index]
+
+        # Construct chapter URL for scrapers that need it
+        chapter_url = None
+        if selected_source == "mugiwaras":
+            # For MugiwarasOficial, reconstruct URL from manga URL and chapter ID
+            chapter_url = f"{manga_url}{selected_chapter.id}/"
+        elif selected_source == "mangadex":
+            chapter_url = f"https://mangadex.org/chapter/{selected_chapter.id}"
 
         # Load chapter pages
         try:
             with loading("Carregando páginas..."):
-                pages = service.get_chapter_pages(selected_chapter.id)
+                pages = service.get_chapter_pages(
+                    selected_chapter.id, chapter_url=chapter_url, source=selected_source
+                )
         except MangaDexError as e:
             print(f"⚠️  {e.user_message}")
             continue
@@ -200,7 +255,9 @@ def main() -> None:
             continue
 
         # Create output directory
-        output_path = config.output_directory / selected_manga.title / selected_chapter.number
+        output_path = (
+            config.output_directory / selected_manga.title / selected_chapter.number
+        )
         output_path.mkdir(parents=True, exist_ok=True)
 
         # Define PDF path
@@ -217,7 +274,10 @@ def main() -> None:
                 from tqdm import tqdm
 
                 for i, url in enumerate(tqdm(pages, desc="Download")):
-                    img_path = output_path / f"{i:03d}.png"
+                    # Extract file extension from URL (webp, png, jpg, etc.)
+                    from pathlib import Path as UrlPath
+                    ext = UrlPath(url.split("?")[0]).suffix or ".png"
+                    img_path = output_path / f"{i:03d}{ext}"
                     if not img_path.exists():
                         img_data = requests.get(url, timeout=10).content
                         img_path.write_bytes(img_data)
@@ -234,11 +294,12 @@ def main() -> None:
                     quality=config.pdf_quality,
                 )
 
-                # Optional: Delete PNG images after PDF creation
+                # Optional: Delete images after PDF creation
                 if config.delete_images_after_pdf:
-                    for img in output_path.glob("*.png"):
-                        img.unlink()
-                    print("🗑️  Imagens PNG removidas (mantendo apenas PDF)")
+                    for ext in ["*.png", "*.jpg", "*.jpeg", "*.webp"]:
+                        for img in output_path.glob(ext):
+                            img.unlink()
+                    print("🗑️  Imagens removidas (mantendo apenas PDF)")
 
                 print(f"✓ PDF criado: {pdf_path}")
 
@@ -266,13 +327,19 @@ def main() -> None:
         if action == "Sair":
             return
 
+        if action is None:
+            # User selected "← Voltar" - go back to chapter selection
+            continue
+
         # Move to next chapter if available
         if current_index + 1 < len(chapters):
             current_index += 1
+            # Remove resume hint from current chapter
             chapter_labels[current_index] = chapter_labels[current_index].replace(
                 "⮕ Retomar - ", ""
             )
-            # Continue loop to next chapter
+            # Set flag to skip chapter selection menu and auto-load next
+            auto_load_next = True
         else:
             print("Você chegou ao final dos capítulos disponíveis")
             return
