@@ -310,8 +310,12 @@ class AniListManga(BaseModel):
     volumes: int | None = Field(None, description="Total volumes")
     coverImage: AniListCoverImage | None = Field(None, description="Cover images")
     averageScore: int | None = Field(None, ge=0, le=100, description="Average score")
-    startDate: dict[str, int | None] | None = Field(None, description="Start date (year, month, day - values can be None)")
-    endDate: dict[str, int | None] | None = Field(None, description="End date (year, month, day - values can be None for ongoing)")
+    startDate: dict[str, int | None] | None = Field(
+        None, description="Start date (year, month, day - values can be None)"
+    )
+    endDate: dict[str, int | None] | None = Field(
+        None, description="End date (year, month, day - values can be None for ongoing)"
+    )
     type: str | None = Field(None, description="Media type")
 
 

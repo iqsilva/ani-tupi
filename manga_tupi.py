@@ -9,7 +9,6 @@ import shutil
 import subprocess
 
 from InquirerPy import inquirer
-from InquirerPy.validator import EmptyInputValidator
 
 from models.config import settings
 from models.models import Status
@@ -572,7 +571,7 @@ def _continue_manga_flow(
 
             # Move recommended chapter to top
             recommended_chapter = chapters.pop(recommended_index)
-            recommended_label = chapter_labels.pop(recommended_index)
+            chapter_labels.pop(recommended_index)
 
             chapters.insert(0, recommended_chapter)
             chapter_labels.insert(0, resume_label)
@@ -762,7 +761,6 @@ def _handle_download_for_later(
     Downloads chapter(s) without opening reader and returns to menu.
     """
     from services.manga_service import DownloadedChaptersTracker
-    from utils.range_parser import parse_range_input
 
     config = settings.manga
 
@@ -809,7 +807,9 @@ def _handle_download_for_later(
     # Handle already-downloaded chapters if skip enabled
     if already_downloaded and config.skip_already_downloaded:
         if already_downloaded:
-            skip_msg = f"{len(already_downloaded)} capítulo(s) já baixado(s). Continuar apenas com novos?"
+            skip_msg = (
+                f"{len(already_downloaded)} capítulo(s) já baixado(s). Continuar apenas com novos?"
+            )
             confirm_options = ["✅ Sim, continuar", "❌ Cancelar", "🔄 Re-baixar todos"]
             confirm = menu_navigate(confirm_options, skip_msg)
 
@@ -855,9 +855,7 @@ def _handle_download_for_later(
                 continue
 
             # Create output directory
-            output_path = (
-                config.output_directory / selected_manga.title / chapter.number
-            )
+            output_path = config.output_directory / selected_manga.title / chapter.number
             output_path.mkdir(parents=True, exist_ok=True)
 
             # Define PDF path
@@ -1036,7 +1034,6 @@ def _process_chapter(
         print("✓ Zathura fechado. Continuando...")
 
     # AniList progress confirmation (if authenticated)
-    anilist_updated = False
     if anilist_client.is_authenticated():
         try:
             # Ask if user completed the chapter
@@ -1061,12 +1058,11 @@ def _process_chapter(
                         print(
                             f"✓ Progresso atualizado no AniList: {selected_manga.title} - Cap. {selected_chapter.number}"
                         )
-                        anilist_updated = True
 
                         # Auto-change status if this is first chapter read
                         if not list_entry or list_entry.status == "PLANNING":
                             anilist_client.change_manga_status(best_match.id, Status.CURRENT)
-                            print(f"✓ Status alterado para: Lendo")
+                            print("✓ Status alterado para: Lendo")
                     else:
                         print("⚠️  Falha ao atualizar progresso no AniList")
                 else:
@@ -1165,9 +1161,6 @@ def main() -> None:
     except RuntimeError as e:
         print(f"❌ {e}")
         return
-
-    # Use default source (Mugiwaras prioritized by UnifiedMangaService)
-    available_sources = service.get_available_sources()
 
     # Show main menu
     while True:

@@ -316,9 +316,7 @@ def anilist_anime_flow(
                 f"🇬🇧 Inglês: {english_title}",
                 f"🇯🇵 Romanji: {romaji_title}",
             ]
-            language_choice = menu_navigate(
-                language_options, msg="Escolha o idioma para buscar:"
-            )
+            language_choice = menu_navigate(language_options, msg="Escolha o idioma para buscar:")
 
             if not language_choice:
                 return  # User cancelled

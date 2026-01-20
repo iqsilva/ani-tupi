@@ -23,9 +23,7 @@ class MugiwarasOficial:
         """Initialize scraper with requests session."""
         self.session = requests.Session()
         self.session.headers.update(
-            {
-                "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36"
-            }
+            {"User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36"}
         )
 
     def search_manga(self, query: str) -> list[dict[str, Any]]:
@@ -75,7 +73,9 @@ class MugiwarasOficial:
 
                     # Extract latest chapter info (optional)
                     latest_chapter = item.css_first("span.chapter a")
-                    latest_chapter_text = latest_chapter.text(strip=True) if latest_chapter else None
+                    latest_chapter_text = (
+                        latest_chapter.text(strip=True) if latest_chapter else None
+                    )
 
                     # Extract manga ID from URL (slug)
                     manga_id = url.rstrip("/").split("/")[-1]
@@ -168,7 +168,12 @@ class MugiwarasOficial:
                     chapter_id = chapter_url.rstrip("/").split("/")[-1]
 
                     # Clean chapter title (remove "Capítulo X PT-BR")
-                    clean_title = re.sub(r"capítulo\s+\d+(\.\d+)?\s*-?\s*pt-br", "", chapter_title, flags=re.IGNORECASE).strip()
+                    clean_title = re.sub(
+                        r"capítulo\s+\d+(\.\d+)?\s*-?\s*pt-br",
+                        "",
+                        chapter_title,
+                        flags=re.IGNORECASE,
+                    ).strip()
                     if clean_title and clean_title != chapter_title:
                         final_title = clean_title
                     else:
@@ -213,17 +218,6 @@ class MugiwarasOficial:
             tree = HTMLParser(resp.text)
 
             page_urls = []
-
-            # Try multiple selectors for manga images
-            # Different Madara themes use different structures
-            selectors = [
-                "div.reading-content img",
-                "div.page-break img",
-                "div.wp-manga-chapter-img img",
-                "img.wp-manga-chapter-img",
-                "div#readerarea img",
-                "div.entry-content img",
-            ]
 
             # If specific selectors didn't work, try all images
             # MugiwarasOficial has manga images directly in HTML
@@ -273,6 +267,7 @@ class MugiwarasOficial:
         except Exception as e:
             print(f"⚠️  Erro ao buscar páginas do capítulo: {e}")
             import traceback
+
             traceback.print_exc()
             return []
 

@@ -5,7 +5,6 @@ results are found for the same search query (e.g., different scanlations).
 """
 
 import json
-from pathlib import Path
 from typing import Dict, Optional
 
 from models.config import get_data_path

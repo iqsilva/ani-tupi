@@ -101,6 +101,7 @@ def anime(args) -> None:
     )
     # Type narrowing: assertion above proves these are not None
     from typing import cast
+
     episode_idx = cast(int, episode_idx)  # for pyright
     episode_list = rep.get_episode_list(selected_anime)
     num_episodes = len(episode_list)

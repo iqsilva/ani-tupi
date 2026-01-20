@@ -49,10 +49,7 @@ def create_pdf_from_images(
     first_image = Image.open(images[0]).convert("RGB")
 
     # Open remaining images and convert to RGB
-    other_images = [
-        Image.open(img).convert("RGB")
-        for img in images[1:]
-    ]
+    other_images = [Image.open(img).convert("RGB") for img in images[1:]]
 
     # Save as multi-page PDF with compression
     first_image.save(

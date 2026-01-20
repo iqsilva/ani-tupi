@@ -5,7 +5,6 @@ Allows users to save their source choice and automatically use it next time.
 """
 
 import json
-from pathlib import Path
 from typing import Dict, Optional
 
 from models.config import get_data_path

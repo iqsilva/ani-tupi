@@ -4,8 +4,6 @@ Orchestrates multiple manga scraper plugins and provides a clean interface
 for the manga CLI. Replaces the old MangaDex-only service.
 """
 
-from typing import Any
-
 from manga_scrapers.loader import load_manga_plugins
 from models.config import MangaSettings
 from models.models import ChapterData, MangaMetadata, MangaStatus
