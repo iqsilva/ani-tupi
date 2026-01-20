@@ -586,7 +586,6 @@ class AniListClient:
         try:
             result = self._query(mutation, variables)
             if result and "SaveMediaListEntry" in result:
-                result["SaveMediaListEntry"]["media"]["title"]["romaji"]
                 return True
             return False
         except Exception:
@@ -1023,7 +1022,6 @@ class AniListClient:
         try:
             result = self._query(mutation, variables)
             if result and "SaveMediaListEntry" in result:
-                result["SaveMediaListEntry"]["media"]["title"]["romaji"]
                 return True
             return False
         except Exception:

@@ -58,6 +58,7 @@ Mesmo método usado por [viu-media](https://github.com/viu-media/viu) - simples 
 
 - **Python 3.12+** (obrigatório)
 - **mpv** (player de vídeo)
+- **Zathura** (leitor de PDF para mangá - recomendado)
 - **Firefox** (para scraping com Selenium)
 - **geckodriver** (driver para Selenium + Firefox)
 - **Playwright** (para scraping avançado com suporte a múltiplos browsers)
@@ -68,7 +69,7 @@ Mesmo método usado por [viu-media](https://github.com/viu-media/viu) - simples 
 #### Linux (Arch)
 ```bash
 # Instalar dependências do sistema
-sudo pacman -S python mpv firefox geckodriver git libxml2 libvpx flite webkit2gtk-4.1
+sudo pacman -S python mpv zathura firefox geckodriver git libxml2 libvpx flite webkit2gtk-4.1
 
 # Depois de clonar e instalar ani-tupi, instalar Playwright:
 uv run playwright install
@@ -77,7 +78,7 @@ uv run playwright install
 #### Linux (Ubuntu/Debian)
 ```bash
 # Instalar dependências do sistema
-sudo apt install python3 mpv firefox git
+sudo apt install python3 mpv zathura firefox git
 # Instale geckodriver separadamente ou compile:
 # https://github.com/mozilla/geckodriver/releases
 
@@ -91,7 +92,7 @@ uv run playwright install
 #### Linux (Fedora)
 ```bash
 # Instalar dependências do sistema
-sudo dnf install python3 mpv firefox git geckodriver libxml2 libvpx flite webkit2gtk-4.1
+sudo dnf install python3 mpv zathura firefox git geckodriver libxml2 libvpx flite webkit2gtk-4.1
 
 # Depois de clonar e instalar ani-tupi, instalar Playwright:
 uv run playwright install
@@ -100,7 +101,7 @@ uv run playwright install
 #### macOS
 ```bash
 # Instalar dependências do sistema
-brew install python@3.12 mpv firefox git geckodriver
+brew install python@3.12 mpv zathura firefox git geckodriver
 
 # Depois de clonar e instalar ani-tupi, instalar Playwright:
 uv run playwright install
@@ -110,11 +111,13 @@ uv run playwright install
 Recomendamos usar [Chocolatey](https://chocolatey.org/install):
 ```powershell
 # Como administrador
-choco install python mpv firefox git geckodriver
+choco install python mpv zathura firefox git geckodriver
 
 # Depois de clonar e instalar ani-tupi, instalar Playwright:
 uv run playwright install
 ```
+
+**Nota:** Zathura é primariamente para Linux. No Windows, o sistema detectará automaticamente outros leitores de PDF instalados (Adobe Reader, SumatraPDF, etc).
 
 ## 🚀 Instalação
 

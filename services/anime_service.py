@@ -1033,9 +1033,10 @@ def switch_anime_source(
 
     # 1. Use saved search title from AniList if available (same title as original search)
     # Otherwise fall back to display_title or current_anime
-    search_title = None
     if anilist_id:
         search_title = load_anilist_search_title(anilist_id)
+    else:
+        search_title = None
     search_title = search_title or display_title or current_anime
 
     # Generate title variations using the search title (same as original search)
