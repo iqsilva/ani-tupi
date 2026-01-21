@@ -249,18 +249,21 @@ class MugiwarasOficial:
                     else:
                         continue
 
-                # Filter for manga page images
-                # MugiwarasOficial uses /WP-manga/ path for manga pages
-                is_manga_page = "/WP-manga/" in img_url or "/wp-manga/" in img_url.lower()
+                 # Filter for manga page images
+                 # MugiwarasOficial uses /WP-manga/ path for manga pages
+                 is_manga_page = "/WP-manga/" in img_url or "/wp-manga/" in img_url.lower()
 
-                # Skip logos, banners, ads
-                is_noise = any(
-                    skip in img_url.lower()
-                    for skip in ["logo", "banner", "/ad/", "/ads/", "sidebar", "amazon", "cropped-"]
-                )
+                 # Skip logos, banners, ads, and invalid formats
+                 is_noise = any(
+                     skip in img_url.lower()
+                     for skip in ["logo", "banner", "/ad/", "/ads/", "sidebar", "amazon", "cropped-", ".webp", ".gif"]
+                 )
 
-                if is_manga_page and not is_noise and img_url not in page_urls:
-                    page_urls.append(img_url)
+                 # Ensure it's an actual image file
+                 is_image = any(img_url.lower().endswith(ext) for ext in ['.jpg', '.jpeg', '.png', '.webp'])
+
+                 if is_manga_page and not is_noise and is_image and img_url not in page_urls:
+                     page_urls.append(img_url)
 
             return page_urls
 

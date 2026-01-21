@@ -6,7 +6,7 @@ with optional compression for efficient storage.
 
 from pathlib import Path
 
-from PIL import Image
+from PIL import Image, UnidentifiedImageError
 
 
 def create_pdf_from_images(
@@ -34,22 +34,43 @@ def create_pdf_from_images(
     """
     # List and sort images by filename (ensures correct reading order)
     # Support multiple image formats: png, jpg, jpeg, webp
-    images = []
+    candidate_images = []
     for ext in ["*.png", "*.jpg", "*.jpeg", "*.webp"]:
-        images.extend(image_dir.glob(ext))
+        candidate_images.extend(image_dir.glob(ext))
+
+    # Validate files are actually images (filter out HTML error pages, etc.)
+    valid_images = []
+    for img_path in candidate_images:
+        try:
+            # Try to open the image to verify it's valid
+            with Image.open(img_path) as img:
+                img.verify()  # Verify it's a valid image
+            valid_images.append(img_path)
+        except (UnidentifiedImageError, IOError, Exception):
+            # Skip invalid files (HTML errors, corrupted files, etc.)
+            continue
 
     # Sort by filename
-    images = sorted(images)
+    images = sorted(valid_images)
 
     if not images:
-        msg = f"No images found in {image_dir}"
+        msg = f"No valid images found in {image_dir}"
         raise ValueError(msg)
 
     # Open first image (cover) and convert to RGB
-    first_image = Image.open(images[0]).convert("RGB")
+    try:
+        first_image = Image.open(images[0]).convert("RGB")
+    except Exception as e:
+        raise ValueError(f"Failed to process image {images[0]}: {e}")
 
     # Open remaining images and convert to RGB
-    other_images = [Image.open(img).convert("RGB") for img in images[1:]]
+    other_images = []
+    for img_path in images[1:]:
+        try:
+            img = Image.open(img_path).convert("RGB")
+            other_images.append(img)
+        except Exception as e:
+            raise ValueError(f"Failed to process image {img_path}: {e}")
 
     # Save as multi-page PDF with compression
     first_image.save(

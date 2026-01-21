@@ -28,8 +28,8 @@ class AniListClient:
 
     def __init__(self) -> None:
         """Initialize the AniList client."""
+        self.user_id = None  # Will be set after authentication or loaded from file
         self.token = self._load_token()
-        self.user_id = None  # Will be set after authentication
         self.api_url = settings.anilist.api_url  # Expose API URL for testing
 
     def _load_token(self) -> str | None:

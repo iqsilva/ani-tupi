@@ -391,7 +391,7 @@ class AniListActivity(BaseModel):
 
     id: int = Field(..., description="Activity ID")
     status: str | None = Field(None, description="List status")
-    progress: int | None = Field(None, ge=0, description="Episode progress")
+    progress: str | int | None = Field(None, description="Episode progress")
     createdAt: int = Field(..., description="Creation timestamp")
     media: AniListAnime | None = Field(None, description="Anime media object")
 

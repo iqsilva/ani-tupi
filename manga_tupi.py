@@ -864,14 +864,34 @@ def _handle_download_for_later(
 
             # Download pages
             print(f"Baixando {len(pages)} páginas...")
+            valid_downloads = 0
             for i, url in enumerate(tqdm(pages, desc="Download")):
                 from pathlib import Path as UrlPath
 
                 ext = UrlPath(url.split("?")[0]).suffix or ".png"
                 img_path = output_path / f"{i:03d}{ext}"
                 if not img_path.exists():
-                    img_data = requests.get(url, timeout=10).content
-                    img_path.write_bytes(img_data)
+                    try:
+                        response = requests.get(url, timeout=10)
+                        response.raise_for_status()
+
+                        # Validate content is actually an image
+                        content_type = response.headers.get("content-type", "").lower()
+                        if not content_type.startswith("image/"):
+                            continue
+
+                        img_data = response.content
+                        if len(img_data) < 1024:  # Skip very small files (likely errors)
+                            continue
+
+                        img_path.write_bytes(img_data)
+                        valid_downloads += 1
+                    except Exception:
+                        continue  # Skip failed downloads
+                else:
+                    valid_downloads += 1
+
+            print(f"✓ {valid_downloads} imagens válidas baixadas")
 
             # Create PDF
             print("📄 Criando PDF...")

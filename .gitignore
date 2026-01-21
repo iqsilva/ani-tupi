@@ -44,3 +44,11 @@ log.txt
 dist/
 build/
 *.spec
+*_cache
+
+# Markdown files (allow only README.md)
+*.md
+!README.md
+
+.opencode/
+.claude/
