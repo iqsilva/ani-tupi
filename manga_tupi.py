@@ -13,6 +13,7 @@ from InquirerPy import inquirer
 from models.config import settings
 from models.models import LocalChapter, Status
 from services.anilist_service import anilist_client
+from services.local_manga_service import LocalMangaService
 from services.manga_service import (
     MangaDexError,
     MangaHistory,
@@ -328,10 +329,13 @@ def _handle_trending(service: UnifiedMangaService) -> None:
 
 def _start_manga_search(service: UnifiedMangaService, title: str) -> None:
     """Start manga search for given title."""
+    # Extract English name for scraper search (in case it's "Romaji / English" format)
+    search_term = title.split(" / ")[-1].strip() if " / " in title else title
+
     # Search with loading spinner
     try:
-        with loading(f"Buscando '{title}' em {service.current_source}..."):
-            results = service.search_manga(title.strip())
+        with loading(f"Buscando '{search_term}' em {service.current_source}..."):
+            results = service.search_manga(search_term)
     except MangaNotFoundError:
         print("❌ Mangá não encontrado. Tente outra pesquisa.")
         return
@@ -956,31 +960,6 @@ def _process_chapter(
     """Process individual chapter reading."""
     config = settings.manga
 
-    # Construct chapter URL for scrapers that need it
-    chapter_url = None
-    if selected_source == "mugiwaras":
-        # For MugiwarasOficial, reconstruct URL from manga URL and chapter ID
-        chapter_url = f"{manga_url}{selected_chapter.id}/"
-    elif selected_source == "mangadex":
-        chapter_url = f"https://mangadex.org/chapter/{selected_chapter.id}"
-
-    # Load chapter pages
-    try:
-        with loading("Carregando páginas..."):
-            pages = service.get_chapter_pages(
-                selected_chapter.id, chapter_url=chapter_url, source=selected_source
-            )
-    except MangaDexError as e:
-        print(f"⚠️  {e.user_message}")
-        return
-    except Exception as e:
-        print(f"❌ Erro ao carregar páginas: {e}")
-        return
-
-    if not pages:
-        print("❌ Nenhuma página disponível para este capítulo")
-        return
-
     # Create output directory
     output_path = config.output_directory / selected_manga.title / selected_chapter.number
     output_path.mkdir(parents=True, exist_ok=True)
@@ -988,10 +967,34 @@ def _process_chapter(
     # Define PDF path
     pdf_path = output_path / f"{selected_chapter.number}.pdf"
 
-    # Check if PDF already exists
+    # Check if PDF already exists (LOCAL FIRST!)
     if pdf_path.exists():
         print("📖 Abrindo capítulo existente...")
     else:
+        # Construct chapter URL for scrapers that need it
+        chapter_url = None
+        if selected_source == "mugiwaras":
+            # For MugiwarasOficial, reconstruct URL from manga URL and chapter ID
+            chapter_url = f"{manga_url}{selected_chapter.id}/"
+        elif selected_source == "mangadex":
+            chapter_url = f"https://mangadex.org/chapter/{selected_chapter.id}"
+
+        # Load chapter pages (only if PDF doesn't exist)
+        try:
+            with loading("Carregando páginas..."):
+                pages = service.get_chapter_pages(
+                    selected_chapter.id, chapter_url=chapter_url, source=selected_source
+                )
+        except MangaDexError as e:
+            print(f"⚠️  {e.user_message}")
+            return
+        except Exception as e:
+            print(f"❌ Erro ao carregar páginas: {e}")
+            return
+
+        if not pages:
+            print("❌ Nenhuma página disponível para este capítulo")
+            return
         # Download pages
         print(f"Baixando {len(pages)} páginas...")
         try:
@@ -1291,6 +1294,10 @@ def _process_local_chapter(
         return
 
     # Open PDF reader and track the process
+    if pdf_path is None:
+        print("❌ Caminho do PDF não disponível")
+        input("Pressione Enter para continuar...")
+        return
     reader_process = open_pdf_reader(pdf_path)
 
     # Update local history (always, even offline)
@@ -1303,9 +1310,7 @@ def _process_local_chapter(
 
     # Try to sync to AniList (forward-only)
     try:
-        from services.anilist_service import AniListService
-
-        anilist_service = AniListService()
+        anilist_service = anilist_client
 
         # Only sync if authenticated
         if anilist_service.is_authenticated():
@@ -1419,10 +1424,13 @@ def _handle_search_flow(service: UnifiedMangaService) -> None:
 
     selected_source = service.current_source
 
+    # Extract English name for scraper search (in case it's "Romaji / English" format)
+    search_term = query.split(" / ")[-1].strip() if " / " in query else query
+
     # Search with loading spinner
     try:
         with loading(f"Buscando mangás em {selected_source}..."):
-            results = service.search_manga(query.strip())
+            results = service.search_manga(search_term)
     except MangaNotFoundError:
         print("❌ Mangá não encontrado. Tente outra pesquisa.")
         return

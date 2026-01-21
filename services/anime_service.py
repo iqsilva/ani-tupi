@@ -992,7 +992,7 @@ def anilist_anime_flow(
             episode_list = rep.get_episode_list(selected_anime)
             selected_episode = menu_navigate(episode_list, msg="Escolha o episódio.")
             if not selected_episode:
-                continue  # Stay in current episode menu
+                return  # User cancelled, go back
             episode_idx = episode_list.index(selected_episode)
         elif selected_opt == "🔄 Trocar fonte":
             new_anime, new_episode_idx = switch_anime_source(

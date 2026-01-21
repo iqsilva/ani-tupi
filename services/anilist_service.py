@@ -730,6 +730,31 @@ class AniListClient:
         # Fallback to native
         return native or "Unknown"
 
+    def get_search_title(self, title_obj: AniListTitle | dict) -> str:
+        """Extract title for scraper search (English only).
+
+        Returns English title if available, otherwise romaji or native.
+        Used for scraper queries to ensure consistent results.
+        """
+        # Handle both Pydantic model and dict for backward compatibility
+        if isinstance(title_obj, dict):
+            english = title_obj.get("english")
+            romaji = title_obj.get("romaji")
+            native = title_obj.get("native")
+        else:
+            english = title_obj.english
+            romaji = title_obj.romaji
+            native = title_obj.native
+
+        # Prefer English for scraper searches (most reliable for searches)
+        if english:
+            return english
+        # If only romaji
+        if romaji:
+            return romaji
+        # Fallback to native
+        return native or "Unknown"
+
     # Manga-specific methods
     def get_trending_manga(self, page: int = 1, per_page: int = 20) -> list[AniListManga]:
         """Get trending manga.

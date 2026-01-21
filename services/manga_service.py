@@ -368,37 +368,45 @@ class MangaDexClient:
     def _get_title(attrs: dict[str, Any]) -> str:
         """Extract manga title from attributes.
 
-        Tries preferred language first, then fallbacks.
+        Tries English first for scraper compatibility, then fallbacks.
 
         Args:
             attrs: Manga attributes from API
 
         Returns:
-            Manga title in preferred language
+            Manga title in English (preferred for scrapers)
         """
-        # Try Portuguese first (altTitles is a list of dicts)
-        alt_titles = attrs.get("altTitles", [])
-        if isinstance(alt_titles, list):
-            for alt_title in alt_titles:
-                if isinstance(alt_title, dict):
-                    if "pt-br" in alt_title:
-                        return alt_title["pt-br"]
-
-        # Try English in title
+        # Try English in title first (for scraper compatibility)
         title = attrs.get("title", {})
         if isinstance(title, dict):
             if "en" in title:
                 return title["en"]
+
+        # Try English in alt titles
+        alt_titles = attrs.get("altTitles", [])
+        if isinstance(alt_titles, list):
+            for alt_title in alt_titles:
+                if isinstance(alt_title, dict):
+                    if "en" in alt_title:
+                        return alt_title["en"]
+
+        # Try Romanized Japanese (ja-ro) - common for Japanese manga
+        if isinstance(title, dict):
+            if "ja-ro" in title:
+                return title["ja-ro"]
 
         # Try Japanese in title
         if isinstance(title, dict):
             if "ja" in title:
                 return title["ja"]
 
-        # Try Romanized Japanese (ja-ro) - common for JapanSe manga
-        if isinstance(title, dict):
-            if "ja-ro" in title:
-                return title["ja-ro"]
+        # Try Portuguese (for display purposes only)
+        alt_titles = attrs.get("altTitles", [])
+        if isinstance(alt_titles, list):
+            for alt_title in alt_titles:
+                if isinstance(alt_title, dict):
+                    if "pt-br" in alt_title:
+                        return alt_title["pt-br"]
 
         # Fallback to first available language in title
         if isinstance(title, dict):
