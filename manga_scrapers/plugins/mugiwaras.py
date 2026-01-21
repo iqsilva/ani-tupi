@@ -210,12 +210,45 @@ class MugiwarasOficial:
             List of image URLs
         """
         try:
-            # Fetch with requests (faster than Playwright)
-            resp = self.session.get(chapter_url, timeout=10)
-            resp.raise_for_status()
+            # Use Playwright to handle age verification modal
+            with sync_playwright() as p:
+                browser = p.chromium.launch(headless=True)
+                page = browser.new_page()
 
-            # Parse HTML
-            tree = HTMLParser(resp.text)
+                # Navigate to chapter page
+                page.goto(chapter_url, wait_until="networkidle", timeout=30000)
+
+                # Check for age verification modal and handle it
+                try:
+                    # Wait for adult modal to appear (if present) - it might be hidden initially
+                    page.wait_for_selector("#adult_modal", timeout=5000)
+
+                    # Make modal visible (it might be hidden initially)
+                    page.evaluate("""
+                        const modal = document.getElementById('adult_modal');
+                        if (modal) {
+                            modal.style.display = 'block';
+                            modal.classList.remove('fade');
+                            modal.classList.add('show');
+                        }
+                    """)
+
+                    # Click "Yes, I am" button to confirm age
+                    confirm_button = page.query_selector(".btn-adult-confirm")
+                    if confirm_button:
+                        confirm_button.click()
+                        # Wait a moment for modal to close and content to load
+                        page.wait_for_timeout(3000)
+                except Exception:
+                    # No modal found or modal handling failed, continue anyway
+                    pass
+
+                # Get page HTML after JavaScript execution and modal handling
+                html = page.content()
+                browser.close()
+
+            # Parse rendered HTML
+            tree = HTMLParser(html)
 
             page_urls = []
 
@@ -249,21 +282,33 @@ class MugiwarasOficial:
                     else:
                         continue
 
-                 # Filter for manga page images
-                 # MugiwarasOficial uses /WP-manga/ path for manga pages
-                 is_manga_page = "/WP-manga/" in img_url or "/wp-manga/" in img_url.lower()
+                # Filter for manga page images
+                # MugiwarasOficial uses /WP-manga/ path for manga pages
+                is_manga_page = "/WP-manga/" in img_url or "/wp-manga/" in img_url.lower()
 
-                 # Skip logos, banners, ads, and invalid formats
-                 is_noise = any(
-                     skip in img_url.lower()
-                     for skip in ["logo", "banner", "/ad/", "/ads/", "sidebar", "amazon", "cropped-", ".webp", ".gif"]
-                 )
+                # Skip logos, banners, ads, and invalid formats
+                # Note: .webp is NOT in noise list since manga pages use webp
+                is_noise = any(
+                    skip in img_url.lower()
+                    for skip in [
+                        "logo",
+                        "banner",
+                        "/ad/",
+                        "/ads/",
+                        "sidebar",
+                        "amazon",
+                        "cropped-",
+                        ".gif",
+                    ]
+                )
 
-                 # Ensure it's an actual image file
-                 is_image = any(img_url.lower().endswith(ext) for ext in ['.jpg', '.jpeg', '.png', '.webp'])
+                # Ensure it's an actual image file
+                is_image = any(
+                    img_url.lower().endswith(ext) for ext in [".jpg", ".jpeg", ".png", ".webp"]
+                )
 
-                 if is_manga_page and not is_noise and is_image and img_url not in page_urls:
-                     page_urls.append(img_url)
+                if is_manga_page and not is_noise and is_image and img_url not in page_urls:
+                    page_urls.append(img_url)
 
             return page_urls
 
