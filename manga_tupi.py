@@ -1091,6 +1091,20 @@ def _process_chapter(
                         print("⚠️  Falha ao atualizar progresso no AniList")
                 else:
                     print(f"⚠️  Mangá não encontrado no AniList: {selected_manga.title}")
+
+                # Ask if user wants to delete chapter after confirming completion
+                if pdf_path and pdf_path.exists():
+                    try:
+                        delete_options = ["🗑️  Sim, deletar (economizar espaço)", "❌ Não, manter"]
+                        delete_confirm = menu_navigate(delete_options, "Deletar capítulo após ler?")
+
+                        if delete_confirm == "🗑️  Sim, deletar (economizar espaço)":
+                            import shutil
+                            folder = pdf_path.parent
+                            shutil.rmtree(folder)
+                            print(f"✓ Capítulo deletado: economizando espaço em disco")
+                    except Exception as e:
+                        print(f"⚠️  Não foi possível deletar capítulo: {e}")
             else:
                 print("✓ Progresso não atualizado no AniList (capítulo não concluído)")
         except Exception as e:
@@ -1309,6 +1323,7 @@ def _process_local_chapter(
     )
 
     # Try to sync to AniList (forward-only)
+    anilist_synced = False
     try:
         anilist_service = anilist_client
 
@@ -1321,9 +1336,25 @@ def _process_local_chapter(
             )
             if synced:
                 print("✅ Progresso sincronizado com AniList")
+                anilist_synced = True
     except Exception:
         # Silent fail if offline or error
         pass
+
+    # Ask if user wants to delete chapter (save disk space)
+    if anilist_synced:
+        try:
+            delete_options = ["🗑️  Sim, deletar (economizar espaço)", "❌ Não, manter"]
+            delete_confirm = menu_navigate(delete_options, "Deletar capítulo após ler?")
+
+            if delete_confirm == "🗑️  Sim, deletar (economizar espaço)":
+                chapter_folder = chapter.pdf_path.parent if chapter.pdf_path else None
+                if chapter_folder and chapter_folder.exists():
+                    import shutil
+                    shutil.rmtree(chapter_folder)
+                    print(f"✓ Capítulo deletado: economizando espaço em disco")
+        except Exception as e:
+            print(f"⚠️  Não foi possível deletar capítulo: {e}")
 
     # Wait for reader to close (track specific process, not any zathura instance)
     if reader_process:
