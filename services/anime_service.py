@@ -27,62 +27,17 @@ from models import EpisodeContext
 from scrapers import loader
 from models.models import Status
 from services.anime.title_normalization import normalize_anime_title
+from services.anime.mappings import (
+    load_anilist_mapping,
+    save_anilist_mapping,
+    load_anilist_search_title,
+)
 
 
 logger = get_logger(__name__)
 
 # Use centralized path function from config
 HISTORY_PATH = get_data_path()
-
-# AniList to scraper title mappings cache
-_anilist_mappings_store = JSONStore(HISTORY_PATH / "anilist_mappings.json")
-
-
-def load_anilist_mapping(anilist_id: int) -> str | None:
-    """Load saved scraper title for an AniList ID."""
-    mapping = _anilist_mappings_store.get(str(anilist_id))
-    # Handle both old format (string) and new format (dict)
-    if isinstance(mapping, dict):
-        return mapping.get("scraper_title")
-    return mapping
-
-
-def load_anilist_search_title(anilist_id: int) -> str | None:
-    """Load the original search/display title used for an AniList ID."""
-    mapping = _anilist_mappings_store.get(str(anilist_id))
-    # Only new format (dict) has search_title
-    if isinstance(mapping, dict):
-        return mapping.get("search_title")
-    return None
-
-
-def save_anilist_mapping(
-    anilist_id: int, scraper_title: str, search_title: str | None = None
-) -> None:
-    """Save scraper title choice and search title for an AniList ID.
-
-    Args:
-        anilist_id: The AniList ID
-        scraper_title: The selected anime title from scraper
-        search_title: The original search/display title used to find it
-    """
-    try:
-        mapping_id = str(anilist_id)
-        # Preserve existing search_title if not provided
-        existing = _anilist_mappings_store.get(mapping_id, {})
-        if isinstance(existing, str):
-            # Migrate old format to new format
-            existing = {"scraper_title": existing}
-
-        _anilist_mappings_store.set(
-            mapping_id,
-            {
-                "scraper_title": scraper_title,
-                "search_title": search_title or existing.get("search_title"),
-            },
-        )
-    except PersistenceError as e:
-        logger.error(f"Failed to save AniList mapping: {e}")
 
 
 # normalize_anime_title is now imported from services.anime.title_normalization

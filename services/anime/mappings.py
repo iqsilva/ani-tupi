@@ -1,0 +1,79 @@
+"""AniList ID to scraper title mapping persistence.
+
+Handles saving and loading of mappings between AniList anime IDs
+and scraper-specific titles for improved search accuracy.
+"""
+
+from models.config import get_data_path
+from utils.exceptions import PersistenceError
+from utils.logging import get_logger
+from utils.persistence import JSONStore
+
+logger = get_logger(__name__)
+
+# Use centralized path function from config
+HISTORY_PATH = get_data_path()
+
+# AniList to scraper title mappings cache
+_anilist_mappings_store = JSONStore(HISTORY_PATH / "anilist_mappings.json")
+
+
+def load_anilist_mapping(anilist_id: int) -> str | None:
+    """Load saved scraper title for an AniList ID.
+
+    Args:
+        anilist_id: The AniList anime ID
+
+    Returns:
+        Scraper title string or None if not found
+    """
+    mapping = _anilist_mappings_store.get(str(anilist_id))
+    # Handle both old format (string) and new format (dict)
+    if isinstance(mapping, dict):
+        return mapping.get("scraper_title")
+    return mapping
+
+
+def load_anilist_search_title(anilist_id: int) -> str | None:
+    """Load the original search/display title used for an AniList ID.
+
+    Args:
+        anilist_id: The AniList anime ID
+
+    Returns:
+        Original search title or None if not found
+    """
+    mapping = _anilist_mappings_store.get(str(anilist_id))
+    # Only new format (dict) has search_title
+    if isinstance(mapping, dict):
+        return mapping.get("search_title")
+    return None
+
+
+def save_anilist_mapping(
+    anilist_id: int, scraper_title: str, search_title: str | None = None
+) -> None:
+    """Save scraper title choice and search title for an AniList ID.
+
+    Args:
+        anilist_id: The AniList ID
+        scraper_title: The selected anime title from scraper
+        search_title: The original search/display title used to find it
+    """
+    try:
+        mapping_id = str(anilist_id)
+        # Preserve existing search_title if not provided
+        existing = _anilist_mappings_store.get(mapping_id, {})
+        if isinstance(existing, str):
+            # Migrate old format to new format
+            existing = {"scraper_title": existing}
+
+        _anilist_mappings_store.set(
+            mapping_id,
+            {
+                "scraper_title": scraper_title,
+                "search_title": search_title or existing.get("search_title"),
+            },
+        )
+    except PersistenceError as e:
+        logger.error(f"Failed to save AniList mapping: {e}")
