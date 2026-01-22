@@ -19,6 +19,8 @@ from .anilist_integration import (
     offer_sequel_and_continue,
     anilist_anime_flow,
 )
+from .source_management import switch_anime_source
+from .search import search_anime_flow
 
 __all__ = [
     "normalize_anime_title",
@@ -28,4 +30,6 @@ __all__ = [
     "get_next_episode_context",
     "offer_sequel_and_continue",
     "anilist_anime_flow",
+    "switch_anime_source",
+    "search_anime_flow",
 ]
