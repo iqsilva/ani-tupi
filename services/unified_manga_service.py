@@ -174,7 +174,6 @@ class UnifiedMangaService:
                     description=item.get("description"),
                     status=status,
                     year=item.get("year"),
-                    cover_url=item.get("cover_url"),
                     tags=item.get("tags", []),
                 )
                 results.append(manga)

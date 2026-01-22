@@ -149,7 +149,6 @@ class MangaMetadata(BaseModel):
         description: Optional description
         status: Publication status (ongoing, completed, etc.)
         year: Publication year
-        cover_url: Optional cover image URL
         tags: List of tags/genres
         anilist_id: Optional AniList manga ID for integration
         anilist_data: Optional AniList manga data
@@ -160,7 +159,6 @@ class MangaMetadata(BaseModel):
     description: str | None = Field(None, description="Manga description")
     status: MangaStatus = Field(..., description="Publication status")
     year: int | None = Field(None, ge=1900, le=2100, description="Publication year")
-    cover_url: str | None = Field(None, description="Cover image URL")
     tags: list[str] = Field(default_factory=list, description="Tags/genres")
     anilist_id: int | None = Field(None, description="AniList manga ID")
     anilist_data: "Optional[AniListManga]" = Field(None, description="AniList manga data")
@@ -262,13 +260,6 @@ class AniListTitle(BaseModel):
     native: str | None = Field(None, description="Native title")
 
 
-class AniListCoverImage(BaseModel):
-    """AniList cover image object."""
-
-    medium: str | None = Field(None, description="Medium size cover URL")
-    large: str | None = Field(None, description="Large size cover URL")
-
-
 class AniListAnimeStatistics(BaseModel):
     """AniList anime statistics."""
 
@@ -289,13 +280,11 @@ class AniListViewerInfo(BaseModel):
     Attributes:
         id: User ID
         name: Username
-        avatar: Avatar image URLs
         statistics: User statistics
     """
 
     id: int = Field(..., description="User ID")
     name: str = Field(..., min_length=1, description="Username")
-    avatar: AniListCoverImage | None = Field(None, description="Avatar images")
     statistics: AniListStatistics | None = Field(None, description="User statistics")
 
 
@@ -306,7 +295,6 @@ class AniListAnime(BaseModel):
         id: AniList anime ID
         title: Title object with multiple languages
         episodes: Total episodes (None if unknown)
-        coverImage: Cover image URLs
         averageScore: Average score (0-100)
         seasonYear: Year of release
         season: Season (WINTER, SPRING, SUMMER, FALL)
@@ -316,7 +304,6 @@ class AniListAnime(BaseModel):
     id: int = Field(..., description="AniList anime ID")
     title: AniListTitle = Field(..., description="Title object")
     episodes: int | None = Field(None, description="Total episodes")
-    coverImage: AniListCoverImage | None = Field(None, description="Cover images")
     averageScore: int | None = Field(None, ge=0, le=100, description="Average score")
     seasonYear: int | None = Field(None, ge=1900, le=2100, description="Release year")
     season: str | None = Field(None, description="Season (WINTER, SPRING, SUMMER, FALL)")
@@ -331,7 +318,6 @@ class AniListManga(BaseModel):
         title: Title object with multiple languages
         chapters: Total chapters (None if unknown)
         volumes: Total volumes (None if unknown)
-        coverImage: Cover image URLs
         averageScore: Average score (0-100)
         startDate: Start date (year, month, day - values can be None)
         endDate: End date (year, month, day - values can be None for ongoing)
@@ -342,7 +328,6 @@ class AniListManga(BaseModel):
     title: AniListTitle = Field(..., description="Title object")
     chapters: int | None = Field(None, description="Total chapters")
     volumes: int | None = Field(None, description="Total volumes")
-    coverImage: AniListCoverImage | None = Field(None, description="Cover images")
     averageScore: int | None = Field(None, ge=0, le=100, description="Average score")
     startDate: dict[str, int | None] | None = Field(
         None, description="Start date (year, month, day - values can be None)"

@@ -224,9 +224,6 @@ class AniListClient:
                         native
                     }
                     episodes
-                    coverImage {
-                        medium
-                    }
                     averageScore
                     seasonYear
                     season
@@ -289,9 +286,6 @@ class AniListClient:
                                 native
                             }
                             episodes
-                            coverImage {
-                                medium
-                            }
                             averageScore
                             seasonYear
                         }
@@ -406,9 +400,6 @@ class AniListClient:
                         native
                     }
                     episodes
-                    coverImage {
-                        medium
-                    }
                     averageScore
                     seasonYear
                 }
@@ -777,9 +768,6 @@ class AniListClient:
                     }
                     chapters
                     volumes
-                    coverImage {
-                        medium
-                    }
                     averageScore
                     startDate {
                         year
@@ -846,9 +834,6 @@ class AniListClient:
                             }
                             chapters
                             volumes
-                            coverImage {
-                                medium
-                            }
                             averageScore
                             startDate {
                                 year
@@ -1101,9 +1086,6 @@ class AniListClient:
                     }
                     chapters
                     volumes
-                    coverImage {
-                        medium
-                    }
                     averageScore
                     startDate {
                         year

@@ -62,7 +62,6 @@ class MangaDex:
                         "id": manga_id,
                         "title": title,
                         "url": f"https://mangadex.org/title/{manga_id}",
-                        "cover_url": None,  # Can be fetched separately if needed
                         "description": description,
                         "status": status,
                         "year": year,

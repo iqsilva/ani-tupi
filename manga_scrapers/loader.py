@@ -34,7 +34,6 @@ class MangaScraperProtocol(Protocol):
                     "id": "unique-id",
                     "title": "Manga Title",
                     "url": "https://...",
-                    "cover_url": "https://...",  # optional
                     "description": "Description",  # optional
                     "status": "ongoing",  # optional
                     "year": 2020,  # optional

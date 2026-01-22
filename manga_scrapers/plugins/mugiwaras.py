@@ -65,12 +65,6 @@ class MugiwarasOficial:
                     if not title or not url:
                         continue
 
-                    # Extract cover image
-                    img = item.css_first("img")
-                    cover_url = None
-                    if img:
-                        cover_url = img.attributes.get("data-src") or img.attributes.get("src")
-
                     # Extract latest chapter info (optional)
                     latest_chapter = item.css_first("span.chapter a")
                     latest_chapter_text = (
@@ -85,7 +79,6 @@ class MugiwarasOficial:
                             "id": manga_id,
                             "title": title,
                             "url": url,
-                            "cover_url": cover_url,
                             "description": None,  # Not available in search results
                             "status": "ongoing",  # Default, can be updated from detail page
                             "year": None,  # Not available in search results
