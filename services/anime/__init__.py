@@ -14,10 +14,12 @@ from .mappings import (
     save_anilist_mapping,
     load_anilist_search_title,
 )
+from .episode_context import get_next_episode_context
 
 __all__ = [
     "normalize_anime_title",
     "load_anilist_mapping",
     "save_anilist_mapping",
     "load_anilist_search_title",
+    "get_next_episode_context",
 ]

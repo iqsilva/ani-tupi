@@ -32,6 +32,7 @@ from services.anime.mappings import (
     save_anilist_mapping,
     load_anilist_search_title,
 )
+from services.anime.episode_context import get_next_episode_context
 
 
 logger = get_logger(__name__)
@@ -1065,46 +1066,7 @@ def switch_anime_source(
     return selected_anime, episode_idx
 
 
-def get_next_episode_context(
-    anime_title: str,
-    current_episode: int,
-) -> EpisodeContext | None:
-    """Get episode context for next episode (used by IPC handlers).
-
-    Args:
-        anime_title: Name of anime
-        current_episode: Current episode number (1-indexed)
-
-    Returns:
-        EpisodeContext with url, title, episode info, or None if no next episode
-    """
-
-    episode_list = rep.get_episode_list(anime_title)
-    if not episode_list:
-        return None
-
-    # Convert to 0-based index
-    next_idx = current_episode  # Already incremented from IPC
-    if next_idx >= len(episode_list):
-        # No next episode available
-        return None
-
-    try:
-        next_episode_title = episode_list[next_idx]
-        # Get URL from repository if available
-        next_url = rep.get_episode_url(anime_title, next_idx)
-        if not next_url:
-            print("Nao foi possivel encontrar a url do proximo episodio")
-            return None
-
-        return EpisodeContext(
-            url=next_url,
-            title=next_episode_title,
-            episode=next_idx + 1,  # Convert back to 1-indexed
-            total=len(episode_list),
-        )
-    except (IndexError, KeyError):
-        return None
+# get_next_episode_context is now imported from services.anime.episode_context
 
 
 def search_anime_flow(args):
