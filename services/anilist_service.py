@@ -21,6 +21,7 @@ from models.models import (
     AniListTitle,
     Status,
 )
+from services.anilist.formatters import format_title as _format_title, get_search_title as _get_search_title
 
 
 class AniListClient:
@@ -696,55 +697,12 @@ class AniListClient:
             return None
 
     def format_title(self, title_obj: AniListTitle | dict) -> str:
-        """Format title object to single string
-        Shows romaji + english when both available.
-        """
-        # Handle both Pydantic model and dict for backward compatibility
-        if isinstance(title_obj, dict):
-            romaji = title_obj.get("romaji")
-            english = title_obj.get("english")
-            native = title_obj.get("native")
-        else:
-            romaji = title_obj.romaji
-            english = title_obj.english
-            native = title_obj.native
-
-        # If both romaji and english exist and are different
-        if romaji and english and romaji != english:
-            return f"{romaji} / {english}"
-        # If only romaji
-        if romaji:
-            return romaji
-        # If only english
-        if english:
-            return english
-        # Fallback to native
-        return native or "Unknown"
+        """Format title object to single string. Delegates to formatters module."""
+        return _format_title(title_obj)
 
     def get_search_title(self, title_obj: AniListTitle | dict) -> str:
-        """Extract title for scraper search (English only).
-
-        Returns English title if available, otherwise romaji or native.
-        Used for scraper queries to ensure consistent results.
-        """
-        # Handle both Pydantic model and dict for backward compatibility
-        if isinstance(title_obj, dict):
-            english = title_obj.get("english")
-            romaji = title_obj.get("romaji")
-            native = title_obj.get("native")
-        else:
-            english = title_obj.english
-            romaji = title_obj.romaji
-            native = title_obj.native
-
-        # Prefer English for scraper searches (most reliable for searches)
-        if english:
-            return english
-        # If only romaji
-        if romaji:
-            return romaji
-        # Fallback to native
-        return native or "Unknown"
+        """Extract title for scraper search (English only). Delegates to formatters module."""
+        return _get_search_title(title_obj)
 
     # Manga-specific methods
     def get_trending_manga(self, page: int = 1, per_page: int = 20) -> list[AniListManga]:

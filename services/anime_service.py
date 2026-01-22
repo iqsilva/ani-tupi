@@ -26,6 +26,7 @@ from utils.video_player import play_episode
 from models import EpisodeContext
 from scrapers import loader
 from models.models import Status
+from services.anime.title_normalization import normalize_anime_title
 
 
 logger = get_logger(__name__)
@@ -84,106 +85,7 @@ def save_anilist_mapping(
         logger.error(f"Failed to save AniList mapping: {e}")
 
 
-def normalize_anime_title(title: str, is_english: bool = False):
-    """Generate sensible title variations for searching.
-
-    For AniList titles with format "Romaji / English", extracts just the english part.
-    Example: "Kimetsu no Yaiba: Hashira Geiko-hen / Demon Slayer: Hashira Training Arc"
-             → ["demon slayer hashira training arc", "demon slayer hashira training", "demon slayer hashira", "demon slayer"]
-
-    Args:
-        title: Title to normalize
-        is_english: If True, preserves apostrophes (for English titles like "Hell's Paradise")
-
-    Returns variations in lowercase, from most specific to most generic.
-    """
-    # 1. Handle AniList bilingual format "Romaji / English"
-    # Take only the english part (after the " / ")
-    if " / " in title:
-        parts = title.split(" / ")
-        # Use english if available (after " / "), otherwise keep original
-        title = parts[1] if len(parts) > 1 else parts[0]
-        is_english = True  # Auto-detect: if we split, second part is English
-
-    # 2. Extract season numbers BEFORE removing season patterns
-    # This preserves "2" from "2nd Season" or "Season 2"
-    extracted_season = None
-    season_match = re.search(
-        r"(?:Season\s+|Temporada\s+)(\d+)|(\d+)(?:st|nd|rd|th)?\s+Season", title, re.IGNORECASE
-    )
-    if season_match:
-        extracted_season = season_match.group(1) or season_match.group(2)
-
-    # 3. Remove season/part/episode suffixes
-    season_patterns = [
-        r"\s+Season\s+\d+",
-        r"\s+\d+(?:st|nd|rd|th)\s+Season",
-        r"\s+Temporada\s+\d+",
-        r"\s+S\d+",
-        r"\s+Part\s+\d+",
-        r"\s+Cour\s+\d+",
-        r"\s+Arc\s+[^:]+",
-        r"\s+Final\s+Season",
-        r"\s+2nd\s+Season",
-        r"[:−-]\s*Season\s+\d+",
-        r"\s+Dublado.*$",
-    ]
-
-    cleaned = title
-    for pattern in season_patterns:
-        cleaned = re.sub(pattern, "", cleaned, flags=re.IGNORECASE)
-
-    # If we extracted a season number, append it to preserve it
-    if extracted_season:
-        cleaned = f"{cleaned} {extracted_season}"
-
-    # 3. Keep only letters, numbers, spaces (and apostrophes if English)
-    if is_english:
-        # Preserve apostrophes for English titles (e.g., "Hell's Paradise")
-        cleaned = re.sub(r"[^A-Za-z0-9\s']", " ", cleaned)
-    else:
-        # Remove all special characters including apostrophes for Romaji
-        cleaned = re.sub(r"[^A-Za-z0-9\s]", " ", cleaned)
-    # Remove multiple spaces and trim
-    cleaned = re.sub(r"\s+", " ", cleaned).strip()
-
-    if not cleaned:
-        return [title.strip().lower()]  # fallback
-
-    # 4. Convert to lowercase
-    cleaned = cleaned.lower()
-
-    # 5. Get words
-    words = cleaned.split()
-
-    # 6. Generate variations intelligently (from most specific to least)
-    # For AniList: start with title as-is, then progressively shorter
-    variations = []
-
-    if len(words) > 0:
-        # Always include full query first (most specific)
-        variations.append(" ".join(words))
-
-    # Then progressively shorter versions
-    if len(words) > 3:
-        # Medium: try 3 words
-        variations.append(" ".join(words[:3]))
-    if len(words) > 2:
-        # Shorter: try 2 words
-        variations.append(" ".join(words[:2]))
-    if len(words) > 1:
-        # Minimal: try 1 word
-        variations.append(" ".join(words[:1]))
-
-    # Remove duplicates while preserving order
-    seen = set()
-    result = []
-    for v in variations:
-        if v not in seen:
-            seen.add(v)
-            result.append(v)
-
-    return result
+# normalize_anime_title is now imported from services.anime.title_normalization
 
 
 def offer_sequel_and_continue(
@@ -363,15 +265,20 @@ def anilist_anime_flow(
         variant = title_variations[current_variant_idx]
 
         # Cache-first: Check if this variant is in cache before searching scrapers
-        cache_data = get_cache(variant)
-        if cache_data:
+        # Skip cache for long queries to enable progressive search
+        variant_words = len(variant.split())
+        skip_cache = variant_words > 3  # Use progressive search for queries longer than 3 words
+
+        cache_data = get_cache(variant) if not skip_cache else None
+        if cache_data and not skip_cache:
             # Found in cache! Use it directly
             print(f"ℹ️  Usando cache ({cache_data.episode_count} eps disponíveis)")
             rep.load_from_cache(variant, cache_data)
 
             # Discover available sources for this anime (background search)
             # This doesn't override cached episodes, just populates anime_to_urls for display
-            rep.search_anime(variant, verbose=False)
+            # Use new progressive search (starts with initial_search_words, increases while >10 results)
+            rep.search_anime(variant, verbose=True)
 
             used_query = variant
             # Get formatted title with sources from scrapers, or fallback to plain title
@@ -395,7 +302,8 @@ def anilist_anime_flow(
         rep.clear_search_results()  # Clear previous search results
 
         with loading(f"Buscando '{variant}'..."):
-            rep.search_anime(variant, verbose=False)
+            # Use new progressive search (starts with initial_search_words, increases while >10 results)
+            rep.search_anime(variant, verbose=True)
 
         # Get metadata from this search attempt
         search_metadata = rep.get_search_metadata()
@@ -404,7 +312,7 @@ def anilist_anime_flow(
         # so that "Jujutsu Kaisen 0" stays ranked high even if search reduces to "jujutsu kaisen"
         used_query = search_metadata.used_query or variant
         titles_with_sources = rep.get_anime_titles_with_sources(
-            filter_by_query=variant, original_query=first_variant
+            filter_by_query=used_query, original_query=first_variant
         )
 
         if titles_with_sources:
@@ -561,7 +469,8 @@ def anilist_anime_flow(
                 variant = title_variations[current_variant_idx]
                 rep.clear_search_results()
                 with loading(f"Buscando '{variant}'..."):
-                    rep.search_anime(variant, verbose=False)
+                    # Use new progressive search (starts with initial_search_words, increases while >10 results)
+                    rep.search_anime(variant, verbose=True)
 
                 search_metadata = rep.get_search_metadata()
                 # Pass original_query for ranking results by relevance
@@ -1050,7 +959,8 @@ def switch_anime_source(
 
         # Search with current variation
         with loading(f"Buscando '{variant}'..."):
-            rep.search_anime(variant, verbose=False)
+            # Use new progressive search (starts with initial_search_words, increases while >10 results)
+            rep.search_anime(variant, verbose=True)
 
         # Get results with sources
         search_metadata = rep.get_search_metadata()
