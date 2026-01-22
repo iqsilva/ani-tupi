@@ -15,6 +15,10 @@ from .mappings import (
     load_anilist_search_title,
 )
 from .episode_context import get_next_episode_context
+from .anilist_integration import (
+    offer_sequel_and_continue,
+    anilist_anime_flow,
+)
 
 __all__ = [
     "normalize_anime_title",
@@ -22,4 +26,6 @@ __all__ = [
     "save_anilist_mapping",
     "load_anilist_search_title",
     "get_next_episode_context",
+    "offer_sequel_and_continue",
+    "anilist_anime_flow",
 ]
