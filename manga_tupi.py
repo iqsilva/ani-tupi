@@ -448,6 +448,72 @@ def _continue_manga_flow(
     if current_saved != selected_source:
         manga_source_preferences.set_preferred_source(selected_manga.title, selected_source)
 
+    # Load reading history BEFORE scraping chapters
+    history = MangaHistory()
+    last_chapter = history.get_last_chapter(selected_manga.title)
+
+    # Check AniList progress if authenticated
+    anilist_progress = None
+    if anilist_client.is_authenticated():
+        try:
+            # Get user's manga list and search for matching title
+            manga_list = anilist_client.get_user_manga_list("CURRENT")
+            if manga_list:
+                # Try to find exact or partial title match
+                selected_title = selected_manga.title.lower()
+                for entry in manga_list:
+                    if entry.media:
+                        entry_title = ""
+                        if entry.media.title.romaji:
+                            entry_title = entry.media.title.romaji.lower()
+                        elif entry.media.title.english:
+                            entry_title = entry.media.title.english.lower()
+
+                        # Check for exact match or partial match
+                        if (
+                            selected_title == entry_title
+                            or selected_title in entry_title
+                            or entry_title in selected_title
+                        ):
+                            if entry.progress:
+                                anilist_progress = entry.progress
+                                break
+        except Exception:
+            pass  # Silently ignore AniList errors
+
+    # Determine the recommended chapter to read BEFORE scraping
+    recommended_chapter_num = None
+    resume_source = ""
+
+    if anilist_progress is not None:
+        recommended_chapter_num = anilist_progress + 1
+        resume_source = "AniList"
+    elif last_chapter:
+        # Extract chapter number from local history (format might be "1", "2", etc.)
+        try:
+            recommended_chapter_num = int(float(last_chapter)) + 1
+            resume_source = "local"
+        except (ValueError, TypeError):
+            pass
+
+    # Ask user if they want to resume BEFORE scraping all chapters
+    resume_immediately = False
+    if recommended_chapter_num is not None:
+        try:
+            resume_options = [
+                f"⮕ Sim, retomar capítulo {recommended_chapter_num} ({resume_source})",
+                "📋 Não, ver lista completa de capítulos",
+            ]
+            resume_choice = menu_navigate(
+                resume_options, f"{selected_manga.title} - Retomar leitura?"
+            )
+
+            if resume_choice and resume_choice.startswith("⮕ Sim, retomar"):
+                resume_immediately = True
+                print(f"✓ Retomando capítulo {recommended_chapter_num}...")
+        except KeyboardInterrupt:
+            return
+
     # Construct manga URL for scrapers that need it
     manga_url = None
     if selected_source == "mugiwaras":
@@ -505,59 +571,46 @@ def _continue_manga_flow(
     # Sort chapters in ascending order (1 → 2 → 3 → ...)
     chapters.reverse()
 
-    # Load reading history
-    history = MangaHistory()
-    last_chapter = history.get_last_chapter(selected_manga.title)
+    # Handle immediate resume if user chose to resume
+    if resume_immediately and recommended_chapter_num:
+        # Find the chapter that matches the recommended chapter number
+        recommended_chapter = None
+        for chapter in chapters:
+            try:
+                chapter_num = int(float(chapter.number))
+                if chapter_num == recommended_chapter_num:
+                    recommended_chapter = chapter
+                    break
+            except (ValueError, TypeError):
+                continue
 
-    # Check AniList progress if authenticated
-    anilist_progress = None
-    if anilist_client.is_authenticated():
-        try:
-            # Get user's manga list and search for matching title
-            manga_list = anilist_client.get_user_manga_list("CURRENT")
-            if manga_list:
-                # Try to find exact or partial title match
-                selected_title = selected_manga.title.lower()
-                for entry in manga_list:
-                    if entry.media:
-                        entry_title = ""
-                        if entry.media.title.romaji:
-                            entry_title = entry.media.title.romaji.lower()
-                        elif entry.media.title.english:
-                            entry_title = entry.media.title.english.lower()
+        if recommended_chapter:
+            print(f"✓ Capítulo {recommended_chapter_num} encontrado. Iniciando leitura...")
+            # Go directly to read now action
+            _handle_read_now(
+                service,
+                selected_manga,
+                recommended_chapter,
+                manga_url,
+                selected_source,
+                history,
+                chapters,
+                [ch.display_name() for ch in chapters],  # Create labels for navigation
+                chapters.index(recommended_chapter),
+            )
+            return  # Exit after reading
 
-                        # Check for exact match or partial match
-                        if (
-                            selected_title == entry_title
-                            or selected_title in entry_title
-                            or entry_title in selected_title
-                        ):
-                            if entry.progress:
-                                anilist_progress = entry.progress
-                                break
-        except Exception:
-            pass  # Silently ignore AniList errors
-
-    # Determine the recommended chapter to read
-    recommended_chapter_num = None
-    resume_source = ""
-
-    if anilist_progress is not None:
-        recommended_chapter_num = anilist_progress + 1
-        resume_source = "AniList"
-    elif last_chapter:
-        # Extract chapter number from local history (format might be "1", "2", etc.)
-        try:
-            recommended_chapter_num = int(float(last_chapter)) + 1
-            resume_source = "local"
-        except (ValueError, TypeError):
-            pass
+        else:
+            print(
+                f"⚠️  Capítulo {recommended_chapter_num} não encontrado. Mostrando lista completa..."
+            )
+            # Fall back to normal chapter selection
 
     # Format chapter labels for display
     chapter_labels = [ch.display_name() for ch in chapters]
 
     # Show resume hint if applicable - prioritize AniList progress
-    if recommended_chapter_num:
+    if recommended_chapter_num and not resume_immediately:
         # Find the chapter index that matches the recommended chapter
         recommended_index = None
         for i, chapter in enumerate(chapters):
@@ -1092,19 +1145,16 @@ def _process_chapter(
                 else:
                     print(f"⚠️  Mangá não encontrado no AniList: {selected_manga.title}")
 
-                # Ask if user wants to delete chapter after confirming completion
-                if pdf_path and pdf_path.exists():
+                # Auto-delete chapter if configured
+                if settings.manga.auto_delete_read_chapters and pdf_path and pdf_path.exists():
                     try:
-                        delete_options = ["🗑️  Sim, deletar (economizar espaço)", "❌ Não, manter"]
-                        delete_confirm = menu_navigate(delete_options, "Deletar capítulo após ler?")
+                        import shutil
 
-                        if delete_confirm == "🗑️  Sim, deletar (economizar espaço)":
-                            import shutil
-                            folder = pdf_path.parent
-                            shutil.rmtree(folder)
-                            print(f"✓ Capítulo deletado: economizando espaço em disco")
+                        folder = pdf_path.parent
+                        shutil.rmtree(folder)
+                        print("✓ Capítulo deletado automaticamente: economizando espaço em disco")
                     except Exception as e:
-                        print(f"⚠️  Não foi possível deletar capítulo: {e}")
+                        print(f"⚠️  Não foi possível deletar capítulo automaticamente: {e}")
             else:
                 print("✓ Progresso não atualizado no AniList (capítulo não concluído)")
         except Exception as e:
@@ -1341,20 +1391,17 @@ def _process_local_chapter(
         # Silent fail if offline or error
         pass
 
-    # Ask if user wants to delete chapter (save disk space)
-    if anilist_synced:
+    # Auto-delete chapter if configured (only after AniList sync for local chapters)
+    if anilist_synced and settings.manga.auto_delete_read_chapters:
         try:
-            delete_options = ["🗑️  Sim, deletar (economizar espaço)", "❌ Não, manter"]
-            delete_confirm = menu_navigate(delete_options, "Deletar capítulo após ler?")
+            chapter_folder = chapter.pdf_path.parent if chapter.pdf_path else None
+            if chapter_folder and chapter_folder.exists():
+                import shutil
 
-            if delete_confirm == "🗑️  Sim, deletar (economizar espaço)":
-                chapter_folder = chapter.pdf_path.parent if chapter.pdf_path else None
-                if chapter_folder and chapter_folder.exists():
-                    import shutil
-                    shutil.rmtree(chapter_folder)
-                    print(f"✓ Capítulo deletado: economizando espaço em disco")
+                shutil.rmtree(chapter_folder)
+                print("✓ Capítulo deletado automaticamente: economizando espaço em disco")
         except Exception as e:
-            print(f"⚠️  Não foi possível deletar capítulo: {e}")
+            print(f"⚠️  Não foi possível deletar capítulo automaticamente: {e}")
 
     # Wait for reader to close (track specific process, not any zathura instance)
     if reader_process:

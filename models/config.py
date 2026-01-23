@@ -198,6 +198,10 @@ class MangaSettings(BaseModel):
         None,
         description="Custom directory for downloaded PDFs (None = use output_directory)",
     )
+    auto_delete_read_chapters: bool = Field(
+        True,
+        description="Automatically delete chapter files after marking as read (saves disk space)",
+    )
 
 
 class AppSettings(BaseSettings):
