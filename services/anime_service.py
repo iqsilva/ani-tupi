@@ -547,84 +547,30 @@ def anilist_anime_flow(
     if active_sources:
         print(f"ℹ️  Fontes ativas: {', '.join(active_sources)}")
 
-    # Try different title variations with support for "Continue searching with fewer words"
-    title_variations = normalize_anime_title(anime_title, is_english=is_english_search)
-    titles = []
-    used_query = None  # Track which query was actually used
-    metadata = {}  # Track search metadata
-    current_variant_idx = 0  # Track which variation we're currently using
-    cache_data = None  # Track if we found the anime in cache
-    source = None  # Track which source user selected
-    first_variant = (
-        title_variations[0] if title_variations else anime_title
-    )  # Store first for ranking
+    # Cache-first: Check if anime_title is in cache before searching
+    cache_data = get_cache(anime_title)
+    search_state = None
     titles_with_sources = None
+    used_query = None
 
-    while current_variant_idx < len(title_variations):
-        variant = title_variations[current_variant_idx]
+    if cache_data:
+        # Found in cache! Use it directly
+        print(f"ℹ️  Usando cache ({cache_data.episode_count} eps disponíveis)")
+        rep.load_from_cache(anime_title, cache_data)
 
-        # Cache-first: Check if this variant is in cache before searching scrapers
-        cache_data = get_cache(variant)
-        if cache_data:
-            # Found in cache! Use it directly
-            print(f"ℹ️  Usando cache ({cache_data.episode_count} eps disponíveis)")
-            rep.load_from_cache(variant, cache_data)
+        # Discover available sources for this anime (background search)
+        rep.search_anime(anime_title, verbose=False)
 
-            # Discover available sources for this anime (background search)
-            # This doesn't override cached episodes, just populates anime_to_urls for display
-            rep.search_anime(variant, verbose=False)
-
-            used_query = variant
-            # Get formatted title with sources from scrapers, or fallback to plain title
-            titles_with_sources = rep.get_anime_titles_with_sources(
-                filter_by_query=variant, original_query=first_variant
-            )
-            if not titles_with_sources:
-                # If no sources found, use plain variant name
-                titles_with_sources = [variant]
-
-            metadata = {
-                "variant_tested": variant,
-                "variant_index": current_variant_idx,
-                "total_variants": len(title_variations),
-                "used_query": used_query,
-                "source": "cache",
-            }
-            break  # Exit while loop - found in cache
-
-        # Not in cache: search scrapers normally
-        rep.clear_search_results()  # Clear previous search results
-
-        with loading(f"Buscando '{variant}'..."):
-            rep.search_anime(variant, verbose=False)
-
-        # Get metadata from this search attempt
-        search_metadata = rep.get_search_metadata()
-        # Pass original_query for ranking results by relevance
-        # Use first_variant (original normalized title) instead of used_query (which gets reduced)
-        # so that "Jujutsu Kaisen 0" stays ranked high even if search reduces to "jujutsu kaisen"
-        used_query = search_metadata.used_query or variant
+        used_query = anime_title
         titles_with_sources = rep.get_anime_titles_with_sources(
-            filter_by_query=variant, original_query=first_variant
+            filter_by_query=anime_title, original_query=anime_title
         )
+        if not titles_with_sources:
+            titles_with_sources = [anime_title]
+    else:
+        # Not in cache: use incremental search
+        search_state, titles_with_sources = incremental_search_anime(anime_title)
 
-        if titles_with_sources:
-            # Found results with this variation
-            # Store both the variation tested and the actual query used
-            metadata = {
-                "variant_tested": variant,
-                "variant_index": current_variant_idx,
-                "total_variants": len(title_variations),
-                "used_query": used_query,
-                "used_words": search_metadata.used_words,
-                "total_words": search_metadata.total_words,
-            }
-            break  # Break while loop
-        else:
-            # No results, try next variation
-            current_variant_idx += 1
-
-    manual_search = False
     if not titles_with_sources:
         # Offer manual search
         choice = menu_navigate(
@@ -654,26 +600,10 @@ def anilist_anime_flow(
                     titles_with_sources = [manual_query]
 
                 used_query = manual_query
-                manual_search = True
+                search_state = None  # No navigation state for manual cached search
             else:
-                # Not in cache: search scrapers normally
-                rep.clear_search_results()  # Clear previous search results
-                with loading(f"Buscando '{manual_query}'..."):
-                    rep.search_anime(manual_query, verbose=False)
-
-                # Show what query was actually used after search completes
-                metadata = rep.get_search_metadata()
-                used_query = metadata.used_query or manual_query
-                if used_query != manual_query:
-                    used_words = metadata.used_words or "?"
-                    total_words = metadata.total_words or "?"
-                    print(f"ℹ️  Reduzido para: '{used_query}' ({used_words}/{total_words} palavras)")
-
-                # Pass original_query for ranking results by relevance
-                titles_with_sources = rep.get_anime_titles_with_sources(
-                    filter_by_query=manual_query, original_query=used_query
-                )
-                manual_search = True
+                # Not in cache: use incremental search for manual query
+                search_state, titles_with_sources = incremental_search_anime(manual_query)
 
             if not titles_with_sources:
                 return
@@ -686,7 +616,7 @@ def anilist_anime_flow(
     # Convert titles with sources to plain titles for saved title check
     titles = [t.split(" [")[0] for t in titles_with_sources]
 
-    # Loop to allow "Continue searching with fewer words"
+    # Loop to allow navigation between result sets and selection
     selected_anime = None
     while selected_anime is None:
         # If we have a saved title and it's in the current results, ask user if they want to keep it
@@ -704,89 +634,69 @@ def anilist_anime_flow(
                 selected_anime = saved_title
                 break  # Exit while loop
 
-        # Show full menu with "Continue searching" option if we have more variations available
+        # Show menu with optional navigation if search_state exists
         menu_title = f"📺 Anime do AniList: '{display_title}'\n"
-        if manual_search:
-            menu_title += f"🔍 Busca manual: '{used_query}'\n"
-        else:
-            menu_title += f"🔍 Busca usada: '{used_query}'\n"
-            # Show if query was reduced (either internally or by trying fewer variations)
-            variant_idx = metadata.get("variant_index", 0) or 0
-            if int(variant_idx) > 0:
-                # Skipped earlier variations
-                menu_title += f"   ⚠️  Saltou {variant_idx} variação(ões) (nenhum resultado)\n"
-            used_words = metadata.get("used_words")
-            total_words = metadata.get("total_words")
-            if used_words and total_words and used_words < total_words:
-                # Reduced within the search
-                menu_title += f"   ({used_words}/{total_words} palavras)\n"
+        menu_title += f"🔍 Busca usada: '{anime_title}'\n"
+
+        # Show search result set info if using incremental search
+        if search_state:
+            current_result_set = search_state.get_current()
+            if current_result_set:
+                menu_title += f"   ({current_result_set.word_count} palavras: {len(current_result_set.results)} resultados)\n"
+
         menu_title += f"\nEncontrados {len(titles_with_sources)} resultados. Escolha:"
 
-        # Pagination: show top N results + "See more" button if needed
-        CONTINUE_BUTTON = "🔍 Continuar buscando (menos palavras)"
+        # Show pagination if too many results
         SHOW_MORE_BUTTON = "📋 Ver todos os resultados"
-
-        # Prepare menu options with pagination
         top_limit = settings.search.top_results_limit
         titles_to_show = titles_with_sources[:top_limit]
         has_more = len(titles_with_sources) > top_limit
 
-        # Build button list with "Show more" if needed
+        # Build menu options
         titles_with_button = []
-        if current_variant_idx < len(title_variations) - 1:
-            titles_with_button.append(CONTINUE_BUTTON)
         if has_more:
             titles_with_button.append(SHOW_MORE_BUTTON)
         titles_with_button.extend(titles_to_show)
 
-        selected_anime_with_source = menu_navigate(titles_with_button, msg=menu_title)
+        # Show menu with navigation support
+        selected_anime_with_source = menu_navigate(
+            titles_with_button, msg=menu_title, search_state=search_state
+        )
 
         # Handle "Show all" button
         if selected_anime_with_source == SHOW_MORE_BUTTON:
             # Show all results in next menu
-            titles_to_show = titles_with_sources
-            titles_with_button = []
-            if current_variant_idx < len(title_variations) - 1:
-                titles_with_button.append(CONTINUE_BUTTON)
-            titles_with_button.extend(titles_to_show)
-            selected_anime_with_source = menu_navigate(titles_with_button, msg=menu_title)
+            titles_with_button = titles_with_sources.copy()
+            selected_anime_with_source = menu_navigate(
+                titles_with_button, msg=menu_title, search_state=search_state
+            )
 
         if not selected_anime_with_source:
             return  # User cancelled
 
-        # Check if user clicked "Continue searching"
-        if selected_anime_with_source == CONTINUE_BUTTON:
-            # Try next variation (fewer words)
-            current_variant_idx += 1
-            if current_variant_idx < len(title_variations):
-                variant = title_variations[current_variant_idx]
-                rep.clear_search_results()
-                with loading(f"Buscando '{variant}'..."):
-                    rep.search_anime(variant, verbose=False)
+        # Handle incremental search navigation
+        if selected_anime_with_source == "__nav_previous__":
+            # Navigate to previous result set
+            assert search_state is not None
+            search_state.go_back()
+            new_result_set = search_state.get_current()
+            assert new_result_set is not None
+            titles_with_sources = new_result_set.results
+            titles = [t.split(" [")[0] for t in titles_with_sources]
+            continue  # Loop back to show menu with new results
 
-                search_metadata = rep.get_search_metadata()
-                # Pass original_query for ranking results by relevance
-                # Use first_variant (original normalized title) to keep "Jujutsu Kaisen 0" ranked high
-                used_query = search_metadata.used_query or variant
-                titles_with_sources = rep.get_anime_titles_with_sources(
-                    filter_by_query=variant, original_query=first_variant
-                )
-                titles = [t.split(" [")[0] for t in titles_with_sources]
+        elif selected_anime_with_source == "__nav_next__":
+            # Navigate to next result set
+            assert search_state is not None
+            search_state.go_forward()
+            new_result_set = search_state.get_current()
+            assert new_result_set is not None
+            titles_with_sources = new_result_set.results
+            titles = [t.split(" [")[0] for t in titles_with_sources]
+            continue  # Loop back to show menu with new results
 
-                if titles_with_sources:
-                    metadata = {
-                        "variant_tested": variant,
-                        "variant_index": current_variant_idx,
-                        "total_variants": len(title_variations),
-                        "used_query": used_query,
-                        "used_words": search_metadata.used_words,
-                        "total_words": search_metadata.total_words,
-                    }
-                    # Loop continues to show new results
-                    continue
-            # No more variations
-            return
         else:
+            # User selected an anime
             # Remove source tag from selected anime
             selected_anime = selected_anime_with_source.split(" [")[0]
             # Extract source (if present)
