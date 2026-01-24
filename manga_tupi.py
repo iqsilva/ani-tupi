@@ -21,91 +21,15 @@ from services.manga_service import (
 )
 from services.unified_manga_service import UnifiedMangaService
 from ui.components import loading, menu_navigate
+from utils.image_viewers import find_image_viewer, open_image_viewer
 from utils.manga_reader import is_zathura_running, open_pdf_reader
 from utils.pdf_converter import create_pdf_from_images
 from utils.manga_source_preferences import manga_source_preferences
 from utils.manga_selection_preferences import manga_selection_preferences
 
-
-def _find_image_viewer() -> str | None:
-    """Find an available image viewer on the system.
-
-    Checks (in order of preference):
-    - MANGA_VIEWER env var (custom preference)
-    - yacreader: Dedicated manga/comic reader (BEST for manga!)
-    - eog: Eye of GNOME (standard GNOME viewer)
-    - nomacs: Modern cross-platform viewer
-    - geeqie: Advanced viewer with many features
-    - ristretto: XFCE image viewer
-    - gpicview: Lightweight viewer
-    - viewnior: GTK image viewer
-    - display: ImageMagick (always available)
-    - open: macOS Preview
-
-    Returns:
-        Path to image viewer executable or None if not found
-    """
-    # Check for user override
-    custom_viewer = os.environ.get("MANGA_VIEWER")
-    if custom_viewer and shutil.which(custom_viewer):
-        return custom_viewer
-
-    # List of viewers in order of preference
-    viewers = [
-        "yacreader",  # Dedicated manga/comic reader (BEST!)
-        "eog",  # GNOME default
-        "nomacs",  # Modern and cross-platform
-        "geeqie",  # Feature-rich
-        "ristretto",  # XFCE viewer
-        "gpicview",  # Lightweight
-        "viewnior",  # GTK viewer
-        "display",  # ImageMagick fallback
-        "open",  # macOS Preview
-    ]
-
-    for viewer in viewers:
-        if shutil.which(viewer):
-            return viewer
-    return None
-
-
-def open_viewer(dir_path: str) -> None:
-    """Open image viewer for downloaded chapter.
-
-    Args:
-        dir_path: Path to chapter directory
-    """
-    viewer = _find_image_viewer()
-    if not viewer:
-        print(
-            "⚠️  Nenhum visualizador de imagens encontrado.\n"
-            "   Recomendamos: sxiv (rápido), eog (padrão GNOME), ou nomacs (moderno)\n"
-            "   Ou customize com: export MANGA_VIEWER=seu_viewer"
-        )
-        print(f"   As imagens foram salvas em: {dir_path}")
-        return
-
-    try:
-        if viewer == "open":  # macOS
-            subprocess.Popen(["open", "-a", "Preview", dir_path])
-        elif viewer == "sxiv":
-            # Open sxiv with proper flags for manga reading
-            # -a: auto-fit to window, -s: slideshow mode disabled by default
-            # -i: read file list from stdin (ensures correct order)
-            from pathlib import Path
-
-            files = sorted(Path(dir_path).glob("*.png"))
-            if files:
-                # Start sxiv in a way that accepts keyboard input properly
-                subprocess.run([viewer, "-a", str(dir_path)])
-            else:
-                print(f"⚠️  Nenhuma imagem encontrada em: {dir_path}")
-        else:
-            subprocess.Popen([viewer, dir_path])
-    except Exception as e:
-        print(f"⚠️  Erro ao abrir {viewer}: {e}")
-        print(f"   As imagens foram salvas em: {dir_path}")
-        print("   Customize com: export MANGA_VIEWER=seu_viewer")
+# Backward compatibility aliases
+_find_image_viewer = find_image_viewer
+open_viewer = open_image_viewer
 
 
 def _show_manga_main_menu() -> str | None:
