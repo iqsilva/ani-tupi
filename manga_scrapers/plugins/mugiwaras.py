@@ -112,11 +112,11 @@ class MugiwarasOficial:
                 page = browser.new_page()
 
                 # Navigate to manga page
-                page.goto(manga_url, wait_until="networkidle", timeout=30000)
+                page.goto(manga_url, wait_until="domcontentloaded", timeout=30000)
 
                 # Wait for chapter list to load (Madara theme loads via AJAX)
                 try:
-                    page.wait_for_selector("li.wp-manga-chapter", timeout=10000)
+                    page.wait_for_selector("li.wp-manga-chapter", timeout=15000)
                 except Exception:
                     # If chapters don't load within timeout, continue anyway
                     pass
@@ -209,7 +209,7 @@ class MugiwarasOficial:
                 page = browser.new_page()
 
                 # Navigate to chapter page
-                page.goto(chapter_url, wait_until="networkidle", timeout=30000)
+                page.goto(chapter_url, wait_until="domcontentloaded", timeout=30000)
 
                 # Check for age verification modal and handle it
                 try:
