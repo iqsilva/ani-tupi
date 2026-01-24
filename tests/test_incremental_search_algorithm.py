@@ -45,7 +45,7 @@ def mock_rep():
 @pytest.fixture
 def patch_repository(mock_rep):
     """Patch the global repository."""
-    with patch("services.anime_service.rep", mock_rep):
+    with patch("services.anime.search.rep", mock_rep):
         yield mock_rep
 
 

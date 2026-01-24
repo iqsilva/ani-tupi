@@ -27,7 +27,7 @@ from services.anime.anilist_integration import (
     anilist_anime_flow,
 )
 from services.anime.source_management import switch_anime_source
-from services.anime.search import search_anime_flow
+from services.anime.search import search_anime_flow, SearchResultSet, IncrementalSearchState, incremental_search_anime
 
 __all__ = [
     "normalize_anime_title",
@@ -39,4 +39,7 @@ __all__ = [
     "anilist_anime_flow",
     "switch_anime_source",
     "search_anime_flow",
+    "SearchResultSet",
+    "IncrementalSearchState",
+    "incremental_search_anime",
 ]
