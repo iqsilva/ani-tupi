@@ -132,6 +132,7 @@ def menu_navigate(
     show_preview: bool = False,
     preview_callback: Callable | None = None,
     enable_search: bool = True,
+    search_state = None,
 ) -> str | None:
     """Display interactive menu for navigation (returns None instead of exit).
 
@@ -141,13 +142,17 @@ def menu_navigate(
         show_preview: Ignored (preview feature removed in refactor)
         preview_callback: Ignored (preview feature removed in refactor)
         enable_search: Enable fuzzy search (default: True)
+        search_state: Optional IncrementalSearchState for navigation between result sets
 
     Returns:
-        Selected option or None if user cancels
+        Selected option, special navigation commands ("__nav_previous__", "__nav_next__"),
+        or None if user cancels
 
     Behavior:
-        - Adds "← Voltar" and "Sair" automatically
+        - Adds navigation buttons: "← Voltar" (back), "Sair" (exit)
+        - If search_state: adds "◀ Resultados Anteriores" and/or "▶ Próximos Resultados"
         - "← Voltar" returns None (go back)
+        - Navigation buttons return special commands for search flow handling
         - "Sair" exits to terminal
         - Q key exits to terminal immediately
         - Fuzzy search enabled by default
@@ -155,7 +160,21 @@ def menu_navigate(
     """
     # Add navigation options
     opts_copy = opts.copy()
-    if not enable_search:
+
+    # Add incremental search navigation if state is provided
+    if search_state:
+        if not enable_search:
+            opts_copy.append("─" * 30)
+
+        if search_state.has_previous():
+            prev_result = search_state.search_history[search_state.current_index - 1]
+            opts_copy.append(f"◀ Resultados Anteriores ({prev_result.word_count} palavras: {len(prev_result.results)} resultados)")
+
+        if search_state.has_next():
+            next_result = search_state.search_history[search_state.current_index + 1]
+            opts_copy.append(f"▶ Próximos Resultados ({next_result.word_count} palavras: {len(next_result.results)} resultados)")
+
+    if not enable_search and not search_state:
         opts_copy.append("─" * 30)
     opts_copy.extend(["← Voltar", "Sair"])
 
@@ -220,6 +239,13 @@ def menu_navigate(
     if answer == "Sair":
         # Sair selected - exit program
         sys.exit(0)
+
+    # Handle incremental search navigation
+    if search_state:
+        if answer and answer.startswith("◀ Resultados Anteriores"):
+            return "__nav_previous__"
+        if answer and answer.startswith("▶ Próximos Resultados"):
+            return "__nav_next__"
 
     # Return selection (filter out the added options)
     return answer

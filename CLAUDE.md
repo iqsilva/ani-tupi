@@ -145,11 +145,48 @@ The application follows the **MVCP pattern** (Model-View-Controller-Plugin):
 
 ### Data Flow for Watching Anime
 
-1. User searches for anime → Repository queries scrapers in parallel
-2. User selects anime → Service fetches episodes from chosen scraper
-3. Service checks history and cache → Shows episode menu
-4. User selects episode → MPV player launches with video URL
-5. After playback → Service updates history and optionally syncs to AniList
+1. User searches for anime → Incremental search starts with 3 words
+2. System adds words progressively until results ≤ 5 or all words used
+3. User can navigate backward/forward between result sets if multiple iterations exist
+4. User selects anime → Service fetches episodes from chosen scraper
+5. Service checks history and cache → Shows episode menu
+6. User selects episode → MPV player launches with video URL
+7. After playback → Service updates history and optionally syncs to AniList
+
+### Incremental Anime Search (Busca Incremental)
+
+**Algorithm Overview:**
+- Starts with first 3 words of search query (or all if fewer)
+- Adds one word at a time until results ≤ 5 (optimal choice size)
+- If adding a word results in 0 results, falls back to previous result set
+- User can navigate backward to see more results from previous iterations
+
+**Example Search Flow:**
+```
+User input: "Boku no Hero Academia 5"
+└─ Words: ["Boku", "no", "Hero", "Academia", "5"]
+   ├─ Iteration 1: "Boku no Hero" → 8 results (>5, continue)
+   ├─ Iteration 2: "Boku no Hero Academia" → 6 results (>5, continue)
+   └─ Iteration 3: "Boku no Hero Academia 5" → 2 results (≤5, STOP)
+
+Menu shows:
+  ○ Boku no Hero Academia Movie 5
+  ○ Boku no Hero Academia Season 5
+  ◀ Resultados Anteriores (4 palavras: 6 resultados)
+  ← Voltar
+  Sair
+```
+
+**Menu Navigation:**
+- User can click "◀ Resultados Anteriores" to see previous search results
+- User can click "▶ Próximos Resultados" to navigate forward again
+- Each navigation shows the word count and result count for that iteration
+
+**Benefits:**
+- Reduces decision fatigue: shows 2-5 results instead of 50+
+- Smart fallback: if exact query returns 0, shows previous (broader) results
+- Explores search space: user can try different specificity levels
+- Session-only history: no persistent storage, memory-efficient
 
 ### AniList Integration (Detalhes Técnicos)
 
