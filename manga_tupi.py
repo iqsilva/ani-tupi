@@ -806,6 +806,193 @@ def _handle_read_now(
     )
 
 
+def _download_single_chapter(
+    chapter,
+    service,
+    selected_manga,
+    manga_url,
+    selected_source,
+    config,
+    tracker,
+    chapter_idx,
+    total_chapters,
+) -> tuple[bool, str]:
+    """Download a single chapter and return (success, error_message).
+
+    Args:
+        chapter: ChapterData object to download
+        service: UnifiedMangaService instance
+        selected_manga: Selected manga metadata
+        manga_url: Base manga URL
+        selected_source: Source name
+        config: Manga settings
+        tracker: DownloadedChaptersTracker instance
+        chapter_idx: Chapter index for progress (1-based)
+        total_chapters: Total number of chapters being downloaded
+
+    Returns:
+        tuple: (success: bool, error_message: str)
+    """
+    try:
+        print(f"\n[{chapter_idx}/{total_chapters}] Capítulo {chapter.number}...")
+
+        # Construct chapter URL
+        chapter_url = None
+        if selected_source == "mugiwaras":
+            # Mugiwaras uses format: /manga/{manga-slug}/capitulo-{number}-{manga-slug}/
+            manga_slug = (
+                selected_manga.title.lower().replace(" ", "-").replace(":", "").replace("?", "")
+            )
+            chapter_url = f"{manga_url}capitulo-{chapter.number}-{manga_slug}/"
+        elif selected_source == "mangadex":
+            chapter_url = f"https://mangadex.org/chapter/{chapter.id}"
+
+        if config.debug_download_failures:
+            print(f"  🔍 Buscando páginas do capítulo {chapter.number}...")
+            print(f"     URL: {chapter_url}")
+            print(f"     ID: {chapter.id}")
+
+        try:
+            # Get chapter pages
+            pages = service.get_chapter_pages(
+                chapter.id, chapter_url=chapter_url, source=selected_source
+            )
+        except Exception as e:
+            error_msg = f"Falha ao buscar páginas do capítulo {chapter.number}: {str(e)}"
+            if config.debug_download_failures:
+                print(f"  ❌ {error_msg}")
+            return False, error_msg
+
+        if not pages:
+            error_msg = f"Nenhuma página disponível para capítulo {chapter.number} (fonte: {selected_source})"
+            if config.debug_download_failures:
+                print(f"  ❌ {error_msg}")
+            return False, error_msg
+
+        if config.debug_download_failures:
+            print(f"  ✓ Encontradas {len(pages)} páginas")
+
+        # Create output directory
+        output_path = config.output_directory / selected_manga.title / chapter.number
+        output_path.mkdir(parents=True, exist_ok=True)
+
+        # Define PDF path
+        pdf_path = output_path / f"{chapter.number}.pdf"
+
+        # Download pages
+        if config.debug_download_failures:
+            print(f"Baixando {len(pages)} páginas...")
+        import requests
+
+        valid_downloads = 0
+        failed_pages = []
+
+        for i, url in enumerate(pages):
+            if config.debug_download_failures and (
+                i % 10 == 0 or i < 3
+            ):  # Log first 3 and every 10th
+                print(f"     Página {i + 1}/{len(pages)}: {url[:60]}...")
+            from pathlib import Path as UrlPath
+
+            ext = UrlPath(url.split("?")[0]).suffix or ".png"
+            img_path = output_path / f"{i:03d}{ext}"
+            if not img_path.exists():
+                response = None
+                try:
+                    response = requests.get(url, timeout=15)  # Increased timeout
+                    response.raise_for_status()
+
+                    # Validate content is actually an image
+                    content_type = response.headers.get("content-type", "").lower()
+                    if not content_type.startswith("image/"):
+                        failed_pages.append(f"Page {i}: Invalid content-type '{content_type}'")
+                        continue
+
+                    img_data = response.content
+                    if len(img_data) < 1024:  # Skip very small files (likely errors)
+                        failed_pages.append(f"Page {i}: Too small ({len(img_data)} bytes)")
+                        continue
+
+                    img_path.write_bytes(img_data)
+                    valid_downloads += 1
+                except requests.exceptions.Timeout:
+                    failed_pages.append(f"Page {i}: Timeout")
+                    continue
+                except requests.exceptions.ConnectionError:
+                    failed_pages.append(f"Page {i}: Connection error")
+                    continue
+                except requests.exceptions.HTTPError:
+                    status_code = (
+                        getattr(response, "status_code", "unknown") if response else "unknown"
+                    )
+                    failed_pages.append(f"Page {i}: HTTP {status_code}")
+                    continue
+                except Exception as e:
+                    failed_pages.append(f"Page {i}: {str(e)}")
+                    continue
+            else:
+                valid_downloads += 1
+
+        # Log failed pages if any
+        if failed_pages:
+            print(f"  ⚠️  {len(failed_pages)} páginas falharam:")
+            for failure in failed_pages[:5]:  # Show first 5 failures
+                print(f"    {failure}")
+            if len(failed_pages) > 5:
+                print(f"    ... e mais {len(failed_pages) - 5} falhas")
+
+        print(f"✓ {valid_downloads} imagens válidas baixadas")
+
+        # Check if we have enough valid images
+        image_extensions = ["*.png", "*.jpg", "*.jpeg", "*.webp"]
+        image_files = []
+        for ext in image_extensions:
+            image_files.extend(output_path.glob(ext))
+
+        if len(image_files) == 0:
+            return False, f"Nenhuma imagem válida baixada para capítulo {chapter.number}"
+
+        if len(image_files) < len(pages) * 0.5:  # Less than 50% success rate
+            return (
+                False,
+                f"Apenas {len(image_files)}/{len(pages)} imagens válidas baixadas para capítulo {chapter.number}",
+            )
+
+        # Create PDF
+        print(f"📄 Criando PDF com {len(image_files)} imagens...")
+        try:
+            create_pdf_from_images(
+                output_path,
+                pdf_path,
+                quality=config.pdf_quality,
+            )
+        except Exception as e:
+            return False, f"Falha ao criar PDF para capítulo {chapter.number}: {str(e)}"
+
+        # Delete images if configured
+        if config.delete_images_after_pdf:
+            for ext in ["*.png", "*.jpg", "*.jpeg", "*.webp"]:
+                for img in output_path.glob(ext):
+                    img.unlink()
+
+        # Track download
+        file_size_mb = pdf_path.stat().st_size / (1024 * 1024)
+        tracker.mark_downloaded(
+            selected_manga.id,
+            selected_manga.title,
+            chapter.number,
+            str(pdf_path),
+            file_size_mb,
+            source=selected_source,
+        )
+
+        print(f"✓ Capítulo {chapter.number} baixado ({file_size_mb:.1f} MB)")
+        return True, ""
+
+    except Exception as e:
+        return False, f"Erro ao baixar capítulo {chapter.number}: {e}"
+
+
 def _handle_download_for_later(
     service,
     selected_manga,
@@ -884,112 +1071,91 @@ def _handle_download_for_later(
     # Download chapters
     print(f"\n📥 Baixando {len(new_chapters)} capítulo(s)...")
 
-    import requests
-    from tqdm import tqdm
+    # Determine number of parallel downloads
+    max_parallel = config.max_parallel_downloads
+    if max_parallel == 0:  # Use CPU count
+        from os import cpu_count
 
-    successful = 0
-    failed = []
+        max_parallel = cpu_count() or 4
 
-    for chapter_idx, chapter in enumerate(new_chapters, 1):
-        print(f"\n[{chapter_idx}/{len(new_chapters)}] Capítulo {chapter.number}...")
+    if max_parallel == 1 or len(new_chapters) == 1:
+        # Sequential download (original behavior)
+        successful = 0
+        failed = []
 
-        try:
-            # Construct chapter URL
-            chapter_url = None
-            if selected_source == "mugiwaras":
-                chapter_url = f"{manga_url}{chapter.id}/"
-            elif selected_source == "mangadex":
-                chapter_url = f"https://mangadex.org/chapter/{chapter.id}"
-
-            # Get chapter pages
-            with loading("Carregando páginas..."):
-                pages = service.get_chapter_pages(
-                    chapter.id, chapter_url=chapter_url, source=selected_source
-                )
-
-            if not pages:
-                print(f"⚠️  Nenhuma página disponível para capítulo {chapter.number}")
+        for chapter_idx, chapter in enumerate(new_chapters, 1):
+            success, error_msg = _download_single_chapter(
+                chapter,
+                service,
+                selected_manga,
+                manga_url,
+                selected_source,
+                config,
+                tracker,
+                chapter_idx,
+                len(new_chapters),
+            )
+            if success:
+                successful += 1
+            else:
+                print(f"❌ {error_msg}")
                 failed.append(chapter.number)
-                continue
-
-            # Create output directory
-            output_path = config.output_directory / selected_manga.title / chapter.number
-            output_path.mkdir(parents=True, exist_ok=True)
-
-            # Define PDF path
-            pdf_path = output_path / f"{chapter.number}.pdf"
-
-            # Download pages
-            print(f"Baixando {len(pages)} páginas...")
-            valid_downloads = 0
-            for i, url in enumerate(tqdm(pages, desc="Download")):
-                from pathlib import Path as UrlPath
-
-                ext = UrlPath(url.split("?")[0]).suffix or ".png"
-                img_path = output_path / f"{i:03d}{ext}"
-                if not img_path.exists():
-                    try:
-                        response = requests.get(url, timeout=10)
-                        response.raise_for_status()
-
-                        # Validate content is actually an image
-                        content_type = response.headers.get("content-type", "").lower()
-                        if not content_type.startswith("image/"):
-                            continue
-
-                        img_data = response.content
-                        if len(img_data) < 1024:  # Skip very small files (likely errors)
-                            continue
-
-                        img_path.write_bytes(img_data)
-                        valid_downloads += 1
-                    except Exception:
-                        continue  # Skip failed downloads
-                else:
-                    valid_downloads += 1
-
-            print(f"✓ {valid_downloads} imagens válidas baixadas")
-
-            # Create PDF
-            print("📄 Criando PDF...")
-            create_pdf_from_images(
-                output_path,
-                pdf_path,
-                quality=config.pdf_quality,
-            )
-
-            # Delete images if configured
-            if config.delete_images_after_pdf:
-                for ext in ["*.png", "*.jpg", "*.jpeg", "*.webp"]:
-                    for img in output_path.glob(ext):
-                        img.unlink()
-
-            # Track download
-            file_size_mb = pdf_path.stat().st_size / (1024 * 1024)
-            tracker.mark_downloaded(
-                selected_manga.id,
-                selected_manga.title,
-                chapter.number,
-                str(pdf_path),
-                file_size_mb,
-                source=selected_source,
-            )
-
-            print(f"✓ Capítulo {chapter.number} baixado ({file_size_mb:.1f} MB)")
-            successful += 1
-
-        except Exception as e:
-            print(f"❌ Erro ao baixar capítulo {chapter.number}: {e}")
-            failed.append(chapter.number)
-            try:
-                # Ask if user wants to continue
-                continue_options = ["✅ Continuar", "❌ Cancelar"]
-                if menu_navigate(continue_options, "Continuar com próximo capítulo?"):
-                    continue
-                else:
+                try:
+                    # Ask if user wants to continue
+                    continue_options = ["✅ Continuar", "❌ Cancelar"]
+                    if menu_navigate(continue_options, "Continuar com próximo capítulo?"):
+                        continue
+                    else:
+                        break
+                except Exception:
                     break
-            except Exception:
-                break
+    else:
+        # Parallel download
+        print(f"🚀 Usando {max_parallel} downloads paralelos...")
+
+        from concurrent.futures import ThreadPoolExecutor, as_completed
+        from tqdm import tqdm
+
+        successful = 0
+        failed = []
+
+        with tqdm(total=len(new_chapters), desc="📥 Baixando capítulos", unit="cap") as pbar:
+            with ThreadPoolExecutor(max_workers=max_parallel) as executor:
+                # Submit all download tasks
+                future_to_chapter = {}
+                for chapter_idx, chapter in enumerate(new_chapters, 1):
+                    future = executor.submit(
+                        _download_single_chapter,
+                        chapter,
+                        service,
+                        selected_manga,
+                        manga_url,
+                        selected_source,
+                        config,
+                        tracker,
+                        chapter_idx,
+                        len(new_chapters),
+                    )
+                    future_to_chapter[future] = chapter
+
+                # Process completed downloads
+                for future in as_completed(future_to_chapter):
+                    chapter = future_to_chapter[future]
+                    try:
+                        success, error_msg = future.result()
+                        if success:
+                            successful += 1
+                            pbar.set_postfix({"✅": successful, "❌": len(failed)}, refresh=False)
+                        else:
+                            print(f"❌ {error_msg}")
+                            failed.append(chapter.number)
+                            pbar.set_postfix({"✅": successful, "❌": len(failed)}, refresh=False)
+                    except Exception as e:
+                        print(f"❌ Erro inesperado no capítulo {chapter.number}: {e}")
+                        failed.append(chapter.number)
+                        pbar.set_postfix({"✅": successful, "❌": len(failed)}, refresh=False)
+
+                    pbar.update(1)
 
     # Summary
     print(f"\n✓ Download concluído: {successful} capítulo(s) baixados")
@@ -1027,8 +1193,11 @@ def _process_chapter(
         # Construct chapter URL for scrapers that need it
         chapter_url = None
         if selected_source == "mugiwaras":
-            # For MugiwarasOficial, reconstruct URL from manga URL and chapter ID
-            chapter_url = f"{manga_url}{selected_chapter.id}/"
+            # For MugiwarasOficial, reconstruct URL with proper format
+            manga_slug = (
+                selected_manga.title.lower().replace(" ", "-").replace(":", "").replace("?", "")
+            )
+            chapter_url = f"{manga_url}capitulo-{selected_chapter.number}-{manga_slug}/"
         elif selected_source == "mangadex":
             chapter_url = f"https://mangadex.org/chapter/{selected_chapter.id}"
 

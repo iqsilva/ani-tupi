@@ -202,6 +202,16 @@ class MangaSettings(BaseModel):
         True,
         description="Automatically delete chapter files after marking as read (saves disk space)",
     )
+    debug_download_failures: bool = Field(
+        False,
+        description="Enable detailed logging for download failures (helps debug issues)",
+    )
+    max_parallel_downloads: int = Field(
+        0,
+        ge=0,
+        le=16,
+        description="Maximum parallel chapter downloads (0 = use CPU count, 1 = sequential)",
+    )
 
 
 class AppSettings(BaseSettings):
