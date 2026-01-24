@@ -43,12 +43,16 @@ class SearchResultSet:
     word_count: int
     query: str
     results: list[str]
+    used_query: str | None = None  # Normalized query that was actually used for search
     timestamp: float = field(default_factory=time.time)
     source_counts: dict[str, int] = field(default_factory=dict)
 
     def __post_init__(self):
         if self.word_count <= 0:
             raise ValueError(f"word_count must be positive, got {self.word_count}")
+        # Default used_query to query if not provided
+        if not self.used_query:
+            self.used_query = self.query
 
 
 class IncrementalSearchState:
@@ -66,7 +70,7 @@ class IncrementalSearchState:
         self.search_history: list[SearchResultSet] = []
         self.current_index: int = -1
 
-    def add_result(self, word_count: int, query: str, results: list[str], source_counts: dict[str, int] | None = None) -> None:
+    def add_result(self, word_count: int, query: str, results: list[str], source_counts: dict[str, int] | None = None, used_query: str | None = None) -> None:
         """Add a new search result set to the history.
 
         Args:
@@ -74,11 +78,13 @@ class IncrementalSearchState:
             query: The actual query string used (e.g., "boku no hero")
             results: List of anime titles with sources
             source_counts: Optional dict of source names to result counts
+            used_query: The normalized query that was actually used for search (lowercase, no punctuation)
         """
         result_set = SearchResultSet(
             word_count=word_count,
             query=query,
             results=results,
+            used_query=used_query or query,
             source_counts=source_counts or {}
         )
         # If we've navigated backward, discard forward history
@@ -358,8 +364,8 @@ def incremental_search_anime(query: str) -> tuple[IncrementalSearchState, list[s
                     _, source = title_entry.rsplit(" - ", 1)
                     source_counts[source] = source_counts.get(source, 0) + 1
 
-            # Store results in state
-            state.add_result(current_word_count, partial_query, titles_with_sources, source_counts)
+            # Store results in state (with normalized used_query)
+            state.add_result(current_word_count, partial_query, titles_with_sources, source_counts, used_query=used_query)
             current_results = titles_with_sources
 
             # Check stopping condition
@@ -649,15 +655,18 @@ def anilist_anime_flow(
         # Show menu with optional navigation if search_state exists
         menu_title = f"📺 Anime do AniList: '{display_title}'\n"
 
-        # Use the actual query that was used for search, or fall back to anime_title
-        display_query = used_query or anime_title
-        menu_title += f"🔍 Busca usada: '{display_query}'\n"
-
         # Show search result set info if using incremental search
         if search_state:
             current_result_set = search_state.get_current()
             if current_result_set:
+                # Use the normalized used_query from the result set
+                display_query = current_result_set.used_query or current_result_set.query
+                menu_title += f"🔍 Busca usada: '{display_query}'\n"
                 menu_title += f"   ({current_result_set.word_count} palavras: {len(current_result_set.results)} resultados)\n"
+        else:
+            # For cache hits, use the query that was already used
+            display_query = used_query or anime_title
+            menu_title += f"🔍 Busca usada: '{display_query}'\n"
 
         menu_title += f"\nEncontrados {len(titles_with_sources)} resultados. Escolha:"
 
