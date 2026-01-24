@@ -304,13 +304,14 @@ def incremental_search_anime(query: str) -> tuple[IncrementalSearchState, list[s
     """Perform incremental anime search starting with 3 words and adding progressively.
 
     Implements the incremental word addition strategy:
-    1. Start with first 3 words (or all if fewer)
-    2. Add words one at a time
-    3. Stop when results ≤ 5
-    4. Fallback if zero results to previous iteration
+    1. Normalize query first (lowercase, remove season patterns, punctuation, etc)
+    2. Start with first 3 words of normalized query (or all if fewer)
+    3. Add words one at a time
+    4. Stop when results ≤ 5
+    5. Fallback if zero results to previous iteration
 
     Args:
-        query: The user's search query (e.g., "boku no hero academia 5")
+        query: The user's search query (e.g., "Boku no Hero Academia Season 5")
 
     Returns:
         Tuple of (IncrementalSearchState, final_results_list)
@@ -318,7 +319,17 @@ def incremental_search_anime(query: str) -> tuple[IncrementalSearchState, list[s
         - Results are the final anime titles with sources to display
     """
     state = IncrementalSearchState()
-    words = query.split()
+
+    # Normalize query first (remove season patterns, punctuation, convert to lowercase, etc)
+    # normalize_anime_title() returns a list of variations from most specific to least
+    # The first variation is the fully normalized query (most specific)
+    variations = normalize_anime_title(query, is_english=False)
+    if not variations:
+        variations = [query.lower()]
+
+    # Use the first (most specific) normalized variation for incremental search
+    normalized_query = variations[0]
+    words = normalized_query.split()
 
     # Determine starting word count (min 3, or all words if fewer)
     start_word_count = min(3, len(words))

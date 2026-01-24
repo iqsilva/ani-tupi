@@ -82,15 +82,16 @@ def test_incremental_search_uses_all_words_if_needed(patch_repository, no_anilis
     mock_rep = patch_repository
 
     # Setup: all combinations return > 5 results
-    # Note: "attack on titan season 4" = 5 words, so starts with min(3,5)=3 words
+    # Note: "attack on titan season 4" gets normalized to "attack on titan 4" (season removed)
+    # So it has 4 words: "attack", "on", "titan", "4"
+    # Starts with min(3,4)=3 words
     mock_rep.setup_search_result("attack on titan", ["B1", "B2", "B3", "B4", "B5", "B6"])
-    mock_rep.setup_search_result("attack on titan season", ["C1", "C2", "C3", "C4", "C5", "C6"])
-    mock_rep.setup_search_result("attack on titan season 4", ["D1", "D2", "D3", "D4", "D5", "D6"])
+    mock_rep.setup_search_result("attack on titan 4", ["D1", "D2", "D3", "D4", "D5", "D6"])
 
     state, results = incremental_search_anime("attack on titan season 4")
 
-    # Should use all 5 words even though results > 5
-    assert len(mock_rep.search_calls) == 3  # 3 words, 4 words, 5 words
+    # Should use all 4 words (after normalization removes "season")
+    assert len(mock_rep.search_calls) == 2  # 3 words, 4 words
     assert len(results) == 6
 
 
@@ -135,18 +136,20 @@ def test_incremental_search_state_navigation(patch_repository, no_anilist):
     """Test that state tracks all iterations."""
     mock_rep = patch_repository
 
-    # "my hero academia season 2" has 5 words, starts with 3
+    # "my hero academia season 2" gets normalized to "my hero academia 2" (season removed)
+    # So it has 4 words: "my", "hero", "academia", "2"
+    # Starts with min(3,4)=3 words
     mock_rep.setup_search_result("my hero academia", ["A1", "A2", "A3", "A4", "A5", "A6"])
-    mock_rep.setup_search_result("my hero academia season", ["B1", "B2", "B3"])
+    mock_rep.setup_search_result("my hero academia 2", ["B1", "B2", "B3"])
 
     state, results = incremental_search_anime("my hero academia season 2")
 
-    # State should have 2 iterations (3 words, 4 words)
+    # State should have 2 iterations (3 words, 4 words after normalization)
     assert len(state.search_history) == 2
     assert state.search_history[0].word_count == 3
     assert state.search_history[1].word_count == 4
 
-    # Current should be at second iteration
+    # Current should be at second iteration (results <= 5, so stop here)
     assert state.current_index == 1
     assert state.get_current().word_count == 4
 
