@@ -571,6 +571,12 @@ def anilist_anime_flow(
         # Not in cache: use incremental search
         search_state, titles_with_sources = incremental_search_anime(anime_title)
 
+        # Extract the query that was actually used for the final results
+        if search_state:
+            current_result_set = search_state.get_current()
+            if current_result_set:
+                used_query = current_result_set.query
+
     if not titles_with_sources:
         # Offer manual search
         choice = menu_navigate(
@@ -605,6 +611,12 @@ def anilist_anime_flow(
                 # Not in cache: use incremental search for manual query
                 search_state, titles_with_sources = incremental_search_anime(manual_query)
 
+                # Extract the query that was actually used for the final results
+                if search_state:
+                    current_result_set = search_state.get_current()
+                    if current_result_set:
+                        used_query = current_result_set.query
+
             if not titles_with_sources:
                 return
         else:
@@ -636,7 +648,10 @@ def anilist_anime_flow(
 
         # Show menu with optional navigation if search_state exists
         menu_title = f"📺 Anime do AniList: '{display_title}'\n"
-        menu_title += f"🔍 Busca usada: '{anime_title}'\n"
+
+        # Use the actual query that was used for search, or fall back to anime_title
+        display_query = used_query or anime_title
+        menu_title += f"🔍 Busca usada: '{display_query}'\n"
 
         # Show search result set info if using incremental search
         if search_state:
