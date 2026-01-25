@@ -1,7 +1,8 @@
-import requests
 from selectolax.parser import HTMLParser
 
+from scrapers.core.browser_pool import browser_pool
 from scrapers.loader import PluginInterface
+from scrapers.plugins.utils import get_with_retry
 from services.repository import rep
 
 # Request timeout for all AnimesDigital API calls (seconds)
@@ -20,8 +21,8 @@ class AnimesDigital(PluginInterface):
         Prioritizes subtitled versions over dubbed versions when both exist.
         """
         url = "https://animesdigital.org/search/" + "+".join(query.split())
-        html_content = requests.get(url, timeout=REQUEST_TIMEOUT)
-        tree = HTMLParser(html_content.text)
+        response = get_with_retry(url, timeout=REQUEST_TIMEOUT)
+        tree = HTMLParser(response.text)
 
         # Extract all anime links
         anime_links = tree.css("a[href*='/anime/']")
@@ -61,8 +62,8 @@ class AnimesDigital(PluginInterface):
         else:
             url = url + "?odr=1"
 
-        html_content = requests.get(url, timeout=REQUEST_TIMEOUT)
-        tree = HTMLParser(html_content.text)
+        response = get_with_retry(url, timeout=REQUEST_TIMEOUT)
+        tree = HTMLParser(response.text)
 
         # Find all episode containers
         episode_divs = tree.css("div.item_ep")
@@ -99,8 +100,10 @@ class AnimesDigital(PluginInterface):
 
         AnimesDigital loads iframes dynamically via JavaScript.
         Uses Playwright to render the page and extract iframe sources.
+        Falls back to browser_pool (Selenium) if Playwright fails.
         Prioritizes api.anivideo.net iframes which are most reliable.
         """
+        # Try Playwright first (preferred for this plugin)
         try:
             from playwright.sync_api import sync_playwright
 
@@ -116,8 +119,7 @@ class AnimesDigital(PluginInterface):
 
                 if not iframes:
                     browser.close()
-                    msg = "No iframe found in AnimesDigital episode page."
-                    raise RuntimeError(msg)
+                    raise Exception("No iframe found in AnimesDigital episode page.")
 
                 # Priority 1: Look for api.anivideo.net iframes (most reliable)
                 for iframe in iframes:
@@ -146,10 +148,50 @@ class AnimesDigital(PluginInterface):
                     event.set()
 
                 browser.close()
+                return
 
         except Exception as e:
-            msg = f"Could not extract video from AnimesDigital: {e}"
-            raise RuntimeError(msg) from e
+            # Fall back to browser_pool if Playwright fails
+            try:
+                from selenium.webdriver.common.by import By
+                from selenium.webdriver.support import expected_conditions as EC
+                from selenium.webdriver.support.wait import WebDriverWait
+
+                with browser_pool.get_browser() as driver:
+                    driver.get(url)
+
+                    # Wait for iframes to load
+                    WebDriverWait(driver, 10).until(
+                        EC.presence_of_element_located((By.TAG_NAME, "iframe"))
+                    )
+
+                    iframes = driver.find_elements(By.TAG_NAME, "iframe")
+
+                    if not iframes:
+                        raise Exception("No iframe found in AnimesDigital episode page.")
+
+                    # Try to find the same priority iframes
+                    for iframe in iframes:
+                        src = iframe.get_attribute("src")
+                        if src and "api.anivideo.net" in src:
+                            if not event.is_set():
+                                container.append(src)
+                                event.set()
+                            return
+
+                    # Fallback to first iframe
+                    src = iframes[0].get_attribute("src")
+                    if src and not event.is_set():
+                        container.append(src)
+                        event.set()
+
+            except Exception as fallback_e:
+                if "Firefox" in str(fallback_e):
+                    msg = "Firefox not installed or browser pool failed."
+                    raise Exception(msg) from fallback_e
+                else:
+                    msg = f"Could not extract video from AnimesDigital: {e}"
+                    raise Exception(msg) from e
 
 
 def load(languages_dict) -> None:

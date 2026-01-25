@@ -132,6 +132,90 @@ class PluginSettings(BaseModel):
     )
 
 
+class PerformanceSettings(BaseModel):
+    """Performance optimization settings for scrapers."""
+
+    # HTTP Client Settings
+    http_timeout: int = Field(
+        15,
+        ge=5,
+        le=60,
+        description="Default timeout for HTTP requests (seconds)",
+    )
+    http_pool_connections: int = Field(
+        10,
+        ge=5,
+        le=50,
+        description="Number of connection pools to cache",
+    )
+    http_pool_maxsize: int = Field(
+        20,
+        ge=10,
+        le=100,
+        description="Maximum connections per pool",
+    )
+    http_retry_attempts: int = Field(
+        3,
+        ge=1,
+        le=5,
+        description="Number of retry attempts for failed HTTP requests",
+    )
+
+    # Browser Pool Settings
+    browser_pool_size: int = Field(
+        3,
+        ge=1,
+        le=5,
+        description="Maximum number of Firefox instances in browser pool",
+    )
+    browser_max_age: int = Field(
+        300,
+        ge=60,
+        le=1800,
+        description="Maximum age of browser instances before cleanup (seconds)",
+    )
+    browser_health_check_timeout: int = Field(
+        10,
+        ge=5,
+        le=30,
+        description="Timeout for getting browser from pool (seconds)",
+    )
+
+    # Concurrent Execution Settings
+    max_concurrent_scrapers: int = Field(
+        3,
+        ge=1,
+        le=10,
+        description="Maximum number of scrapers running concurrently",
+    )
+    concurrent_timeout: int = Field(
+        30,
+        ge=15,
+        le=120,
+        description="Timeout for concurrent scraper operations (seconds)",
+    )
+
+    # Cache Settings (additional to existing cache settings)
+    search_cache_ttl: int = Field(
+        300,
+        ge=60,
+        le=1800,
+        description="TTL for search results cache (seconds, 5 minutes default)",
+    )
+    episodes_cache_ttl: int = Field(
+        1800,
+        ge=300,
+        le=3600,
+        description="TTL for episode list cache (seconds, 30 minutes default)",
+    )
+    smart_cache_max_size_mb: int = Field(
+        100,
+        ge=50,
+        le=500,
+        description="Maximum size of smart cache (MB)",
+    )
+
+
 class MangaSettings(BaseModel):
     """Manga reader settings with multi-source support."""
 
@@ -239,6 +323,7 @@ class AppSettings(BaseSettings):
     search: SearchSettings = SearchSettings()  # type: ignore[call-arg]
     plugins: PluginSettings = PluginSettings()  # type: ignore[call-arg]
     manga: MangaSettings = MangaSettings()  # type: ignore[call-arg]
+    performance: PerformanceSettings = PerformanceSettings()  # type: ignore[call-arg]
 
 
 # Singleton instance - import and use throughout the app

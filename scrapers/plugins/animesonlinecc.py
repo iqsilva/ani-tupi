@@ -1,15 +1,14 @@
-import requests
 from selectolax.parser import HTMLParser
-from selenium import webdriver
 from selenium.webdriver.common.by import By
-from selenium.webdriver.support.wait import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.support.wait import WebDriverWait
 from multiprocessing.pool import ThreadPool
 from os import cpu_count
 
+from scrapers.core.browser_pool import browser_pool
 from scrapers.loader import PluginInterface
+from scrapers.plugins.utils import get_with_retry
 from services.repository import rep
-from .utils import is_firefox_installed_as_snap
 
 
 class AnimesOnlineCC(PluginInterface):
@@ -18,8 +17,8 @@ class AnimesOnlineCC(PluginInterface):
 
     def search_anime(self, query: str) -> None:
         url = "https://animesonlinecc.to/search/" + "+".join(query.split())
-        html_content = requests.get(url, timeout=10)
-        tree = HTMLParser(html_content.text)
+        response = get_with_retry(url)
+        tree = HTMLParser(response.text)
 
         divs = tree.css("div.data")
         titles_urls = []
@@ -39,8 +38,8 @@ class AnimesOnlineCC(PluginInterface):
             rep.add_anime(title, url, AnimesOnlineCC.name)
 
         def parse_seasons(title, url):
-            html = requests.get(url, timeout=10)
-            tree = HTMLParser(html.text)
+            response = get_with_retry(url)
+            tree = HTMLParser(response.text)
             num_seasons = len(tree.css("div.se-c"))
             if num_seasons > 1:
                 for n in range(2, num_seasons + 1):
@@ -51,8 +50,8 @@ class AnimesOnlineCC(PluginInterface):
                 pool.apply(parse_seasons, args=(title, url))
 
     def search_episodes(self, anime: str, url: str, params: dict | None) -> None:
-        html_episodes_page = requests.get(url, timeout=10)
-        tree = HTMLParser(html_episodes_page.text)
+        response = get_with_retry(url)
+        tree = HTMLParser(response.text)
 
         seasons = tree.css("ul.episodios")
         # Extract season number from params (backwards compatible with int)
@@ -70,34 +69,25 @@ class AnimesOnlineCC(PluginInterface):
         rep.add_episode_list(anime, titles, urls, AnimesOnlineCC.name)
 
     def search_player_src(self, url: str, container: list, event) -> None:
-        options = webdriver.FirefoxOptions()
-        options.add_argument("--headless")
-
         try:
-            if is_firefox_installed_as_snap():
-                service = webdriver.FirefoxService(executable_path="/snap/bin/geckodriver")
-                driver = webdriver.Firefox(options=options, service=service)
-            else:
-                driver = webdriver.Firefox(options=options)
+            with browser_pool.get_browser() as driver:
+                driver.get(url)
+                try:
+                    xpath = "/html/body/div[1]/div[2]/div[2]/div[2]/div[1]/div[1]/div[1]/iframe"
+                    params = (By.XPATH, xpath)
+                    WebDriverWait(driver, 7).until(EC.visibility_of_all_elements_located(params))
+                except Exception:
+                    msg = "iframe not found in animesonlinecc page."
+                    raise Exception(msg)
+
+                product = driver.find_element(params[0], params[1])
+                link = str(product.get_property("src"))
         except Exception as e:
-            msg = "Firefox not installed."
-            raise RuntimeError(msg) from e
-
-        driver.get(url)
-
-        try:
-            xpath = "/html/body/div[1]/div[2]/div[2]/div[2]/div[1]/div[1]/div[1]/iframe"
-            params = (By.XPATH, xpath)
-            WebDriverWait(driver, 7).until(EC.visibility_of_all_elements_located(params))
-        except Exception:
-            driver.quit()
-            msg = "iframe not found in animesonlinecc page."
-            raise RuntimeError(msg)
-
-        product = driver.find_element(params[0], params[1])
-        link = product.get_property("src")
-
-        driver.quit()
+            if "Firefox" in str(e):
+                msg = "Firefox not installed or browser pool failed."
+                raise Exception(msg)
+            else:
+                raise
 
         if not event.is_set():
             container.append(link)
