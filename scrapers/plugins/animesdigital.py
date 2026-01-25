@@ -1,6 +1,6 @@
 from selectolax.parser import HTMLParser
 
-from scrapers.core.browser_pool import browser_pool
+from scrapers.core.browser_pool import get_browser_pool
 from scrapers.loader import PluginInterface
 from scrapers.plugins.utils import get_with_retry
 from services.repository import rep
@@ -157,7 +157,7 @@ class AnimesDigital(PluginInterface):
                 from selenium.webdriver.support import expected_conditions as EC
                 from selenium.webdriver.support.wait import WebDriverWait
 
-                with browser_pool.get_browser() as driver:
+                with get_browser_pool().get_browser() as driver:
                     driver.get(url)
 
                     # Wait for iframes to load

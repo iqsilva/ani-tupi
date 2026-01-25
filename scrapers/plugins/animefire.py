@@ -3,7 +3,7 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.wait import WebDriverWait
 
-from scrapers.core.browser_pool import browser_pool
+from scrapers.core.browser_pool import get_browser_pool
 from scrapers.loader import PluginInterface
 from scrapers.plugins.utils import get_with_retry, head_with_retry
 from services.repository import rep
@@ -40,7 +40,7 @@ class AnimeFire(PluginInterface):
 
     def search_player_src(self, url: str, container: list, event) -> None:
         try:
-            with browser_pool.get_browser() as driver:
+            with get_browser_pool().get_browser() as driver:
                 driver.get(url)
                 try:
                     params = (By.ID, "my-video_html5_api")

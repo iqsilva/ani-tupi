@@ -5,7 +5,7 @@ from selenium.webdriver.support.wait import WebDriverWait
 from multiprocessing.pool import ThreadPool
 from os import cpu_count
 
-from scrapers.core.browser_pool import browser_pool
+from scrapers.core.browser_pool import get_browser_pool
 from scrapers.loader import PluginInterface
 from scrapers.plugins.utils import get_with_retry
 from services.repository import rep
@@ -70,7 +70,7 @@ class AnimesOnlineCC(PluginInterface):
 
     def search_player_src(self, url: str, container: list, event) -> None:
         try:
-            with browser_pool.get_browser() as driver:
+            with get_browser_pool().get_browser() as driver:
                 driver.get(url)
                 try:
                     xpath = "/html/body/div[1]/div[2]/div[2]/div[2]/div[1]/div[1]/div[1]/iframe"

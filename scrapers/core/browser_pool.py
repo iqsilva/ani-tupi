@@ -12,8 +12,10 @@ import queue
 import threading
 import time
 from contextlib import contextmanager
+from typing import Any
 
 from selenium import webdriver
+from selenium.webdriver.remote.webdriver import WebDriver
 
 from scrapers.plugins.utils import is_firefox_installed_as_snap
 
@@ -30,11 +32,11 @@ class BrowserContext:
         self.browser_id = browser_id
         self._checked_out = True
 
-    def __enter__(self):
-        return self  # Return context manager, but delegate attribute access
+    def __enter__(self) -> WebDriver:
+        return self  # Type hint that this behaves like WebDriver
 
-    def __getattr__(self, name):
-        """Delegate attribute access to the underlying browser."""
+    def __getattr__(self, name: str) -> Any:
+        """Delegate attribute access to underlying browser."""
         return getattr(self.browser, name)
 
     def __exit__(self, exc_type, exc_val, exc_tb):
@@ -243,5 +245,13 @@ class BrowserPool:
         self.close_all()
 
 
-# Global instance for easy import
-browser_pool = BrowserPool()
+# Global instance for easy import - lazy initialization to avoid startup delay
+browser_pool = None
+
+
+def get_browser_pool():
+    """Get the global browser pool instance, creating it lazily."""
+    global browser_pool
+    if browser_pool is None:
+        browser_pool = BrowserPool()
+    return browser_pool
