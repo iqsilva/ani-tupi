@@ -3,7 +3,6 @@
 Tests realistic user scenarios using Mugiwaras API for Brazilian Portuguese manga.
 """
 
-import json
 import tempfile
 from pathlib import Path
 from unittest.mock import Mock, patch
@@ -11,7 +10,6 @@ from unittest.mock import Mock, patch
 import pytest
 
 from manga_scrapers.plugins.mugiwaras import MugiwarasOficial
-from models.models import MangaMetadata, ChapterData, MangaStatus
 
 
 @pytest.fixture
@@ -368,7 +366,10 @@ class TestMugiwarasCompleteWorkflow:
     """End-to-end realistic manga reading scenarios."""
 
     def test_user_searches_and_gets_chapters(
-        self, mugiwaras_scraper, mock_mugiwaras_search_response, mock_mugiwaras_chapters_html
+        self,
+        mugiwaras_scraper,
+        mock_mugiwaras_search_response,
+        mock_mugiwaras_chapters_html,
     ):
         """User searches for manga and fetches chapter list."""
         # Step 1: Search
@@ -472,7 +473,7 @@ class TestMugiwarasPluginLoading:
         """Plugin loader should return plugin for pt-br language."""
         from manga_scrapers.plugins.mugiwaras import load
 
-        plugin = load({"pt-br"})
+        plugin = load(set("pt-br"))
         assert plugin is not None
         assert isinstance(plugin, MugiwarasOficial)
 
