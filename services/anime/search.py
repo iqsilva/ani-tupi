@@ -12,7 +12,6 @@ from ui.components import loading, menu_navigate
 from utils.scraper_cache import get_cache
 from services.anime.title_normalization import normalize_anime_title
 from utils.logging import get_logger
-from scrapers import loader
 
 
 logger = get_logger(__name__)
@@ -253,7 +252,6 @@ def search_anime_flow(args):
     )
 
     source = None
-    from utils.scraper_cache import get_cache
 
     # Cache-first: Check if query is in cache before searching scrapers
     cache_data = get_cache(query)

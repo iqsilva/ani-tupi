@@ -4,9 +4,6 @@ Command-line interface for searching and reading manga chapters.
 Uses MangaDexClient service layer with Rich menus and loading spinners.
 """
 
-import os
-import shutil
-import subprocess
 
 from InquirerPy import inquirer
 
@@ -19,6 +16,7 @@ from services.manga_service import (
     MangaHistory,
     MangaNotFoundError,
 )
+from services.manga.anilist_lists import handle_anilist_list
 from services.unified_manga_service import UnifiedMangaService
 from ui.components import loading, menu_navigate
 from utils.image_viewers import find_image_viewer, open_image_viewer
@@ -53,116 +51,17 @@ def _show_manga_main_menu() -> str | None:
 
 def _handle_reading_list(service: UnifiedMangaService) -> None:
     """Handle reading list from AniList."""
-    if not anilist_client.is_authenticated():
-        print("🔐 Faça login primeiro: uv run python main.py anilist auth")
-        input("Pressione Enter para continuar...")
-        return
-
-    with loading("Carregando lista de leitura..."):
-        manga_list = anilist_client.get_user_manga_list("CURRENT")
-
-    if not manga_list:
-        print("📂 Nenhum mangá na lista de leitura")
-        input("Pressione Enter para continuar...")
-        return
-
-    # Format options
-    options = []
-    manga_map = {}
-    for i, manga in enumerate(manga_list, 1):
-        if manga.media:
-            title = anilist_client.format_title(manga.media.title)
-            progress = manga.progress or 0
-            total_chapters = getattr(manga.media, "chapters", None) or "?"
-            display = f"{i:2d}. {title} - Cap. {progress}/{total_chapters}"
-            options.append(display)
-            manga_map[display] = title
-
-    selection = menu_navigate(options, "Reading - Manga")
-    if selection and selection != "← Voltar":
-        try:
-            idx = int(selection.split(".")[0]) - 1
-            if 0 <= idx < len(manga_list):
-                manga_title = manga_map[selection]
-                _start_manga_search(service, manga_title)
-        except (ValueError, IndexError):
-            pass
+    handle_anilist_list(service, "reading", _start_manga_search)
 
 
 def _handle_completed_list(service: UnifiedMangaService) -> None:
     """Handle completed list from AniList."""
-    if not anilist_client.is_authenticated():
-        print("🔐 Faça login primeiro: uv run python main.py anilist auth")
-        input("Pressione Enter para continuar...")
-        return
-
-    with loading("Carregando lista completos..."):
-        manga_list = anilist_client.get_user_manga_list("COMPLETED")
-
-    if not manga_list:
-        print("📂 Nenhum mangá completado")
-        input("Pressione Enter para continuar...")
-        return
-
-    # Format options
-    options = []
-    manga_map = {}
-    for i, manga in enumerate(manga_list, 1):
-        if manga.media:
-            title = anilist_client.format_title(manga.media.title)
-            chapters = getattr(manga.media, "chapters", None) or "?"
-            score = getattr(manga.media, "averageScore", None) or "N/A"
-            display = f"{i:2d}. {title} ({chapters} caps) ⭐{score}%"
-            options.append(display)
-            manga_map[display] = title
-
-    selection = menu_navigate(options, "Completed - Manga")
-    if selection and selection != "← Voltar":
-        try:
-            idx = int(selection.split(".")[0]) - 1
-            if 0 <= idx < len(manga_list):
-                manga_title = manga_map[selection]
-                _start_manga_search(service, manga_title)
-        except (ValueError, IndexError):
-            pass
+    handle_anilist_list(service, "completed", _start_manga_search)
 
 
 def _handle_planning_list(service: UnifiedMangaService) -> None:
     """Handle planning list from AniList."""
-    if not anilist_client.is_authenticated():
-        print("🔐 Faça login primeiro: uv run python main.py anilist auth")
-        input("Pressione Enter para continuar...")
-        return
-
-    with loading("Carregando lista planejados..."):
-        manga_list = anilist_client.get_user_manga_list("PLANNING")
-
-    if not manga_list:
-        print("📂 Nenhum mangá planejado")
-        input("Pressione Enter para continuar...")
-        return
-
-    # Format options
-    options = []
-    manga_map = {}
-    for i, manga in enumerate(manga_list, 1):
-        if manga.media:
-            title = anilist_client.format_title(manga.media.title)
-            chapters = getattr(manga.media, "chapters", None) or "?"
-            score = getattr(manga.media, "averageScore", None) or "N/A"
-            display = f"{i:2d}. {title} ({chapters} caps) ⭐{score}%"
-            options.append(display)
-            manga_map[display] = title
-
-    selection = menu_navigate(options, "Planning - Manga")
-    if selection and selection != "← Voltar":
-        try:
-            idx = int(selection.split(".")[0]) - 1
-            if 0 <= idx < len(manga_list):
-                manga_title = manga_map[selection]
-                _start_manga_search(service, manga_title)
-        except (ValueError, IndexError):
-            pass
+    handle_anilist_list(service, "planning", _start_manga_search)
 
 
 def _handle_recent_history(service: UnifiedMangaService) -> None:

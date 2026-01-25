@@ -7,6 +7,12 @@ Pydantic models and configuration:
 
 from models.models import AnimeMetadata, EpisodeData, VideoUrl, EpisodeContext
 from models.config import settings, get_data_path
+from models.manga_context import (
+    ChapterContext,
+    DownloadRequest,
+    DownloadResult,
+    ReadingSession,
+)
 
 __all__ = [
     "AnimeMetadata",
@@ -15,4 +21,8 @@ __all__ = [
     "settings",
     "get_data_path",
     "EpisodeContext",
+    "ChapterContext",
+    "DownloadRequest",
+    "DownloadResult",
+    "ReadingSession",
 ]

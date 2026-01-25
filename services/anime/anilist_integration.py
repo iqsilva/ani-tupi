@@ -15,13 +15,11 @@ from utils.scraper_cache import get_cache, set_cache
 from scrapers import loader
 from services.history_service import save_history, reset_history
 from utils.video_player import play_episode
-from services.anime.title_normalization import normalize_anime_title
 from services.anime.mappings import (
     load_anilist_mapping,
     save_anilist_mapping,
 )
-from services.anime.episode_context import get_next_episode_context
-from services.anime.search import incremental_search_anime, IncrementalSearchState
+from services.anime.search import incremental_search_anime
 
 # Use centralized path function from config
 HISTORY_PATH = get_data_path()
@@ -168,7 +166,6 @@ def anilist_anime_flow(
                 anime_title = romaji_title
                 is_english_search = False
 
-    from utils.scraper_cache import get_cache, set_cache
 
     loader.load_plugins({"pt-br"})  # type: ignore
 

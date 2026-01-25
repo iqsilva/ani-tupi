@@ -8,8 +8,6 @@ from services.repository import rep
 from ui.components import loading, menu_navigate
 from services.anime.title_normalization import normalize_anime_title
 from services.anime.mappings import (
-    load_anilist_mapping,
-    save_anilist_mapping,
     load_anilist_search_title,
 )
 

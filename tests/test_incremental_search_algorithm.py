@@ -1,7 +1,7 @@
 """Unit tests for incremental_search_anime algorithm."""
 
 import pytest
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import Mock, patch
 from services.anime_service import incremental_search_anime, IncrementalSearchState
 
 
