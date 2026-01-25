@@ -1,42 +1,17 @@
-"""Integration tests for manga reading workflow.
+"""Integration tests for Mugiwaras manga workflow.
 
-Tests realistic user scenarios for searching, selecting, and reading manga.
+Tests realistic user scenarios using Mugiwaras API for Brazilian Portuguese manga.
 """
 
+import json
 import tempfile
 from pathlib import Path
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import Mock, patch
 
 import pytest
 
-
-@pytest.fixture
-def mock_mangadex_api():
-    """Mock MangaDex API responses."""
-    api = Mock()
-
-    # Mock search results
-    api.search_manga = Mock(return_value=[
-        {"id": "manga1", "title": "Dandadan", "status": "ongoing", "latest_chapter": "50"},
-        {"id": "manga2", "title": "Jujutsu Kaisen", "status": "completed", "latest_chapter": "271"},
-        {"id": "manga3", "title": "Blue Lock", "status": "ongoing", "latest_chapter": "240"},
-    ])
-
-    # Mock chapter list
-    api.get_chapters = Mock(return_value=[
-        {"id": "ch1", "chapter": "1", "title": "Beginning"},
-        {"id": "ch2", "chapter": "2", "title": "Development"},
-        {"id": "ch3", "chapter": "3", "title": "Climax"},
-    ])
-
-    # Mock chapter pages
-    api.get_chapter_pages = Mock(return_value=[
-        "https://example.com/page1.jpg",
-        "https://example.com/page2.jpg",
-        "https://example.com/page3.jpg",
-    ])
-
-    return api
+from manga_scrapers.plugins.mugiwaras import MugiwarasOficial
+from models.models import MangaMetadata, ChapterData, MangaStatus
 
 
 @pytest.fixture
@@ -47,181 +22,463 @@ def temp_manga_dir():
 
 
 @pytest.fixture
-def manga_service(mock_mangadex_api, temp_manga_dir):
-    """Create manga service mock with mocked API."""
-    service = Mock()
-    service.output_dir = temp_manga_dir
-    service.search = lambda q: mock_mangadex_api.search_manga(q)
-    service.get_chapters = lambda mid: mock_mangadex_api.get_chapters(mid)
-    service.get_chapter_pages = lambda cid: mock_mangadex_api.get_chapter_pages(cid)
-    service.mark_as_read = Mock()
-    service.get_reading_history = Mock(return_value={})
-    service.get_next_chapter = Mock(return_value="next")
-    service.download_chapter = Mock(return_value="/tmp/ch.pdf")
-    service.open_pdf = Mock(return_value=True)
-    service.can_sync_to_anilist = Mock(return_value=True)
-    service.sync_to_anilist = Mock(return_value=True)
-    service._is_downloaded = Mock(return_value=False)
-    service.get_chapter_path = Mock(return_value="/tmp/ch.pdf")
-    yield service
+def mugiwaras_scraper():
+    """Create Mugiwaras scraper instance."""
+    return MugiwarasOficial()
 
 
-class TestMangaSearchWorkflow:
-    """Test manga search and discovery workflow."""
-
-    def test_user_searches_for_manga(self, manga_service, mock_mangadex_api):
-        """User searches for manga by title."""
-        results = manga_service.search("Dandadan")
-
-        assert len(results) >= 1
-        assert any(r["title"] == "Dandadan" for r in results)
-        mock_mangadex_api.search_manga.assert_called_once()
-
-    def test_user_searches_partial_title(self, manga_service, mock_mangadex_api):
-        """User searches with partial title."""
-        manga_service.search("Danda")
-        mock_mangadex_api.search_manga.assert_called()
-
-    def test_search_returns_empty_for_nonexistent(self, manga_service, mock_mangadex_api):
-        """Search returns empty when manga doesn't exist."""
-        mock_mangadex_api.search_manga.return_value = []
-        results = manga_service.search("NonexistentManga2024")
-        assert results == []
-
-
-class TestMangaSelectionWorkflow:
-    """Test selecting manga and chapters."""
-
-    def test_user_selects_manga_from_search_results(self, manga_service, mock_mangadex_api):
-        """User selects specific manga from search results."""
-        search_results = manga_service.search("Dandadan")
-        selected_manga = search_results[0]
-
-        chapters = manga_service.get_chapters(selected_manga["id"])
-
-        assert len(chapters) == 3
-        assert chapters[0]["chapter"] == "1"
-        mock_mangadex_api.get_chapters.assert_called_once()
-
-    def test_chapters_sorted_correctly(self, manga_service, mock_mangadex_api):
-        """Chapters are returned in correct order."""
-        manga_service.get_chapters("manga1")
-        chapters = mock_mangadex_api.get_chapters.return_value
-
-        assert chapters[0]["chapter"] == "1"
-        assert chapters[-1]["chapter"] == "3"
-
-    def test_user_selects_specific_chapter(self, manga_service, mock_mangadex_api):
-        """User selects specific chapter to read."""
-        chapters = manga_service.get_chapters("manga1")
-        selected_chapter = chapters[1]  # Chapter 2
-
-        assert selected_chapter["chapter"] == "2"
-        assert selected_chapter["title"] == "Development"
+@pytest.fixture
+def mock_mugiwaras_search_response():
+    """Mock HTML response from Mugiwaras search."""
+    return """
+    <html>
+        <div class="row c-tabs-item__content">
+            <div class="post-title">
+                <a href="https://mugiwarasoficial.com/manga/dandadan/">Dandadan</a>
+            </div>
+            <span class="chapter">
+                <a>Capítulo 50</a>
+            </span>
+        </div>
+        <div class="row c-tabs-item__content">
+            <div class="post-title">
+                <a href="https://mugiwarasoficial.com/manga/jujutsu-kaisen/">Jujutsu Kaisen</a>
+            </div>
+            <span class="chapter">
+                <a>Capítulo 271</a>
+            </span>
+        </div>
+        <div class="row c-tabs-item__content">
+            <div class="post-title">
+                <a href="https://mugiwarasoficial.com/manga/blue-lock/">Blue Lock</a>
+            </div>
+            <span class="chapter">
+                <a>Capítulo 240</a>
+            </span>
+        </div>
+    </html>
+    """
 
 
-class TestMangaDownloadWorkflow:
-    """Test chapter download and PDF conversion."""
-
-    def test_download_chapter_creates_pdf(self, manga_service):
-        """Downloading a chapter triggers PDF creation."""
-        manga_id = "manga1"
-        chapter_number = "1"
-
-        pdf_path = manga_service.download_chapter(manga_id, chapter_number)
-        assert pdf_path is not None
-
-    def test_chapter_path_retrieval(self, manga_service):
-        """Can retrieve path to downloaded chapter."""
-        manga_id = "manga1"
-        chapter_number = "1"
-
-        result = manga_service.get_chapter_path(manga_id, chapter_number)
-        assert result is not None
-
-
-class TestMangaReadingHistoryWorkflow:
-    """Test reading history tracking and sync."""
-
-    def test_mark_chapter_as_read(self, manga_service):
-        """User reads chapter and history is updated."""
-        manga_id = "manga1"
-        chapter_number = "5"
-
-        manga_service.mark_as_read(manga_id, chapter_number)
-        history = manga_service.get_reading_history(manga_id)
-        assert history is not None
-
-    def test_suggest_next_chapter(self, manga_service):
-        """'Continue reading' suggests next unread chapter."""
-        manga_id = "manga1"
-        next_chapter = manga_service.get_next_chapter(manga_id)
-        assert next_chapter is not None
+@pytest.fixture
+def mock_mugiwaras_chapters_html():
+    """Mock HTML response from Mugiwaras chapter list."""
+    return """
+    <html>
+        <li class="wp-manga-chapter">
+            <a href="https://mugiwarasoficial.com/manga/dandadan/capitulo-50-dandadan/">
+                Capítulo 50 PT-BR
+            </a>
+        </li>
+        <li class="wp-manga-chapter">
+            <a href="https://mugiwarasoficial.com/manga/dandadan/capitulo-49-dandadan/">
+                Capítulo 49 - As Aventuras PT-BR
+            </a>
+        </li>
+        <li class="wp-manga-chapter">
+            <a href="https://mugiwarasoficial.com/manga/dandadan/capitulo-48-dandadan/">
+                Capítulo 48 PT-BR
+            </a>
+        </li>
+    </html>
+    """
 
 
-class TestMangaPDFReaderWorkflow:
-    """Test PDF reader integration."""
-
-    def test_pdf_opens_successfully(self, manga_service):
-        """PDF opens with configured reader."""
-        pdf_path = "/tmp/manga1_ch1.pdf"
-
-        result = manga_service.open_pdf(pdf_path)
-        assert result is True
-
-
-class TestMangaBatchDownloadWorkflow:
-    """Test downloading multiple chapters at once."""
-
-    def test_download_multiple_chapters(self, manga_service):
-        """User can download multiple chapters."""
-        manga_id = "manga1"
-        chapters = ["1", "2", "3", "4", "5"]
-
-        results = [manga_service.download_chapter(manga_id, ch) for ch in chapters]
-
-        assert len(results) == 5
+@pytest.fixture
+def mock_mugiwaras_pages_html():
+    """Mock HTML response from Mugiwaras chapter pages."""
+    return """
+    <html>
+        <img data-src="https://mugiwarasoficial.com/WP-manga/page1.webp" />
+        <img data-src="https://mugiwarasoficial.com/WP-manga/page2.webp" />
+        <img data-src="https://mugiwarasoficial.com/WP-manga/page3.webp" />
+        <img src="https://mugiwarasoficial.com/logo.png" />
+    </html>
+    """
 
 
-class TestMangaAniListIntegrationWorkflow:
-    """Test AniList sync for manga reading."""
+class TestMugiwarasSearchWorkflow:
+    """Test manga search with Mugiwaras API."""
 
-    def test_sync_progress_to_anilist(self, manga_service):
-        """Reading progress can sync to AniList."""
-        manga_id = "manga1"
-        chapter = "50"
+    def test_search_manga_returns_results(
+        self, mugiwaras_scraper, mock_mugiwaras_search_response
+    ):
+        """Search should parse Mugiwaras HTML and return manga results."""
+        with patch("requests.Session.get") as mock_get:
+            mock_response = Mock()
+            mock_response.text = mock_mugiwaras_search_response
+            mock_response.raise_for_status = Mock()
+            mock_get.return_value = mock_response
 
-        manga_service.mark_as_read(manga_id, chapter)
-        result = manga_service.sync_to_anilist(manga_id, chapter)
-        assert result is True
+            results = mugiwaras_scraper.search_manga("Dandadan")
 
-    def test_check_anilist_authentication(self, manga_service):
-        """Can check if AniList is authenticated."""
-        result = manga_service.can_sync_to_anilist()
-        assert result is not None
+            assert len(results) == 3
+            assert results[0]["title"] == "Dandadan"
+            assert results[0]["id"] == "dandadan"
+            assert results[1]["title"] == "Jujutsu Kaisen"
+            assert results[2]["title"] == "Blue Lock"
+
+    def test_search_manga_extracts_metadata(
+        self, mugiwaras_scraper, mock_mugiwaras_search_response
+    ):
+        """Search results should contain required metadata."""
+        with patch("requests.Session.get") as mock_get:
+            mock_response = Mock()
+            mock_response.text = mock_mugiwaras_search_response
+            mock_response.raise_for_status = Mock()
+            mock_get.return_value = mock_response
+
+            results = mugiwaras_scraper.search_manga("test")
+
+            for result in results:
+                assert "id" in result
+                assert "title" in result
+                assert "url" in result
+                assert "status" in result
+
+    def test_search_manga_handles_empty_results(
+        self, mugiwaras_scraper, mock_mugiwaras_search_response
+    ):
+        """Search should handle empty results gracefully."""
+        with patch("requests.Session.get") as mock_get:
+            mock_response = Mock()
+            mock_response.text = "<html></html>"
+            mock_response.raise_for_status = Mock()
+            mock_get.return_value = mock_response
+
+            results = mugiwaras_scraper.search_manga("NonexistentManga2025")
+
+            assert results == []
+
+    def test_search_manga_handles_network_error(self, mugiwaras_scraper):
+        """Search should handle network errors gracefully."""
+        with patch("requests.Session.get") as mock_get:
+            mock_get.side_effect = Exception("Network error")
+
+            results = mugiwaras_scraper.search_manga("test")
+
+            assert results == []
 
 
-class TestMangaCompleteWorkflow:
+class TestMugiwarasChapterSelectionWorkflow:
+    """Test chapter selection and fetching."""
+
+    def test_get_chapters_parses_list(
+        self, mugiwaras_scraper, mock_mugiwaras_chapters_html
+    ):
+        """get_chapters should parse chapter list from rendered HTML."""
+        with patch("manga_scrapers.plugins.mugiwaras.sync_playwright") as mock_pw:
+            mock_context = Mock()
+            mock_browser = Mock()
+            mock_page = Mock()
+            mock_page.content.return_value = mock_mugiwaras_chapters_html
+            mock_page.wait_for_selector = Mock()
+            mock_page.goto = Mock()
+
+            mock_browser.new_page.return_value = mock_page
+            mock_browser.close = Mock()
+
+            mock_context.chromium.launch.return_value = mock_browser
+            mock_pw.return_value.__enter__.return_value = mock_context
+
+            chapters = mugiwaras_scraper.get_chapters(
+                "dandadan", "https://mugiwarasoficial.com/manga/dandadan/"
+            )
+
+            assert len(chapters) == 3
+            assert chapters[0]["number"] == "50"
+            assert chapters[1]["number"] == "49"
+            assert chapters[2]["number"] == "48"
+
+    def test_get_chapters_sorts_descending(
+        self, mugiwaras_scraper, mock_mugiwaras_chapters_html
+    ):
+        """Chapters should be sorted by number descending (latest first)."""
+        with patch("manga_scrapers.plugins.mugiwaras.sync_playwright") as mock_pw:
+            mock_context = Mock()
+            mock_browser = Mock()
+            mock_page = Mock()
+            mock_page.content.return_value = mock_mugiwaras_chapters_html
+            mock_page.wait_for_selector = Mock()
+            mock_page.goto = Mock()
+
+            mock_browser.new_page.return_value = mock_page
+            mock_browser.close = Mock()
+
+            mock_context.chromium.launch.return_value = mock_browser
+            mock_pw.return_value.__enter__.return_value = mock_context
+
+            chapters = mugiwaras_scraper.get_chapters(
+                "dandadan", "https://mugiwarasoficial.com/manga/dandadan/"
+            )
+
+            chapter_numbers = [float(ch["number"]) for ch in chapters]
+            assert chapter_numbers == sorted(chapter_numbers, reverse=True)
+
+    def test_get_chapters_extracts_chapter_id(
+        self, mugiwaras_scraper, mock_mugiwaras_chapters_html
+    ):
+        """Chapters should have extracted IDs from URLs."""
+        with patch("manga_scrapers.plugins.mugiwaras.sync_playwright") as mock_pw:
+            mock_context = Mock()
+            mock_browser = Mock()
+            mock_page = Mock()
+            mock_page.content.return_value = mock_mugiwaras_chapters_html
+            mock_page.wait_for_selector = Mock()
+            mock_page.goto = Mock()
+
+            mock_browser.new_page.return_value = mock_page
+            mock_browser.close = Mock()
+
+            mock_context.chromium.launch.return_value = mock_browser
+            mock_pw.return_value.__enter__.return_value = mock_context
+
+            chapters = mugiwaras_scraper.get_chapters(
+                "dandadan", "https://mugiwarasoficial.com/manga/dandadan/"
+            )
+
+            for chapter in chapters:
+                assert "id" in chapter
+                assert chapter["id"] != ""
+
+    def test_get_chapters_handles_playwright_timeout(self, mugiwaras_scraper):
+        """get_chapters should handle Playwright timeouts gracefully."""
+        with patch("manga_scrapers.plugins.mugiwaras.sync_playwright") as mock_pw:
+            mock_context = Mock()
+            mock_browser = Mock()
+            mock_page = Mock()
+            mock_page.wait_for_selector.side_effect = TimeoutError()
+            mock_page.content.return_value = "<html></html>"
+            mock_page.goto = Mock()
+
+            mock_browser.new_page.return_value = mock_page
+            mock_browser.close = Mock()
+
+            mock_context.chromium.launch.return_value = mock_browser
+            mock_pw.return_value.__enter__.return_value = mock_context
+
+            chapters = mugiwaras_scraper.get_chapters(
+                "dandadan", "https://mugiwarasoficial.com/manga/dandadan/"
+            )
+
+            # Should return empty list instead of crashing
+            assert isinstance(chapters, list)
+
+
+class TestMugiwarasPageFetchingWorkflow:
+    """Test chapter page image fetching."""
+
+    def test_get_chapter_pages_extracts_images(
+        self, mugiwaras_scraper, mock_mugiwaras_pages_html
+    ):
+        """get_chapter_pages should extract image URLs from HTML."""
+        with patch("manga_scrapers.plugins.mugiwaras.sync_playwright") as mock_pw:
+            mock_context = Mock()
+            mock_browser = Mock()
+            mock_page = Mock()
+            mock_page.content.return_value = mock_mugiwaras_pages_html
+            mock_page.wait_for_selector = Mock()
+            mock_page.goto = Mock()
+            mock_page.query_selector = Mock(return_value=None)
+            mock_page.evaluate = Mock()
+
+            mock_browser.new_page.return_value = mock_page
+            mock_browser.close = Mock()
+
+            mock_context.chromium.launch.return_value = mock_browser
+            mock_pw.return_value.__enter__.return_value = mock_context
+
+            pages = mugiwaras_scraper.get_chapter_pages(
+                "capitulo-50-dandadan",
+                "https://mugiwarasoficial.com/manga/dandadan/capitulo-50-dandadan/",
+            )
+
+            assert len(pages) == 3
+            assert all("mugiwarasoficial.com" in url for url in pages)
+
+    def test_get_chapter_pages_filters_noise(
+        self, mugiwaras_scraper, mock_mugiwaras_pages_html
+    ):
+        """get_chapter_pages should filter out logos and non-manga images."""
+        with patch("manga_scrapers.plugins.mugiwaras.sync_playwright") as mock_pw:
+            mock_context = Mock()
+            mock_browser = Mock()
+            mock_page = Mock()
+            mock_page.content.return_value = mock_mugiwaras_pages_html
+            mock_page.wait_for_selector = Mock()
+            mock_page.goto = Mock()
+            mock_page.query_selector = Mock(return_value=None)
+            mock_page.evaluate = Mock()
+
+            mock_browser.new_page.return_value = mock_page
+            mock_browser.close = Mock()
+
+            mock_context.chromium.launch.return_value = mock_browser
+            mock_pw.return_value.__enter__.return_value = mock_context
+
+            pages = mugiwaras_scraper.get_chapter_pages(
+                "capitulo-50-dandadan",
+                "https://mugiwarasoficial.com/manga/dandadan/capitulo-50-dandadan/",
+            )
+
+            # Logo should be filtered out
+            assert not any("logo" in url for url in pages)
+
+    def test_get_chapter_pages_handles_age_verification(
+        self, mugiwaras_scraper, mock_mugiwaras_pages_html
+    ):
+        """get_chapter_pages should handle age verification modal."""
+        with patch("manga_scrapers.plugins.mugiwaras.sync_playwright") as mock_pw:
+            mock_context = Mock()
+            mock_browser = Mock()
+            mock_page = Mock()
+            mock_page.content.return_value = mock_mugiwaras_pages_html
+            mock_page.wait_for_selector = Mock()
+            mock_page.goto = Mock()
+            mock_page.query_selector = Mock(return_value=None)
+            mock_page.evaluate = Mock()
+
+            mock_browser.new_page.return_value = mock_page
+            mock_browser.close = Mock()
+
+            mock_context.chromium.launch.return_value = mock_browser
+            mock_pw.return_value.__enter__.return_value = mock_context
+
+            pages = mugiwaras_scraper.get_chapter_pages(
+                "capitulo-50-dandadan",
+                "https://mugiwarasoficial.com/manga/dandadan/capitulo-50-dandadan/",
+            )
+
+            # Should still return pages even if modal handling is attempted
+            assert isinstance(pages, list)
+
+    def test_get_chapter_pages_handles_playwright_error(self, mugiwaras_scraper):
+        """get_chapter_pages should handle Playwright errors gracefully."""
+        with patch("manga_scrapers.plugins.mugiwaras.sync_playwright") as mock_pw:
+            mock_pw.side_effect = Exception("Playwright error")
+
+            pages = mugiwaras_scraper.get_chapter_pages(
+                "capitulo-50", "https://example.com/chapter"
+            )
+
+            assert pages == []
+
+
+class TestMugiwarasCompleteWorkflow:
     """End-to-end realistic manga reading scenarios."""
 
-    def test_user_searches_and_selects_manga(self, manga_service, mock_mangadex_api):
-        """User searches for manga and selects from results."""
+    def test_user_searches_and_gets_chapters(
+        self, mugiwaras_scraper, mock_mugiwaras_search_response, mock_mugiwaras_chapters_html
+    ):
+        """User searches for manga and fetches chapter list."""
         # Step 1: Search
-        search_results = manga_service.search("Dandadan")
-        assert len(search_results) > 0
+        with patch("requests.Session.get") as mock_get:
+            mock_response = Mock()
+            mock_response.text = mock_mugiwaras_search_response
+            mock_response.raise_for_status = Mock()
+            mock_get.return_value = mock_response
 
-        # Step 2: Select manga
-        selected_manga = search_results[0]
-        chapters = manga_service.get_chapters(selected_manga["id"])
-        assert len(chapters) > 0
+            results = mugiwaras_scraper.search_manga("Dandadan")
+            assert len(results) > 0
 
-    def test_user_tracks_reading_progress(self, manga_service):
-        """User marks manga as read and tracks progress."""
-        manga_id = "manga1"
+            selected_manga = results[0]
+            assert selected_manga["title"] == "Dandadan"
 
-        # Mark chapter as read
-        manga_service.mark_as_read(manga_id, "15")
+            # Step 2: Get chapters
+            with patch("manga_scrapers.plugins.mugiwaras.sync_playwright") as mock_pw:
+                mock_context = Mock()
+                mock_browser = Mock()
+                mock_page = Mock()
+                mock_page.content.return_value = mock_mugiwaras_chapters_html
+                mock_page.wait_for_selector = Mock()
+                mock_page.goto = Mock()
 
-        # Check history was saved
-        history = manga_service.get_reading_history(manga_id)
-        assert history is not None
+                mock_browser.new_page.return_value = mock_page
+                mock_browser.close = Mock()
+
+                mock_context.chromium.launch.return_value = mock_browser
+                mock_pw.return_value.__enter__.return_value = mock_context
+
+                chapters = mugiwaras_scraper.get_chapters(
+                    selected_manga["id"], selected_manga["url"]
+                )
+                assert len(chapters) > 0
+                assert chapters[0]["number"] == "50"
+
+    def test_user_reads_chapter_flow(
+        self,
+        mugiwaras_scraper,
+        mock_mugiwaras_chapters_html,
+        mock_mugiwaras_pages_html,
+        temp_manga_dir,
+    ):
+        """Complete flow: get chapters and fetch pages."""
+        # Get chapters
+        with patch("manga_scrapers.plugins.mugiwaras.sync_playwright") as mock_pw:
+            mock_context = Mock()
+            mock_browser = Mock()
+            mock_page = Mock()
+            mock_page.content.return_value = mock_mugiwaras_chapters_html
+            mock_page.wait_for_selector = Mock()
+            mock_page.goto = Mock()
+            mock_page.query_selector = Mock(return_value=None)
+            mock_page.evaluate = Mock()
+
+            mock_browser.new_page.return_value = mock_page
+            mock_browser.close = Mock()
+
+            mock_context.chromium.launch.return_value = mock_browser
+            mock_pw.return_value.__enter__.return_value = mock_context
+
+            chapters = mugiwaras_scraper.get_chapters(
+                "dandadan", "https://mugiwarasoficial.com/manga/dandadan/"
+            )
+            assert len(chapters) == 3
+
+            # User selects chapter 50
+            selected_chapter = chapters[0]
+            assert selected_chapter["number"] == "50"
+
+            # Fetch pages for selected chapter
+            mock_page.content.return_value = mock_mugiwaras_pages_html
+            pages = mugiwaras_scraper.get_chapter_pages(
+                selected_chapter["id"], selected_chapter["url"]
+            )
+
+            assert len(pages) == 3
+            assert all(url.startswith("http") for url in pages)
+
+
+class TestMugiwarasPluginLoading:
+    """Test plugin loading functionality."""
+
+    def test_plugin_has_required_attributes(self, mugiwaras_scraper):
+        """Plugin should have required attributes."""
+        assert hasattr(mugiwaras_scraper, "name")
+        assert hasattr(mugiwaras_scraper, "languages")
+        assert mugiwaras_scraper.name == "mugiwaras"
+        assert "pt-br" in mugiwaras_scraper.languages
+
+    def test_plugin_has_required_methods(self, mugiwaras_scraper):
+        """Plugin should implement required methods."""
+        assert hasattr(mugiwaras_scraper, "search_manga")
+        assert hasattr(mugiwaras_scraper, "get_chapters")
+        assert hasattr(mugiwaras_scraper, "get_chapter_pages")
+        assert callable(mugiwaras_scraper.search_manga)
+        assert callable(mugiwaras_scraper.get_chapters)
+        assert callable(mugiwaras_scraper.get_chapter_pages)
+
+    def test_load_function_returns_plugin_for_pt_br(self):
+        """Plugin loader should return plugin for pt-br language."""
+        from manga_scrapers.plugins.mugiwaras import load
+
+        plugin = load({"pt-br"})
+        assert plugin is not None
+        assert isinstance(plugin, MugiwarasOficial)
+
+    def test_load_function_returns_none_for_other_languages(self):
+        """Plugin loader should return None for non-pt-br languages."""
+        from manga_scrapers.plugins.mugiwaras import load
+
+        plugin = load({"en", "ja"})
+        assert plugin is None
