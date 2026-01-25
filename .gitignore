@@ -46,9 +46,10 @@ build/
 *.spec
 *_cache
 
-# Markdown files (allow only README.md)
+# Markdown files (allow README.md and .planning/)
 *.md
 !README.md
+!.planning/**/*.md
 
 .opencode/
 .claude/
