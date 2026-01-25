@@ -46,11 +46,6 @@ def offer_sequel_and_continue(
     if not anilist_client.is_authenticated():
         return False
 
-    # Verify token is still valid by checking viewer info
-    if not anilist_client.get_viewer_info():
-        print("\n⚠️  Token do AniList expirou. Faça login novamente com: ani-tupi anilist auth")
-        return False
-
     # If we know the AniList episode count, check if series is actually complete
     # This prevents offering sequels when the current source has fewer episodes
     if anilist_episodes and current_episode:
@@ -116,6 +111,8 @@ def offer_sequel_and_continue(
                 return True
 
     return False
+
+
 def anilist_anime_flow(
     anime_title: str,
     anilist_id: int,
@@ -141,7 +138,6 @@ def anilist_anime_flow(
         display_title = anime_title
 
     # Get full anime info from AniList to access both English and Romaji titles
-    is_english_search = False  # Track if user chose English title for apostrophe handling
     anime_info = anilist_client.get_anime_by_id(anilist_id)
     if anime_info:
         english_title = anime_info.title.english
@@ -161,11 +157,8 @@ def anilist_anime_flow(
             # Set anime_title based on choice
             if language_choice.startswith("🇬🇧"):
                 anime_title = english_title
-                is_english_search = True
             else:
                 anime_title = romaji_title
-                is_english_search = False
-
 
     loader.load_plugins({"pt-br"})  # type: ignore
 
@@ -767,5 +760,3 @@ def anilist_anime_flow(
                 episode_idx = new_episode_idx
                 num_episodes = len(rep.get_episode_list(selected_anime))
                 # Continue loop with new anime/episode
-
-
