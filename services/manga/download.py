@@ -260,6 +260,11 @@ def _construct_chapter_url(
     Returns:
         Chapter URL or None if source doesn't need URL
     """
+    # First, try using the URL already stored in chapter data (from plugin)
+    if chapter.url:
+        return chapter.url
+
+    # Fall back to source-specific construction
     if source == "mugiwaras":
         # Mugiwaras uses format: /manga/{manga-slug}/capitulo-{number}-{manga-slug}/
         manga_slug = (
@@ -271,6 +276,11 @@ def _construct_chapter_url(
         return f"{manga_url}capitulo-{chapter.number}-{manga_slug}/"
     elif source == "mangadex":
         return f"https://mangadex.org/chapter/{chapter.id}"
+    elif source == "mangalivre":
+        # MangaLivre format: /capitulo/{manga-slug}-capitulo-{number}-{subtitle}/
+        # Since we don't have the exact slug/subtitle, return None and let the plugin handle it
+        # The URL should already be in chapter.url from the plugin
+        return None
 
     return None
 
