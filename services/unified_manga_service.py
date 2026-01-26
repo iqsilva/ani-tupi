@@ -294,13 +294,14 @@ class UnifiedMangaService:
         plugin = self.plugins[source_name]
 
         # Some plugins need the URL, others just the ID
-        if chapter_url is None:
+        if chapter_url is None or chapter_url == "":
             if source_name == "mangadex":
                 chapter_url = f"https://mangadex.org/chapter/{chapter_id}"
-            else:
-                chapter_url = ""
+            # For other sources like mangalivre, mugiwaras that need URL,
+            # pass empty string only if URL construction isn't available
+            # Let plugin handle empty URL gracefully
 
-        return plugin.get_chapter_pages(chapter_id, chapter_url)
+        return plugin.get_chapter_pages(chapter_id, chapter_url or "")
 
 
 # Keep backward compatibility with old MangaDexClient class

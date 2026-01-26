@@ -216,6 +216,70 @@ def _start_manga_search(service: UnifiedMangaService, title: str) -> None:
     _continue_manga_flow(service, selected_manga, allow_source_change=True)
 
 
+def _research_manga_in_new_source(
+    service: UnifiedMangaService, selected_manga, new_source: str
+) -> None:
+    """Re-search manga in new source to get correct ID.
+
+    When switching sources, the manga ID may be the same but we want to verify
+    it exists in the new source and get the correct manga object from that source.
+
+    This function searches for the manga in the new source and updates
+    selected_manga's metadata to ensure consistency.
+
+    Args:
+        service: UnifiedMangaService instance
+        selected_manga: The currently selected manga (will be updated in-place)
+        new_source: The new source to search in
+    """
+    try:
+        # First try to fetch with the current ID (IDs may be shared across sources)
+        try:
+            chapters = service.get_chapters(selected_manga.id, source=new_source)
+            if chapters:
+                # ID exists in this source, verify it's the right one
+                return
+        except Exception:
+            pass  # ID doesn't exist in this source, search instead
+
+        # Search for manga in new source
+        with loading(f"Buscando '{selected_manga.title}' em {new_source}..."):
+            results = service.search_manga(selected_manga.title, source=new_source)
+
+        if results:
+            # Try exact title match first
+            best_match = None
+
+            # Exact match on title
+            for result in results:
+                if result.title.lower() == selected_manga.title.lower():
+                    best_match = result
+                    break
+
+            # If no exact match, try matching the ID (since IDs can be shared)
+            if not best_match:
+                for result in results:
+                    if result.id == selected_manga.id:
+                        best_match = result
+                        break
+
+            # If still no match, take the one with most similar title
+            if not best_match:
+                # Prefer shorter titles (likely the main series, not spin-offs)
+                best_match = min(results, key=lambda x: len(x.title))
+
+            # Update the manga metadata to match new source
+            selected_manga.id = best_match.id
+            selected_manga.title = best_match.title
+            selected_manga.description = best_match.description
+            selected_manga.status = best_match.status
+            print(f"✓ Encontrado em {new_source}: {best_match.title}")
+        else:
+            print(f"⚠️  Manga não encontrado em {new_source}")
+    except Exception as e:
+        print(f"⚠️  Erro ao buscar em {new_source}: {e}")
+
+
 def _continue_manga_flow(
     service: UnifiedMangaService, selected_manga, allow_source_change: bool = True
 ) -> None:
@@ -249,16 +313,20 @@ def _continue_manga_flow(
                 # User selected "← Voltar"
                 return
             elif action and action.startswith("⭐ Usar fonte salva:"):
-                # Use saved source
+                # Use saved source - must re-search to get correct manga ID for this source
                 new_source = action.split(": ")[1]
                 if service.set_source(new_source):
                     selected_source = new_source
+                    # Re-search in new source to get correct manga ID
+                    _research_manga_in_new_source(service, selected_manga, new_source)
                     print(f"✓ Fonte alterada para: {new_source}")
             elif action and action.startswith("🔄 Trocar para:"):
-                # Change to selected source
+                # Change to selected source - must re-search to get correct manga ID for this source
                 new_source = action.split(": ")[1]
                 if service.set_source(new_source):
                     selected_source = new_source
+                    # Re-search in new source to get correct manga ID
+                    _research_manga_in_new_source(service, selected_manga, new_source)
                     # Save this preference
                     manga_source_preferences.set_preferred_source(selected_manga.title, new_source)
                     print(f"✓ Fonte alterada e salva: {new_source}")

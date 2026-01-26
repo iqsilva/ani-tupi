@@ -708,6 +708,19 @@ export ANI_TUPI__PLUGINS__PRIORITY_ORDER='["animesdigital", "animefire"]'
 uv run ani-tupi --query "dandadan"
 ```
 
+### MangaLivre Source Switching - FIXED ✓
+
+**Issue**: "Nenhuma página disponível para este capítulo" when switching manga sources to MangaLivre
+**Cause**: When changing sources, app was using manga ID from previous source. While IDs are shared between Mugiwaras and MangaLivre, selecting wrong result (e.g., "Jujutsu Kaisen Modulo" instead of "Jujutsu Kaisen") caused issues.
+**Solution**: App now re-validates/re-searches manga when switching sources to ensure correct manga version is used.
+
+**How it works**:
+- When you switch to a new source, the app verifies the manga exists in that source
+- If the ID works, uses it directly (IDs are shared across Mugiwaras/MangaLivre)
+- If not, searches for the manga in new source and prefers: exact title match → ID match → shortest title (main series vs spin-offs)
+
+This is automatic - no action needed from user.
+
 ## OpenSpec Integration
 
 The project uses OpenSpec for structured change documentation. Major features are documented in `openspec/changes/`:
