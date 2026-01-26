@@ -473,7 +473,7 @@ class TestMugiwarasPluginLoading:
         """Plugin loader should return plugin for pt-br language."""
         from manga_scrapers.plugins.mugiwaras import load
 
-        plugin = load(set("pt-br"))
+        plugin = load({"pt-br"})
         assert plugin is not None
         assert isinstance(plugin, MugiwarasOficial)
 
