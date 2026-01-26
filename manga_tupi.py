@@ -293,12 +293,24 @@ def _continue_manga_flow(
             # Check if user has a saved preference
             saved_source = manga_source_preferences.get_preferred_source(selected_manga.title)
 
-            # Build menu options
-            menu_options = [f"📖 Ler com {service.current_source}"]
-            if saved_source and saved_source != service.current_source:
-                menu_options.append(f"⭐ Usar fonte salva: {saved_source}")
+            # Get sources that actually have this manga (quick check)
+            print("🔍 Verificando disponibilidade em outras fontes...")
+            sources_with_manga = service.get_available_sources_for_manga(selected_manga.title)
 
-            for source in available_sources:
+            # Build menu options - only show sources that have the manga
+            menu_options = [f"📖 Ler com {service.current_source}"]
+
+            # Check if saved source has the manga
+            if saved_source and saved_source != service.current_source:
+                if saved_source in sources_with_manga:
+                    menu_options.append(f"⭐ Usar fonte salva: {saved_source}")
+                else:
+                    # Saved source doesn't have it anymore, forget it
+                    manga_source_preferences.remove_preference(selected_manga.title)
+                    saved_source = None
+
+            # Add other sources that have the manga
+            for source in sources_with_manga:
                 if source != service.current_source:
                     menu_options.append(f"🔄 Trocar para: {source}")
 
