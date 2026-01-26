@@ -476,20 +476,28 @@ def _continue_manga_flow(
                 continue
 
         if recommended_chapter:
-            print(f"✓ Capítulo {recommended_chapter_num} encontrado. Iniciando leitura...")
-            # Go directly to read now action
-            _handle_read_now(
-                service,
-                selected_manga,
-                recommended_chapter,
-                manga_url,
-                selected_source,
-                history,
-                chapters,
-                [ch.display_name() for ch in chapters],  # Create labels for navigation
-                chapters.index(recommended_chapter),
-            )
-            return  # Exit after reading
+            # Verify chapter has a URL before attempting to read
+            if not recommended_chapter.url:
+                print(
+                    f"⚠️  Capítulo {recommended_chapter_num} não disponível em {selected_source}."
+                )
+                print(f"   Capítulo não disponível nesta fonte. Mostrando lista completa...")
+                # Fall back to normal chapter selection (continue to menu below)
+            else:
+                print(f"✓ Capítulo {recommended_chapter_num} encontrado. Iniciando leitura...")
+                # Go directly to read now action
+                _handle_read_now(
+                    service,
+                    selected_manga,
+                    recommended_chapter,
+                    manga_url,
+                    selected_source,
+                    history,
+                    chapters,
+                    [ch.display_name() for ch in chapters],  # Create labels for navigation
+                    chapters.index(recommended_chapter),
+                )
+                return  # Exit after reading
 
         else:
             print(
@@ -727,7 +735,7 @@ def _download_single_chapter(
     try:
         print(f"\n[{chapter_idx}/{total_chapters}] Capítulo {chapter.number}...")
 
-        # Construct chapter URL
+        # Construct chapter URL based on source
         chapter_url = None
         if selected_source == "mugiwaras":
             # Mugiwaras uses format: /manga/{manga-slug}/capitulo-{number}-{manga-slug}/
@@ -737,6 +745,9 @@ def _download_single_chapter(
             chapter_url = f"{manga_url}capitulo-{chapter.number}-{manga_slug}/"
         elif selected_source == "mangadex":
             chapter_url = f"https://mangadex.org/chapter/{chapter.id}"
+        elif selected_source == "mangalivre":
+            # For MangaLivre, use URL provided by plugin
+            chapter_url = chapter.url
 
         if config.debug_download_failures:
             print(f"  🔍 Buscando páginas do capítulo {chapter.number}...")
@@ -1091,6 +1102,9 @@ def _process_chapter(
             chapter_url = f"{manga_url}capitulo-{selected_chapter.number}-{manga_slug}/"
         elif selected_source == "mangadex":
             chapter_url = f"https://mangadex.org/chapter/{selected_chapter.id}"
+        elif selected_source == "mangalivre":
+            # For MangaLivre, use URL provided by plugin
+            chapter_url = selected_chapter.url
 
         # Load chapter pages (only if PDF doesn't exist)
         try:

@@ -278,9 +278,18 @@ def _construct_chapter_url(
         return f"https://mangadex.org/chapter/{chapter.id}"
     elif source == "mangalivre":
         # MangaLivre format: /capitulo/{manga-slug}-capitulo-{number}-{subtitle}/
-        # Since we don't have the exact slug/subtitle, return None and let the plugin handle it
-        # The URL should already be in chapter.url from the plugin
-        return None
+        # The URL should already be in chapter.url from the plugin - use it if available
+        # Otherwise, try to construct it (though this may not work for all chapters)
+        if chapter.url:
+            return chapter.url
+        # Fallback construction if URL is missing
+        manga_slug = (
+            manga_metadata.title.lower()
+            .replace(" ", "-")
+            .replace(":", "")
+            .replace("?", "")
+        )
+        return f"{manga_url}capitulo/{manga_slug}-capitulo-{chapter.number}/"
 
     return None
 
