@@ -37,6 +37,9 @@ class UnifiedMangaService:
         self.metadata_file = get_data_path() / "manga_plugin_metadata.json"
         self._load_metadata()
 
+        # Track the last source where a manga was found (for search results)
+        self.last_found_source: str | None = None
+
     def _load_metadata(self) -> None:
         """Load manga plugin metadata from file.
 
@@ -178,9 +181,10 @@ class UnifiedMangaService:
             results = self._search_manga_from_source(query, source_name)
             # If we got results, return them
             if results:
-                # Record found manga in metadata
+                # Record found manga in metadata and source
                 for result in results:
                     self._record_manga_in_plugin(result.id, source_name)
+                self.last_found_source = source_name
                 return results
             # If no results and specific source requested, return empty (don't try others)
             if source is not None:
@@ -207,9 +211,10 @@ class UnifiedMangaService:
                 results = self._search_manga_from_source(query, try_source)
                 if results:
                     print(f"✓ Encontrados {len(results)} resultado(s) em {try_source}")
-                    # Record found manga in metadata
+                    # Record found manga in metadata and source
                     for result in results:
                         self._record_manga_in_plugin(result.id, try_source)
+                    self.last_found_source = try_source
                     return results
             except Exception:
                 continue
@@ -222,14 +227,16 @@ class UnifiedMangaService:
                     results = self._search_manga_from_source(query, plugin_name)
                     if results:
                         print(f"✓ Encontrados {len(results)} resultado(s) em {plugin_name}")
-                        # Record found manga in metadata
+                        # Record found manga in metadata and source
                         for result in results:
                             self._record_manga_in_plugin(result.id, plugin_name)
+                        self.last_found_source = plugin_name
                         return results
                 except Exception:
                     continue
 
         # No results in any source
+        self.last_found_source = None
         return []
 
     def _search_manga_from_source(self, query: str, source_name: str) -> list[MangaMetadata]:

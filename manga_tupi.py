@@ -284,7 +284,8 @@ def _continue_manga_flow(
     service: UnifiedMangaService, selected_manga, allow_source_change: bool = True
 ) -> None:
     """Continue with chapter selection and reading for selected manga."""
-    selected_source = service.current_source
+    # Use the source where manga was found, or fall back to current source
+    selected_source = service.last_found_source or service.current_source
 
     # Allow user to change source if requested
     if allow_source_change:
@@ -298,7 +299,7 @@ def _continue_manga_flow(
             sources_with_manga = service.get_available_sources_for_manga(selected_manga.title)
 
             # Build menu options - only show sources that have the manga
-            menu_options = [f"📖 Ler com {service.current_source}"]
+            menu_options = [f"📖 Ler com {selected_source}"]
 
             # Check if saved source has the manga
             if saved_source and saved_source != service.current_source:
@@ -316,7 +317,7 @@ def _continue_manga_flow(
 
             try:
                 action = menu_navigate(
-                    menu_options, f"{selected_manga.title} - Fonte: {service.current_source}"
+                    menu_options, f"{selected_manga.title} - Fonte: {selected_source}"
                 )
             except KeyboardInterrupt:
                 return
