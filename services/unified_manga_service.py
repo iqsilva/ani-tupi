@@ -244,6 +244,8 @@ class UnifiedMangaService:
                 manga_url = f"https://mangadex.org/title/{manga_id}"
             elif source_name == "mugiwaras":
                 manga_url = f"https://mugiwarasoficial.com/manga/{manga_id}/"
+            elif source_name == "mangalivre":
+                manga_url = f"https://mangalivre.blog/manga/{manga_id}/"
             else:
                 manga_url = ""
 
@@ -257,6 +259,7 @@ class UnifiedMangaService:
                     id=item["id"],
                     number=item["number"],
                     title=item.get("title"),
+                    url=item.get("url"),  # Store chapter URL from plugin if available
                     language=source_name,  # Use source as language for now
                     published_at=None,  # Not all sources provide this
                     scanlation_group=None,  # Not all sources provide this

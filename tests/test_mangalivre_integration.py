@@ -68,15 +68,23 @@ class TestMangaLivreIntegration:
 
         # Mock HTML with various chapter number formats
         html = """
-        <li class="wp-manga-chapter">
-            <a href="/manga/test/capitulo-10/">Capítulo 10 - Test</a>
+        <ul>
+        <li class="chapter-item">
+            <div class="chapter-info">
+                <a href="/capitulo/test-capitulo-10/">Capítulo 10 - Test</a>
+            </div>
         </li>
-        <li class="wp-manga-chapter">
-            <a href="/manga/test/capitulo-5/">Capítulo 5.5 - Test</a>
+        <li class="chapter-item">
+            <div class="chapter-info">
+                <a href="/capitulo/test-capitulo-5/">Capítulo 5.5 - Test</a>
+            </div>
         </li>
-        <li class="wp-manga-chapter">
-            <a href="/manga/test/capitulo-15/">Capítulo 15 - Test</a>
+        <li class="chapter-item">
+            <div class="chapter-info">
+                <a href="/capitulo/test-capitulo-15/">Capítulo 15 - Test</a>
+            </div>
         </li>
+        </ul>
         """
 
         with patch("manga_scrapers.plugins.mangalivre.sync_playwright") as mock_pw:
@@ -116,9 +124,9 @@ class TestMangaLivreIntegration:
         from unittest.mock import Mock, patch
 
         html = """
-        <img data-src="//mangalivre.blog/wp-manga/uploads/image1.jpg" />
-        <img data-src="/wp-manga/uploads/image2.jpg" />
-        <img data-src="https://mangalivre.blog/wp-manga/uploads/image3.jpg" />
+        <img src="https://mangalivre.blog/wp-content/uploads/2025/03/image1.jpg" />
+        <img src="https://mangalivre.blog/wp-content/uploads/2025/03/image2.jpg" />
+        <img src="https://mangalivre.blog/wp-content/uploads/2025/03/image3.jpg" />
         <img src="https://ads.example.com/ad.jpg" />
         """
 
@@ -222,12 +230,18 @@ class TestMangaLivreEdgeCases:
         scraper = MangaLivre()
 
         html = """
-        <li class="wp-manga-chapter">
-            <a href="/manga/test/capitulo-10-5/">Capítulo 10.5 - Extra</a>
+        <ul>
+        <li class="chapter-item">
+            <div class="chapter-info">
+                <a href="/capitulo/test-capitulo-10-5/">Capítulo 10.5 - Extra</a>
+            </div>
         </li>
-        <li class="wp-manga-chapter">
-            <a href="/manga/test/capitulo-10/">Capítulo 10 - Main</a>
+        <li class="chapter-item">
+            <div class="chapter-info">
+                <a href="/capitulo/test-capitulo-10/">Capítulo 10 - Main</a>
+            </div>
         </li>
+        </ul>
         """
 
         with patch("manga_scrapers.plugins.mangalivre.sync_playwright") as mock_pw:

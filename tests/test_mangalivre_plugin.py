@@ -22,20 +22,26 @@ def mock_mangalivre_search_response():
     """Mock HTML response from MangaLivre search."""
     return """
     <html>
-        <div class="manga-item">
-            <h3><a href="/manga/jujutsu-kaisen/">Jujutsu Kaisen</a></h3>
-            <p>Sinopse do manga Jujutsu Kaisen</p>
-            <span>Status: Ongoing</span>
+        <div class="manga-card">
+            <a href="/manga/jujutsu-kaisen/" class="manga-card-link">
+                <h3 class="manga-card-title">Jujutsu Kaisen</h3>
+                <p>Sinopse do manga Jujutsu Kaisen</p>
+                <span>Status: Ongoing</span>
+            </a>
         </div>
-        <div class="manga-item">
-            <h3><a href="/manga/dandadan/">Dandadan</a></h3>
-            <p>Sinopse do manga Dandadan</p>
-            <span>Status: Ongoing</span>
+        <div class="manga-card">
+            <a href="/manga/dandadan/" class="manga-card-link">
+                <h3 class="manga-card-title">Dandadan</h3>
+                <p>Sinopse do manga Dandadan</p>
+                <span>Status: Ongoing</span>
+            </a>
         </div>
-        <div class="manga-item">
-            <h3><a href="/manga/jujutsu-kaisen-0/">Jujutsu Kaisen 0</a></h3>
-            <p>Prequel to Jujutsu Kaisen</p>
-            <span>Status: Completed</span>
+        <div class="manga-card">
+            <a href="/manga/jujutsu-kaisen-0/" class="manga-card-link">
+                <h3 class="manga-card-title">Jujutsu Kaisen 0</h3>
+                <p>Prequel to Jujutsu Kaisen</p>
+                <span>Status: Completed</span>
+            </a>
         </div>
     </html>
     """
@@ -52,22 +58,32 @@ def mock_mangalivre_chapter_html():
     """Mock HTML for manga page with chapters."""
     return """
     <html>
-        <li class="wp-manga-chapter">
-            <a href="/manga/jujutsu-kaisen/capitulo-287/">Capítulo 287 - Novo Arc</a>
-            <span class="post-on">2024-01-26</span>
+        <ul>
+        <li class="chapter-item">
+            <div class="chapter-info">
+                <a href="/capitulo/jujutsu-kaisen-capitulo-287/">Capítulo 287 - Novo Arc</a>
+                <span class="post-on">2024-01-26</span>
+            </div>
         </li>
-        <li class="wp-manga-chapter">
-            <a href="/manga/jujutsu-kaisen/capitulo-286/">Capítulo 286 - Final Battle</a>
-            <span class="post-on">2024-01-19</span>
+        <li class="chapter-item">
+            <div class="chapter-info">
+                <a href="/capitulo/jujutsu-kaisen-capitulo-286/">Capítulo 286 - Final Battle</a>
+                <span class="post-on">2024-01-19</span>
+            </div>
         </li>
-        <li class="wp-manga-chapter">
-            <a href="/manga/jujutsu-kaisen/capitulo-285/">Capítulo 285 - The End?</a>
-            <span class="post-on">2024-01-12</span>
+        <li class="chapter-item">
+            <div class="chapter-info">
+                <a href="/capitulo/jujutsu-kaisen-capitulo-285/">Capítulo 285 - The End?</a>
+                <span class="post-on">2024-01-12</span>
+            </div>
         </li>
-        <li class="wp-manga-chapter">
-            <a href="/manga/jujutsu-kaisen/capitulo-1/">Capítulo 1 - Beginning</a>
-            <span class="post-on">2018-03-05</span>
+        <li class="chapter-item">
+            <div class="chapter-info">
+                <a href="/capitulo/jujutsu-kaisen-capitulo-1/">Capítulo 1 - Beginning</a>
+                <span class="post-on">2018-03-05</span>
+            </div>
         </li>
+        </ul>
     </html>
     """
 
@@ -77,14 +93,14 @@ def mock_mangalivre_chapter_pages_html():
     """Mock HTML for chapter page with images."""
     return """
     <html>
-        <img data-src="https://mangalivre.blog/wp-manga/uploads/1/0/1/jujutsu-kaisen/page-1.jpg" alt="Page 1" />
-        <img data-lazy-src="https://mangalivre.blog/wp-manga/uploads/1/0/1/jujutsu-kaisen/page-2.jpg" alt="Page 2" />
-        <img src="https://mangalivre.blog/wp-manga/uploads/1/0/1/jujutsu-kaisen/page-3.png" alt="Page 3" />
-        <img data-src="https://mangalivre.blog/static/logo.png" alt="Logo" />
-        <img data-src="https://ads.example.com/banner.webp" alt="Ad" />
-        <img data-src="https://mangalivre.blog/wp-manga/uploads/1/0/1/jujutsu-kaisen/page-4.webp" alt="Page 4" />
-        <img data-src="https://mangalivre.blog/images/sidebar.gif" alt="Sidebar" />
-        <img data-original="https://mangalivre.blog/manga/special/page-5.jpg" alt="Page 5" />
+        <img src="https://mangalivre.blog/wp-content/uploads/2025/03/1-3c8d29bda7da9b01107848eeff3fabf0f3ea042dce6f86e.jpg" alt="Page 1" />
+        <img src="https://mangalivre.blog/wp-content/uploads/2025/03/2-5fa08200d477376ff47b41498a7fe801b11ed43b79ea554.jpg" alt="Page 2" />
+        <img src="https://mangalivre.blog/wp-content/uploads/2025/03/3-1e896f18df2846cc7a247383836ff528daa2883db7102b7.png" alt="Page 3" />
+        <img src="https://mangalivre.blog/static/logo.png" alt="Logo" />
+        <img src="https://ads.example.com/banner.webp" alt="Ad" />
+        <img src="https://mangalivre.blog/wp-content/uploads/2025/03/4-example.webp" alt="Page 4" />
+        <img src="https://mangalivre.blog/images/sidebar.gif" alt="Sidebar" />
+        <img src="https://mangalivre.blog/wp-content/uploads/2025/03/5-example.jpg" alt="Page 5" />
     </html>
     """
 

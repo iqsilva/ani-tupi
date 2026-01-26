@@ -165,12 +165,13 @@ class MangaMetadata(BaseModel):
 
 
 class ChapterData(BaseModel):
-    """Chapter data from MangaDex.
+    """Chapter data from MangaDex or other manga sources.
 
     Attributes:
-        id: Chapter UUID
+        id: Chapter UUID or identifier
         number: Chapter number (supports decimals like "42.5")
         title: Optional chapter title
+        url: Optional chapter URL (for scraper plugins that provide it)
         language: Language code (pt-br, en, ja, etc.)
         published_at: Optional publication date
         scanlation_group: Optional scanlation group name
@@ -179,6 +180,7 @@ class ChapterData(BaseModel):
     id: str = Field(..., min_length=1, description="Chapter UUID")
     number: str = Field(..., min_length=1, description="Chapter number (e.g., '42', '42.5')")
     title: str | None = Field(None, description="Chapter title")
+    url: str | None = Field(None, description="Chapter URL (if provided by source)")
     language: str = Field(..., min_length=1, description="Language code (pt-br, en, ja)")
     published_at: datetime | None = Field(None, description="Publication date")
     scanlation_group: str | None = Field(None, description="Scanlation group name")

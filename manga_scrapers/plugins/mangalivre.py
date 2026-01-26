@@ -58,31 +58,36 @@ class MangaLivre:
 
             results = []
 
-            # Parse manga results from WordPress Madara theme
-            # Manga items are in divs with class "manga-item"
-            manga_items = tree.css("div.manga-item")
+            # Parse manga results from WordPress theme
+            # Search results use div.manga-card structure
+            manga_cards = tree.css("div.manga-card")
 
-            for item in manga_items:
+            for card in manga_cards:
                 try:
-                    # Extract title and URL from the link
-                    link = item.css_first("h3 a")
+                    # Extract link and title
+                    link = card.css_first("a.manga-card-link")
                     if not link:
                         continue
 
-                    title = link.text(strip=True)
                     url = link.attributes.get("href", "")
+                    if not url:
+                        continue
 
-                    if not title or not url:
+                    # Extract title from h3
+                    title_elem = card.css_first("h3.manga-card-title")
+                    title = title_elem.text(strip=True) if title_elem else ""
+
+                    if not title:
                         continue
 
                     # Extract description if available
-                    desc_elem = item.css_first("p")
+                    desc_elem = card.css_first("p")
                     description = (
                         desc_elem.text(strip=True) if desc_elem else None
                     )
 
                     # Extract status if available
-                    status_elem = item.css_first("span")
+                    status_elem = card.css_first("span")
                     status = (
                         status_elem.text(strip=True).lower()
                         if status_elem
@@ -159,8 +164,8 @@ class MangaLivre:
             tree = HTMLParser(html)
             chapters = []
 
-            # Extract chapter list - WordPress Madara theme uses li.wp-manga-chapter
-            chapter_items = tree.css("li.wp-manga-chapter")
+            # Extract chapter list - MangaLivre uses li.chapter-item
+            chapter_items = tree.css("li.chapter-item")
 
             for item in chapter_items:
                 try:
@@ -285,10 +290,8 @@ class MangaLivre:
                         continue
 
                 # Filter for manga page images
-                # MangaLivre uses /manga/ or /wp-manga/ path for manga pages
-                is_manga_page = (
-                    "/manga/" in img_url.lower() or "/wp-manga/" in img_url.lower()
-                )
+                # MangaLivre stores images in /wp-content/uploads/
+                is_manga_page = "/wp-content/uploads/" in img_url.lower()
 
                 # Skip logos, banners, ads, and other non-manga content
                 is_noise = any(
