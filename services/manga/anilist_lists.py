@@ -7,7 +7,7 @@ into a single parameterized function to eliminate code duplication.
 from typing import Callable
 
 from services.anilist_service import anilist_client
-from services.unified_manga_service import UnifiedMangaService
+from services.manga_service import UnifiedMangaService
 from ui.components import loading, menu_navigate
 
 

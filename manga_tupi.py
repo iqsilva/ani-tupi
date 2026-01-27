@@ -15,9 +15,9 @@ from services.manga_service import (
     MangaDexError,
     MangaHistory,
     MangaNotFoundError,
+    UnifiedMangaService,
 )
 from services.manga.anilist_lists import handle_anilist_list
-from services.unified_manga_service import UnifiedMangaService
 from ui.components import loading, menu_navigate
 from utils.image_viewers import find_image_viewer, open_image_viewer
 from utils.manga_reader import is_zathura_running, open_pdf_reader

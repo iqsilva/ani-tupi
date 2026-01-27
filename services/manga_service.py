@@ -1,21 +1,33 @@
-"""MangaDex API client and manga service layer.
+"""Unified manga service with multi-source support and utilities.
 
 Provides:
-- MangaDexClient: API client with error handling and caching
+- UnifiedMangaService: Multi-source manga service with plugin support
 - MangaCache: Simple in-memory cache with TTL
 - MangaHistory: Reading progress persistence
+- DownloadedChaptersTracker: Download tracking and metadata
+- MangaDexClient: Backward compatibility alias
 - Custom exceptions: MangaError, MangaNotFoundError, etc.
+
+This module consolidates both the legacy MangaDex-specific service
+and the new multi-source unified service into a single source of truth.
 """
 
 import json
 import time
 from datetime import datetime
+from pathlib import Path
 from typing import Any
 
 import requests
 
+from manga_scrapers.loader import load_manga_plugins
 from models.config import MangaSettings, get_data_path
 from models.models import ChapterData, MangaHistoryEntry, MangaMetadata, MangaStatus
+
+
+# ============================================================================
+# EXCEPTION CLASSES
+# ============================================================================
 
 
 class MangaError(Exception):
@@ -45,6 +57,11 @@ class ChapterNotAvailableError(MangaError):
     """Chapter not available in selected languages."""
 
     user_message = "Capítulo não disponível no idioma selecionado."
+
+
+# ============================================================================
+# UTILITY CLASSES
+# ============================================================================
 
 
 class MangaCache:
@@ -187,252 +204,6 @@ class MangaHistory:
         cls.save(history)
 
 
-class MangaDexClient:
-    """MangaDex API client with caching and error handling."""
-
-    def __init__(self, config: MangaSettings):
-        """Initialize MangaDex client.
-
-        Args:
-            config: Manga configuration settings
-        """
-        self.base_url = config.api_url
-        self.languages = config.languages
-        self.cache = MangaCache(config.cache_duration_hours)
-
-    def search_manga(self, query: str) -> list[MangaMetadata]:
-        """Search for manga by title.
-
-        Uses cache to avoid repeated API calls.
-
-        Args:
-            query: Search query (manga title)
-
-        Returns:
-            List of MangaMetadata objects
-
-        Raises:
-            MangaNotFoundError: If no results found
-            MangaDexError: If API call fails
-        """
-        cache_key = f"search:{query.lower()}"
-        cached = self.cache.get(cache_key)
-        if cached is not None:
-            return cached
-
-        try:
-            resp = requests.get(
-                f"{self.base_url}/manga",
-                params={"title": query, "limit": 100},
-                timeout=10,
-            )
-            resp.raise_for_status()
-            data = resp.json()
-        except requests.RequestException as e:
-            raise MangaDexError(f"Search failed: {e}")
-
-        if not data.get("data"):
-            raise MangaNotFoundError()
-
-        results = []
-        for item in data["data"]:
-            try:
-                attrs = item["attributes"]
-                manga = MangaMetadata(
-                    id=item["id"],
-                    title=self._get_title(attrs),
-                    description=attrs.get("description", {}).get("en"),
-                    status=MangaStatus(attrs.get("status", "ongoing")),
-                    year=attrs.get("year"),
-                    tags=[tag["attributes"]["name"]["en"] for tag in attrs.get("tags", [])],
-                )
-                results.append(manga)
-            except (KeyError, ValueError):
-                continue
-
-        if not results:
-            raise MangaNotFoundError()
-
-        self.cache.set(cache_key, results)
-        return results
-
-    def get_chapters(self, manga_id: str) -> list[ChapterData]:
-        """Fetch chapters for a manga.
-
-        Filters by configured languages and paginates.
-
-        Args:
-            manga_id: MangaDex manga ID
-
-        Returns:
-            List of ChapterData objects sorted by chapter number
-
-        Raises:
-            MangaDexError: If API call fails
-        """
-        cache_key = f"chapters:{manga_id}"
-        cached = self.cache.get(cache_key)
-        if cached is not None:
-            return cached
-
-        try:
-            chapters = []
-            offset = 0
-
-            while True:
-                resp = requests.get(
-                    f"{self.base_url}/manga/{manga_id}/feed",
-                    params={
-                        "limit": 500,
-                        "offset": offset,
-                        "translatedLanguage[]": self.languages,
-                        "order[chapter]": "asc",
-                        "includeEmptyPages": 0,
-                        "includeFuturePublishAt": 0,
-                    },
-                    timeout=10,
-                )
-                resp.raise_for_status()
-                data = resp.json()
-
-                if not data.get("data"):
-                    break
-
-                for item in data["data"]:
-                    try:
-                        attrs = item["attributes"]
-                        if attrs.get("chapter") is None:
-                            continue
-
-                        chapter = ChapterData(
-                            id=item["id"],
-                            number=str(attrs["chapter"]),
-                            title=attrs.get("title"),
-                            language=attrs.get("translatedLanguage", "unknown"),
-                            published_at=attrs.get("publishAt"),
-                            scanlation_group=self._get_group_name(item),
-                        )
-                        chapters.append(chapter)
-                    except (KeyError, ValueError):
-                        continue
-
-                offset += 500
-                if len(data["data"]) < 500:
-                    break
-
-            # Sort by chapter number
-            chapters.sort(
-                key=lambda c: float(c.number),
-                reverse=True,
-            )
-
-            self.cache.set(cache_key, chapters)
-            return chapters
-
-        except requests.RequestException as e:
-            raise MangaDexError(f"Failed to fetch chapters: {e}")
-
-    def get_chapter_pages(self, chapter_id: str) -> list[str]:
-        """Fetch image URLs for a chapter.
-
-        Does not cache (changes frequently).
-
-        Args:
-            chapter_id: MangaDex chapter ID
-
-        Returns:
-            List of image URLs
-
-        Raises:
-            MangaDexError: If API call fails
-        """
-        try:
-            resp = requests.get(
-                f"{self.base_url}/at-home/server/{chapter_id}",
-                timeout=10,
-            )
-            resp.raise_for_status()
-            data = resp.json()
-
-            base_url = data["baseUrl"]
-            hash_code = data["chapter"]["hash"]
-            files = data["chapter"]["data"]
-
-            return [f"{base_url}/data/{hash_code}/{filename}" for filename in files]
-
-        except requests.RequestException as e:
-            raise MangaDexError(f"Failed to fetch chapter pages: {e}")
-
-    @staticmethod
-    def _get_title(attrs: dict[str, Any]) -> str:
-        """Extract manga title from attributes.
-
-        Tries English first for scraper compatibility, then fallbacks.
-
-        Args:
-            attrs: Manga attributes from API
-
-        Returns:
-            Manga title in English (preferred for scrapers)
-        """
-        # Try English in title first (for scraper compatibility)
-        title = attrs.get("title", {})
-        if isinstance(title, dict):
-            if "en" in title:
-                return title["en"]
-
-        # Try English in alt titles
-        alt_titles = attrs.get("altTitles", [])
-        if isinstance(alt_titles, list):
-            for alt_title in alt_titles:
-                if isinstance(alt_title, dict):
-                    if "en" in alt_title:
-                        return alt_title["en"]
-
-        # Try Romanized Japanese (ja-ro) - common for Japanese manga
-        if isinstance(title, dict):
-            if "ja-ro" in title:
-                return title["ja-ro"]
-
-        # Try Japanese in title
-        if isinstance(title, dict):
-            if "ja" in title:
-                return title["ja"]
-
-        # Try Portuguese (for display purposes only)
-        alt_titles = attrs.get("altTitles", [])
-        if isinstance(alt_titles, list):
-            for alt_title in alt_titles:
-                if isinstance(alt_title, dict):
-                    if "pt-br" in alt_title:
-                        return alt_title["pt-br"]
-
-        # Fallback to first available language in title
-        if isinstance(title, dict):
-            return next(iter(title.values()))
-
-        return "Unknown"
-
-    @staticmethod
-    def _get_group_name(chapter_item: dict[str, Any]) -> str | None:
-        """Extract scanlation group name from chapter.
-
-        Args:
-            chapter_item: Chapter item from API
-
-        Returns:
-            Group name or None if not available
-        """
-        relationships = chapter_item.get("relationships", [])
-        for rel in relationships:
-            if rel.get("type") == "scanlation_group":
-                try:
-                    return rel["attributes"]["name"]
-                except KeyError:
-                    pass
-        return None
-
-
 class DownloadedChaptersTracker:
     """Tracks and persists downloaded chapters across the application.
 
@@ -568,7 +339,7 @@ class DownloadedChaptersTracker:
 
     @classmethod
     def cleanup_download(cls, manga_id: str, chapter_number: str) -> None:
-        """Remove a chapter from the download tracker (and optionally delete file).
+        """Remove a chapter from the download tracker.
 
         Args:
             manga_id: Manga ID
@@ -581,3 +352,477 @@ class DownloadedChaptersTracker:
             if chapter_number in downloaded:
                 del downloaded[chapter_number]
                 cls._save_raw(data)
+
+
+# ============================================================================
+# SERVICE CLASSES
+# ============================================================================
+
+
+class UnifiedMangaService:
+    """Unified manga service supporting multiple sources.
+
+    Orchestrates multiple manga scraper plugins and provides a clean interface
+    for the manga CLI.
+    """
+
+    def __init__(self, config: MangaSettings):
+        """Initialize service with config and load plugins.
+
+        Args:
+            config: Manga configuration settings
+        """
+        self.config = config
+        self.languages = set(config.languages)
+
+        # Load all available manga scraper plugins
+        self.plugins = load_manga_plugins(self.languages)
+
+        if not self.plugins:
+            raise RuntimeError("Nenhum plugin de mangá disponível")
+
+        # Default source (prioritize MugiwarasOficial for Brazilian Portuguese, MangaDex as fallback)
+        self.current_source = self._determine_default_source()
+
+        # Path to manga plugin metadata
+        self.metadata_file = get_data_path() / "manga_plugin_metadata.json"
+        self._load_metadata()
+
+        # Track the last source where a manga was found (for search results)
+        self.last_found_source: str | None = None
+
+    def _load_metadata(self) -> None:
+        """Load manga plugin metadata from file.
+
+        Metadata maps manga_id to which plugin has it (e.g., {"manga-id": "mugiwaras"})
+        This allows us to remember which plugin a manga was found in.
+        """
+        self.manga_plugin_map: dict[str, str] = {}
+        if self.metadata_file.exists():
+            try:
+                with open(self.metadata_file) as f:
+                    self.manga_plugin_map = json.load(f)
+            except Exception:
+                self.manga_plugin_map = {}
+
+    def _save_metadata(self) -> None:
+        """Save manga plugin metadata to file."""
+        try:
+            self.metadata_file.parent.mkdir(parents=True, exist_ok=True)
+            with open(self.metadata_file, "w") as f:
+                json.dump(self.manga_plugin_map, f, indent=2)
+        except Exception:
+            pass  # Silently ignore save errors
+
+    def _record_manga_in_plugin(self, manga_id: str, plugin_name: str) -> None:
+        """Record which plugin a manga was found in.
+
+        Args:
+            manga_id: The manga ID
+            plugin_name: The plugin name that has this manga
+        """
+        self.manga_plugin_map[manga_id] = plugin_name
+        self._save_metadata()
+
+    def _get_known_plugin_for_manga(self, manga_id: str) -> str | None:
+        """Get the plugin where a manga was previously found.
+
+        Args:
+            manga_id: The manga ID
+
+        Returns:
+            Plugin name or None if not found in metadata
+        """
+        return self.manga_plugin_map.get(manga_id)
+
+    def _determine_default_source(self) -> str:
+        """Determine the default manga source based on availability and preferences.
+
+        Uses configured preferred sources, prioritizing MugiwarasOficial for Brazilian
+        Portuguese users, with MangaDex as fallback.
+
+        Returns:
+            The chosen source name
+        """
+        # Use configured preferred sources
+        source_priority = self.config.preferred_sources
+
+        # Try sources in priority order
+        for source in source_priority:
+            if source in self.plugins:
+                return source
+
+        # Fallback to any available source
+        available_sources = list(self.plugins.keys())
+        if available_sources:
+            return available_sources[0]
+
+        # This should not happen due to the check in __init__
+        raise RuntimeError("Nenhum plugin de mangá disponível")
+
+    def _get_fallback_source(self, failed_source: str) -> str | None:
+        """Get a fallback source when the current source fails.
+
+        Args:
+            failed_source: The source that just failed
+
+        Returns:
+            Fallback source name or None if no fallback available
+        """
+        # Use configured preferred sources for fallback logic
+        preferred_sources = self.config.preferred_sources
+
+        # Try other preferred sources first
+        for source in preferred_sources:
+            if source != failed_source and source in self.plugins:
+                return source
+
+        # Try any other available source
+        for source in self.plugins:
+            if source != failed_source:
+                return source
+
+        return None
+
+    def get_available_sources(self) -> list[str]:
+        """Get list of available manga sources.
+
+        Returns:
+            List of source names
+        """
+        return list(self.plugins.keys())
+
+    def set_source(self, source: str) -> bool:
+        """Set the current manga source.
+
+        Args:
+            source: Source name (e.g., "mugiwaras", "mangadex")
+
+        Returns:
+            True if source was set, False if source not found
+        """
+        if source in self.plugins:
+            self.current_source = source
+            return True
+        return False
+
+    def search_manga(self, query: str, source: str | None = None) -> list[MangaMetadata]:
+        """Search for manga by title across all available sources.
+
+        First tries the specified source, then falls back to searching all plugins
+        if the primary search returns no results and no specific source was requested.
+
+        Args:
+            query: Search query string
+            source: Optional specific source to use (default: current_source)
+
+        Returns:
+            List of MangaMetadata objects
+
+        Raises:
+            ValueError: If specified source is not available
+        """
+        source_name = source or self.current_source
+
+        if source_name not in self.plugins:
+            raise ValueError(f"Fonte '{source_name}' não disponível")
+
+        # Try primary source
+        try:
+            results = self._search_manga_from_source(query, source_name)
+            # If we got results, return them
+            if results:
+                # Record found manga in metadata and source
+                for result in results:
+                    self._record_manga_in_plugin(result.id, source_name)
+                self.last_found_source = source_name
+                return results
+            # If no results and specific source requested, return empty (don't try others)
+            if source is not None:
+                return []
+            # Otherwise, fall through to try other sources
+        except Exception as e:
+            # If specific source requested, don't try others
+            if source is not None:
+                raise ValueError(f"Falha ao buscar em {source_name}: {e}")
+            # Fall through to try other sources
+            print(f"⚠️  Falha na fonte {source_name}: {e}")
+
+        # Try fallback sources if no results or error
+        print("🔄 Tentando outras fontes...")
+
+        all_sources = [s for s in self.config.preferred_sources if s in self.plugins]
+        if source_name in all_sources:
+            all_sources.remove(source_name)
+
+        # Try each source in order
+        for try_source in all_sources:
+            try:
+                print(f"  Tentando {try_source}...")
+                results = self._search_manga_from_source(query, try_source)
+                if results:
+                    print(f"✓ Encontrados {len(results)} resultado(s) em {try_source}")
+                    # Record found manga in metadata and source
+                    for result in results:
+                        self._record_manga_in_plugin(result.id, try_source)
+                    self.last_found_source = try_source
+                    return results
+            except Exception:
+                continue
+
+        # If still no results, try any remaining sources not in preferred list
+        for plugin_name in self.plugins:
+            if plugin_name not in all_sources and plugin_name != source_name:
+                try:
+                    print(f"  Tentando {plugin_name}...")
+                    results = self._search_manga_from_source(query, plugin_name)
+                    if results:
+                        print(f"✓ Encontrados {len(results)} resultado(s) em {plugin_name}")
+                        # Record found manga in metadata and source
+                        for result in results:
+                            self._record_manga_in_plugin(result.id, plugin_name)
+                        self.last_found_source = plugin_name
+                        return results
+                except Exception:
+                    continue
+
+        # No results in any source
+        self.last_found_source = None
+        return []
+
+    def _search_manga_from_source(self, query: str, source_name: str) -> list[MangaMetadata]:
+        """Search for manga from a specific source.
+
+        Args:
+            query: Search query string
+            source_name: Source name to search
+
+        Returns:
+            List of MangaMetadata objects
+        """
+        plugin = self.plugins[source_name]
+        raw_results = plugin.search_manga(query)
+
+        # Convert plugin results to MangaMetadata objects
+        results = []
+        for item in raw_results:
+            try:
+                # Normalize status
+                status_str = item.get("status", "ongoing").lower()
+                if status_str == "ongoing":
+                    status = MangaStatus.ONGOING
+                elif status_str == "completed":
+                    status = MangaStatus.COMPLETED
+                elif status_str == "hiatus":
+                    status = MangaStatus.HIATUS
+                elif status_str == "cancelled":
+                    status = MangaStatus.CANCELLED
+                else:
+                    status = MangaStatus.ONGOING  # Default
+
+                manga = MangaMetadata(
+                    id=item["id"],
+                    title=item["title"],
+                    description=item.get("description"),
+                    status=status,
+                    year=item.get("year"),
+                    tags=item.get("tags", []),
+                )
+                results.append(manga)
+            except (KeyError, ValueError):
+                continue
+
+        return results
+
+    def get_chapters(
+        self, manga_id: str, manga_url: str | None = None, source: str | None = None
+    ) -> list[ChapterData]:
+        """Fetch chapters for a manga.
+
+        First tries the specified source or last-known source from metadata,
+        then falls back to current_source and other sources if needed.
+
+        Args:
+            manga_id: Manga ID
+            manga_url: Optional manga URL (required for some scrapers)
+            source: Optional specific source to use (default: current_source)
+
+        Returns:
+            List of ChapterData objects
+
+        Raises:
+            ValueError: If specified source is not available
+        """
+        source_name = source or self.current_source
+
+        if source_name not in self.plugins:
+            raise ValueError(f"Fonte '{source_name}' não disponível")
+
+        # Try primary source
+        try:
+            return self._get_chapters_from_source(manga_id, manga_url, source_name)
+        except Exception as e:
+            # If specific source requested, don't try others
+            if source is not None:
+                raise ValueError(f"Falha ao buscar capítulos em {source_name}: {e}")
+
+            # Try known plugin for this manga from metadata
+            known_source = self._get_known_plugin_for_manga(manga_id)
+            if known_source and known_source != source_name:
+                try:
+                    print(
+                        f"⚠️  Falha em {source_name}, tentando fonte conhecida {known_source}..."
+                    )
+                    return self._get_chapters_from_source(manga_id, manga_url, known_source)
+                except Exception:
+                    pass
+
+            # Try other fallback sources
+            fallback_source = self._get_fallback_source(source_name)
+            if fallback_source:
+                print(f"⚠️  Tentando fallback {fallback_source}...")
+                try:
+                    return self._get_chapters_from_source(manga_id, None, fallback_source)
+                except Exception as fallback_error:
+                    print(f"⚠️  Falha no fallback {fallback_source}: {fallback_error}")
+
+            # Re-raise the original error
+            raise e
+
+    def _get_chapters_from_source(
+        self, manga_id: str, manga_url: str | None, source_name: str
+    ) -> list[ChapterData]:
+        """Get chapters from a specific source.
+
+        Args:
+            manga_id: Manga ID
+            manga_url: Optional manga URL
+            source_name: Source name
+
+        Returns:
+            List of ChapterData objects
+        """
+        plugin = self.plugins[source_name]
+
+        # Some plugins need the URL, others just the ID
+        if manga_url is None:
+            # Try to construct URL based on source
+            if source_name == "mangadex":
+                manga_url = f"https://mangadex.org/title/{manga_id}"
+            elif source_name == "mugiwaras":
+                manga_url = f"https://mugiwarasoficial.com/manga/{manga_id}/"
+            elif source_name == "mangalivre":
+                manga_url = f"https://mangalivre.blog/manga/{manga_id}/"
+            else:
+                manga_url = ""
+
+        raw_chapters = plugin.get_chapters(manga_id, manga_url)
+
+        # Convert plugin results to ChapterData objects
+        chapters = []
+        for item in raw_chapters:
+            try:
+                chapter = ChapterData(
+                    id=item["id"],
+                    number=item["number"],
+                    title=item.get("title"),
+                    url=item.get("url"),  # Store chapter URL from plugin if available
+                    language=source_name,  # Use source as language for now
+                    published_at=None,  # Not all sources provide this
+                    scanlation_group=None,  # Not all sources provide this
+                )
+                chapters.append(chapter)
+            except (KeyError, ValueError):
+                continue
+
+        return chapters
+
+    def get_chapter_pages(
+        self, chapter_id: str, chapter_url: str | None = None, source: str | None = None
+    ) -> list[str]:
+        """Fetch image URLs for a chapter.
+
+        Args:
+            chapter_id: Chapter ID
+            chapter_url: Optional chapter URL (required for some scrapers)
+            source: Optional specific source to use (default: current_source)
+
+        Returns:
+            List of image URLs
+
+        Raises:
+            ValueError: If specified source is not available
+        """
+        source_name = source or self.current_source
+
+        if source_name not in self.plugins:
+            raise ValueError(f"Fonte '{source_name}' não disponível")
+
+        plugin = self.plugins[source_name]
+
+        # Some plugins need the URL, others just the ID
+        if chapter_url is None or chapter_url == "":
+            if source_name == "mangadex":
+                chapter_url = f"https://mangadex.org/chapter/{chapter_id}"
+            # For other sources like mangalivre, mugiwaras that need URL,
+            # pass empty string only if URL construction isn't available
+            # Let plugin handle empty URL gracefully
+
+        return plugin.get_chapter_pages(chapter_id, chapter_url or "")
+
+    def check_manga_available(self, manga_title: str, source: str | None = None) -> bool:
+        """Quick check if a manga is available in a source.
+
+        Tries to search for the manga and see if it exists.
+
+        Args:
+            manga_title: Manga title to search
+            source: Source to check (default: current_source)
+
+        Returns:
+            True if manga found, False otherwise
+        """
+        source_name = source or self.current_source
+
+        if source_name not in self.plugins:
+            return False
+
+        try:
+            results = self._search_manga_from_source(manga_title, source_name)
+            return len(results) > 0
+        except Exception:
+            return False
+
+    def get_available_sources_for_manga(self, manga_title: str) -> list[str]:
+        """Get list of sources that have a specific manga.
+
+        Args:
+            manga_title: Manga title to search
+
+        Returns:
+            List of source names that have this manga
+        """
+        available = []
+        for source in self.plugins:
+            if self.check_manga_available(manga_title, source):
+                available.append(source)
+        return available
+
+
+# ============================================================================
+# BACKWARD COMPATIBILITY
+# ============================================================================
+
+
+class MangaDexClient(UnifiedMangaService):
+    """Legacy MangaDex client for backward compatibility.
+
+    Use UnifiedMangaService instead for new code.
+    """
+
+    def __init__(self, config: MangaSettings):
+        """Initialize with MangaDex as default source."""
+        super().__init__(config)
+        # Force MangaDex as default for backward compatibility
+        if "mangadex" in self.plugins:
+            self.current_source = "mangadex"
