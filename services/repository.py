@@ -543,6 +543,34 @@ class Repository:
         episode_list = sorted(episodes, key=lambda title_list: len(title_list))[-1]
         return episode_list
 
+    def save_episode_state(self, anime: str) -> dict:
+        """Save the current episode state for an anime.
+
+        Used by source switching to preserve episode data across searches.
+
+        Args:
+            anime: Anime title
+
+        Returns:
+            Dict with keys 'urls' and 'titles' containing episode data
+        """
+        return {
+            "urls": list(self.anime_episodes_urls[anime]),
+            "titles": list(self.anime_episodes_titles[anime]),
+        }
+
+    def restore_episode_state(self, anime: str, state: dict) -> None:
+        """Restore previously saved episode state for an anime.
+
+        Used by source switching to restore episode data after search.
+
+        Args:
+            anime: Anime title
+            state: Dict with 'urls' and 'titles' keys
+        """
+        self.anime_episodes_urls[anime] = state["urls"]
+        self.anime_episodes_titles[anime] = state["titles"]
+
     def load_from_cache(self, anime: str, cache_data) -> None:
         """Populate repository from cached data.
 

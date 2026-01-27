@@ -33,10 +33,7 @@ def switch_anime_source(
     saved_episode_data = None
     if current_anime in rep.anime_episodes_urls:
         # Store shallow copies of the data structures for restoration
-        saved_episode_data = {
-            "urls": list(rep.anime_episodes_urls[current_anime]),
-            "titles": list(rep.anime_episodes_titles[current_anime]),
-        }
+        saved_episode_data = rep.save_episode_state(current_anime)
 
     # 1. Use saved search title from AniList if available (same title as original search)
     # Otherwise fall back to display_title or current_anime
@@ -86,8 +83,7 @@ def switch_anime_source(
             if not selected_anime_with_source:
                 # User cancelled
                 if saved_episode_data:
-                    rep.anime_episodes_urls[current_anime] = saved_episode_data["urls"]
-                    rep.anime_episodes_titles[current_anime] = saved_episode_data["titles"]
+                    rep.restore_episode_state(current_anime, saved_episode_data)
                 return None, None
 
             # Check if user wants to continue searching
@@ -105,8 +101,7 @@ def switch_anime_source(
     if not selected_anime:
         # RESTORE: Return episode data so user can continue watching current source
         if saved_episode_data:
-            rep.anime_episodes_urls[current_anime] = saved_episode_data["urls"]
-            rep.anime_episodes_titles[current_anime] = saved_episode_data["titles"]
+            rep.restore_episode_state(current_anime, saved_episode_data)
             print("⚠️  Nenhuma variação encontrada")
             print("   💡 Mantendo fonte atual...")
         else:
