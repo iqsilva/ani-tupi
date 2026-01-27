@@ -40,7 +40,9 @@ def set_autoplay_state(enabled: bool) -> None:
 
 
 def _format_episode_progress(
-    episode_num: int, scraper_total: int | None | str = None, anilist_total: int | None = None
+    episode_num: int,
+    scraper_total: int | None | str = None,
+    anilist_total: int | None = None,
 ) -> str:
     """Format episode progress with scraper and AniList episode counts.
 
@@ -114,6 +116,7 @@ def play_video(url: str, debug=False, ytdl_format: str | None = None) -> int:
         # Start playback (blocking)
         player.play(url)
         player.wait_for_playback()
+        # TODO: how to track when a video did not play vs the video was played until the end
 
         return 0  # Normal playback completion
 
@@ -219,7 +222,11 @@ shift+t script-message toggle-sub-dub
 
     # Create temp file with cleanup on exit
     with tempfile.NamedTemporaryFile(
-        mode="w", suffix=".conf", prefix="ani-tupi-input-", delete=False, encoding="utf-8"
+        mode="w",
+        suffix=".conf",
+        prefix="ani-tupi-input-",
+        delete=False,
+        encoding="utf-8",
     ) as f:
         f.write(input_conf_content)
         temp_path = f.name
@@ -244,7 +251,9 @@ def _handle_keybinding_action(
         case "mark-next":
             # Mark current episode as watched, move to next
             return VideoPlaybackResult(
-                exit_code=0, action="next", data={"episode": context.get("episode_number", 0) + 1}
+                exit_code=0,
+                action="next",
+                data={"episode": context.get("episode_number", 0) + 1},
             )
 
         case "previous":
@@ -258,13 +267,17 @@ def _handle_keybinding_action(
         case "mark-menu":
             # Mark current as watched, show menu
             return VideoPlaybackResult(
-                exit_code=0, action="mark-menu", data={"episode": context.get("episode_number", 0)}
+                exit_code=0,
+                action="mark-menu",
+                data={"episode": context.get("episode_number", 0)},
             )
 
         case "reload-episode":
             # Retry current episode
             return VideoPlaybackResult(
-                exit_code=0, action="reload", data={"episode": context.get("episode_number", 0)}
+                exit_code=0,
+                action="reload",
+                data={"episode": context.get("episode_number", 0)},
             )
 
         case "toggle-autoplay":
@@ -467,11 +480,15 @@ def _ipc_event_loop(
 
                                 # Handle navigation actions that load new episodes
                                 if action == "mark-next":
-                                    from services.history_service import save_history_from_event
+                                    from services.history_service import (
+                                        save_history_from_event,
+                                    )
                                     from services.repository import rep
 
                                     anime_title = episode_context.get("anime_title")
-                                    episode_number = episode_context.get("episode_number", 1)
+                                    episode_number = episode_context.get(
+                                        "episode_number", 1
+                                    )
                                     source = episode_context.get("source")
                                     anilist_id = episode_context.get("anilist_id")
 
@@ -491,10 +508,16 @@ def _ipc_event_loop(
                                     # Search for player URL for next episode (this handles racing scrapers)
                                     next_episode_number = episode_number + 1
                                     # Show OSD message that we are searching
-                                    scraper_total = episode_context.get("total_episodes")
-                                    anilist_total = episode_context.get("anilist_episodes")
+                                    scraper_total = episode_context.get(
+                                        "total_episodes"
+                                    )
+                                    anilist_total = episode_context.get(
+                                        "anilist_episodes"
+                                    )
                                     progress_str = _format_episode_progress(
-                                        next_episode_number, scraper_total, anilist_total
+                                        next_episode_number,
+                                        scraper_total,
+                                        anilist_total,
                                     )
                                     _send_mpv_command(
                                         sock,
@@ -502,17 +525,27 @@ def _ipc_event_loop(
                                         [f"Buscando Episódio {progress_str}..."],
                                     )
                                     # This is a blocking call, but it's what we need to get the stream URL
-                                    next_url = rep.search_player(anime_title, next_episode_number)
+                                    next_url = rep.search_player(
+                                        anime_title, next_episode_number
+                                    )
 
                                     if next_url:
                                         # Send MPV command to load next episode
-                                        _send_mpv_command(sock, "loadfile", [next_url, "replace"])
+                                        _send_mpv_command(
+                                            sock, "loadfile", [next_url, "replace"]
+                                        )
 
                                         # Show OSD success message
-                                        scraper_total = episode_context.get("total_episodes")
-                                        anilist_total = episode_context.get("anilist_episodes")
+                                        scraper_total = episode_context.get(
+                                            "total_episodes"
+                                        )
+                                        anilist_total = episode_context.get(
+                                            "anilist_episodes"
+                                        )
                                         progress_str = _format_episode_progress(
-                                            next_episode_number, scraper_total, anilist_total
+                                            next_episode_number,
+                                            scraper_total,
+                                            anilist_total,
                                         )
                                         _send_mpv_command(
                                             sock,
@@ -521,12 +554,16 @@ def _ipc_event_loop(
                                         )
 
                                         # Update episode context for next iteration
-                                        episode_context["episode_number"] = next_episode_number
+                                        episode_context["episode_number"] = (
+                                            next_episode_number
+                                        )
                                         episode_context["url"] = next_url
                                         # Preserve anilist_id and source for next episode
 
                                         # Print terminal feedback
-                                        print(f"▶️  Reproduzindo Episódio {progress_str}")
+                                        print(
+                                            f"▶️  Reproduzindo Episódio {progress_str}"
+                                        )
 
                                         # Continue loop to listen for more keybindings
                                         continue
@@ -535,7 +572,9 @@ def _ipc_event_loop(
                                         _send_mpv_command(
                                             sock,
                                             "show-text",
-                                            ["Não há mais episódios disponíveis ou erro ao buscar"],
+                                            [
+                                                "Não há mais episódios disponíveis ou erro ao buscar"
+                                            ],
                                         )
                                         print(
                                             f"❌ Falha ao carregar Episódio {next_episode_number}"
@@ -545,7 +584,9 @@ def _ipc_event_loop(
                                     from services.repository import rep
 
                                     anime_title = episode_context.get("anime_title")
-                                    episode_number = episode_context.get("episode_number", 1)
+                                    episode_number = episode_context.get(
+                                        "episode_number", 1
+                                    )
 
                                     if not anime_title:
                                         continue
@@ -554,10 +595,16 @@ def _ipc_event_loop(
                                     prev_episode_number = max(1, episode_number - 1)
                                     if prev_episode_number < episode_number:
                                         # Show OSD message that we are searching
-                                        scraper_total = episode_context.get("total_episodes")
-                                        anilist_total = episode_context.get("anilist_episodes")
+                                        scraper_total = episode_context.get(
+                                            "total_episodes"
+                                        )
+                                        anilist_total = episode_context.get(
+                                            "anilist_episodes"
+                                        )
                                         progress_str = _format_episode_progress(
-                                            prev_episode_number, scraper_total, anilist_total
+                                            prev_episode_number,
+                                            scraper_total,
+                                            anilist_total,
                                         )
                                         _send_mpv_command(
                                             sock,
@@ -577,23 +624,35 @@ def _ipc_event_loop(
                                             )
 
                                             # Show OSD message
-                                            scraper_total = episode_context.get("total_episodes")
-                                            anilist_total = episode_context.get("anilist_episodes")
+                                            scraper_total = episode_context.get(
+                                                "total_episodes"
+                                            )
+                                            anilist_total = episode_context.get(
+                                                "anilist_episodes"
+                                            )
                                             progress_str = _format_episode_progress(
-                                                prev_episode_number, scraper_total, anilist_total
+                                                prev_episode_number,
+                                                scraper_total,
+                                                anilist_total,
                                             )
                                             _send_mpv_command(
                                                 sock,
                                                 "show-text",
-                                                [f"⏪ Voltando para Episódio {progress_str}"],
+                                                [
+                                                    f"⏪ Voltando para Episódio {progress_str}"
+                                                ],
                                             )
 
                                             # Update episode context
-                                            episode_context["episode_number"] = prev_episode_number
+                                            episode_context["episode_number"] = (
+                                                prev_episode_number
+                                            )
                                             episode_context["url"] = prev_url
 
                                             # Print terminal feedback
-                                            print(f"⏪ Voltando para Episódio {progress_str}")
+                                            print(
+                                                f"⏪ Voltando para Episódio {progress_str}"
+                                            )
 
                                             # Continue loop
                                             continue
@@ -610,7 +669,9 @@ def _ipc_event_loop(
                                             )
                                     else:
                                         _send_mpv_command(
-                                            sock, "show-text", ["Não há episódios anteriores"]
+                                            sock,
+                                            "show-text",
+                                            ["Não há episódios anteriores"],
                                         )
 
                                 elif action == "reload-episode":
@@ -631,9 +692,13 @@ def _ipc_event_loop(
                                     _autoplay_enabled = not _autoplay_enabled
 
                                     # Show OSD message
-                                    status = "ATIVADO" if _autoplay_enabled else "DESATIVADO"
+                                    status = (
+                                        "ATIVADO" if _autoplay_enabled else "DESATIVADO"
+                                    )
                                     message = f"Auto-play {status} (válido para toda a sessão)"
-                                    _send_mpv_command(sock, "show-text", [message, "3000"])
+                                    _send_mpv_command(
+                                        sock, "show-text", [message, "3000"]
+                                    )
 
                                     # Print terminal feedback
                                     print(f"{message}")
@@ -642,7 +707,9 @@ def _ipc_event_loop(
                                     continue
 
                                 # Handle other actions (mark-menu, toggle-sub-dub)
-                                result = _handle_keybinding_action(action, episode_context)
+                                result = _handle_keybinding_action(
+                                    action, episode_context
+                                )
                                 if result:
                                     # For actions that require returning to caller
                                     return result
@@ -666,7 +733,9 @@ def _ipc_event_loop(
         if hasattr(mpv_process, "stderr") and mpv_process.stderr:
             try:
                 stderr_output = (
-                    mpv_process.stderr.read() if hasattr(mpv_process.stderr, "read") else ""
+                    mpv_process.stderr.read()
+                    if hasattr(mpv_process.stderr, "read")
+                    else ""
                 )
             except:
                 pass
@@ -677,7 +746,9 @@ def _ipc_event_loop(
             if "error" in stderr_output.lower():
                 # Extract relevant error messages
                 error_lines = [
-                    line for line in stderr_output.split("\n") if "error" in line.lower()
+                    line
+                    for line in stderr_output.split("\n")
+                    if "error" in line.lower()
                 ]
                 for error_line in error_lines[:3]:  # Show first 3 errors
                     if error_line.strip():
@@ -685,7 +756,9 @@ def _ipc_event_loop(
                 # Special message for Blogger 400 errors
                 if "400" in stderr_output:
                     print("\n   ℹ️  AnimesonlineCC: Token expirado (URLs temporárias)")
-                    print("   💡 Solução: Use AnimeFire ou AnimesDigital (sem expiration)")
+                    print(
+                        "   💡 Solução: Use AnimeFire ou AnimesDigital (sem expiration)"
+                    )
                     print(
                         '   Modifique: export ANI_TUPI__PLUGINS__PRIORITY_ORDER=\'["animesdigital", "animefire"]\''
                     )
@@ -713,7 +786,9 @@ def _ipc_event_loop(
                 )
 
             # Print terminal feedback
-            print(f"▶️  Auto-play ativo: marcando Episódio {episode_number} como assistido")
+            print(
+                f"▶️  Auto-play ativo: marcando Episódio {episode_number} como assistido"
+            )
 
             # Return auto-next action
             return VideoPlaybackResult(
