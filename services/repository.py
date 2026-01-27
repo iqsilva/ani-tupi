@@ -7,7 +7,7 @@ from threading import Thread
 
 from models.config import settings
 from scrapers.loader import PluginInterface
-from models.models import EpisodeData, SearchMetadata
+from models.models import EpisodeData, SearchMetadata, SearchResults, AnimeSearchResult
 
 
 class Repository:
@@ -61,17 +61,44 @@ class Repository:
         self.anime_episodes_urls = defaultdict(list)
         self.norm_titles = {}
 
+    def _build_search_results(self, query: str) -> SearchResults:
+        """Build immutable SearchResults from current repository state.
+
+        Converts the mutable anime_to_urls dictionary into an immutable
+        SearchResults object with AnimeSearchResult tuples.
+
+        Args:
+            query: The search query used
+
+        Returns:
+            Immutable SearchResults with all current search results
+        """
+        results = []
+        for title, sources_list in self.anime_to_urls.items():
+            anime = AnimeSearchResult(
+                title=title,
+                normalized_title=self.norm_titles.get(title, title),
+                sources=tuple(sources_list)
+            )
+            results.append(anime)
+
+        return SearchResults(
+            query=query,
+            results=tuple(results),
+            metadata=self._last_search_metadata or {}
+        )
+
     @classmethod
     def reset_singleton(cls) -> None:
         """Reset singleton instance for testing. Use only in test fixtures."""
         cls._instance = None
         cls._initialized = False
 
-    def search_anime(self, query: str, verbose: bool = True) -> None:
+    def search_anime(self, query: str, verbose: bool = True) -> SearchResults:
         if not self.sources:
             print("\n❌ Erro: Nenhum plugin carregado!")
             print("Verifique se os plugins estão instalados em plugins/")
-            return
+            return SearchResults(query=query, results=(), metadata=None)
 
         # CACHE CHECK: Try to get search results from cache first
         cache_key = f"search:{query.lower()}"
@@ -106,7 +133,8 @@ class Repository:
                 "min_words": settings.search.progressive_search_min_words,
                 "source": "cache",
             }
-            return  # Done! Use cached results
+            # Convert results to immutable SearchResults
+            return self._build_search_results(query)
 
         # Progressive search: start with all words, decrease if no results
         words = query.split()
@@ -164,9 +192,12 @@ class Repository:
                 if verbose:
                     print(f"⚠️  Erro ao salvar cache: {e}")
 
+        # Return immutable SearchResults
+        return self._build_search_results(query)
+
     def search_anime_with_word_limit(
         self, query: str, word_limit: int, verbose: bool = True
-    ) -> None:
+    ) -> SearchResults:
         """Search anime with a word limit.
 
         Searches using only the first `word_limit` words of the query.
@@ -177,6 +208,9 @@ class Repository:
             word_limit: Number of words to use from the start of query
             verbose: Show progress messages
 
+        Returns:
+            Immutable SearchResults with search results
+
         Example:
             search_anime_with_word_limit("Dan Da Dan Season 2", 2)
             # Searches for "Dan Da"
@@ -184,7 +218,7 @@ class Repository:
         if not self.sources:
             print("\n❌ Erro: Nenhum plugin carregado!")
             print("Verifique se os plugins estão instalados em plugins/")
-            return
+            return SearchResults(query=query, results=(), metadata=None)
 
         words = query.split()
         min_words = settings.search.progressive_search_min_words
@@ -209,6 +243,9 @@ class Repository:
 
         # Execute search
         self._search_with_incremental_results(limited_query, verbose)
+
+        # Return immutable SearchResults
+        return self._build_search_results(query)
 
     def get_search_metadata(self) -> SearchMetadata:
         """Get metadata about the last search performed.
