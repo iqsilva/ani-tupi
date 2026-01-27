@@ -371,7 +371,7 @@ Goal: 80%+ coverage on service layer (business logic). CLI layer and utilities n
 
 ## Notes for Contributors
 
-1. **Always use `uv`**—never `pip`.
+1. **Always use `uv`.
 2. **Config in `models/config.py`**—not scattered imports.
 3. **Business logic in services**—not commands or UI.
 4. **Don't import plugins directly**—use the repository.
