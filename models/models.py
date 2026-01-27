@@ -8,8 +8,12 @@ Defines DTOs (Data Transfer Objects) for:
 - MangaMetadata: Manga information from MangaDex
 - ChapterData: Chapter information from MangaDex
 - MangaHistoryEntry: Reading progress tracking
+- AnimeSearchResult: Immutable search result for one anime
+- SearchResults: Immutable collection of search results
+- EpisodeList: Immutable episode list
 """
 
+from dataclasses import dataclass
 from datetime import datetime
 from enum import Enum
 from pathlib import Path
@@ -499,3 +503,135 @@ class Status(str, Enum):
     PAUSED = "PAUSED"
     DROPPED = "DROPPED"
     REPEATING = "REPEATING"
+
+
+# ============================================================================
+# IMMUTABLE DATA STRUCTURES (Phase 2 - C3)
+# ============================================================================
+# These frozen dataclasses enforce Immutable Data Flow principle from CLAUDE.md
+# Services return new immutable values, never mutate state
+
+
+@dataclass(frozen=True)
+class AnimeSearchResult:
+    """Immutable anime search result.
+
+    Represents one anime found across one or more sources.
+    Cannot be modified after creation (frozen dataclass).
+
+    Attributes:
+        title: Human-readable anime title
+        normalized_title: Normalized title for deduplication
+        sources: Immutable tuple of (url, source_name, params) tuples
+    """
+
+    title: str
+    normalized_title: str
+    sources: tuple[tuple[str, str, dict], ...]
+
+    def __post_init__(self):
+        """Validate at construction time."""
+        if not self.title:
+            raise ValueError("title cannot be empty")
+        if not self.sources:
+            raise ValueError("sources cannot be empty")
+
+
+@dataclass(frozen=True)
+class SearchResults:
+    """Immutable collection of anime search results.
+
+    Returned by Repository.search_anime() instead of mutating repository state.
+    Contains all search results + metadata.
+
+    Attributes:
+        query: Original search query
+        results: Immutable tuple of AnimeSearchResult objects
+        metadata: Search metadata (dict[str, Any])
+    """
+
+    query: str
+    results: tuple[AnimeSearchResult, ...]
+    metadata: dict[str, Any] | None = None
+
+    def __post_init__(self):
+        """Set default metadata if None."""
+        if self.metadata is None:
+            # Use object.__setattr__ because dataclass is frozen
+            object.__setattr__(self, "metadata", {})
+
+    def get_anime_titles(self) -> list[str]:
+        """Get list of anime titles from results.
+
+        Returns:
+            List of anime title strings
+        """
+        return [result.title for result in self.results]
+
+    def get_anime_titles_with_sources(self) -> list[str]:
+        """Get titles with source indicators.
+
+        Returns:
+            List of strings like "Anime Title [source1, source2]"
+        """
+        result_list = []
+        for anime in self.results:
+            sources = set(source for _url, source, _params in anime.sources)
+            sources_str = ", ".join(sorted(sources))
+            result_list.append(f"{anime.title} [{sources_str}]")
+        return result_list
+
+    def find_by_title(self, title: str) -> "AnimeSearchResult | None":
+        """Find anime by exact title match.
+
+        Args:
+            title: Anime title to search for
+
+        Returns:
+            AnimeSearchResult if found, None otherwise
+        """
+        for anime in self.results:
+            if anime.title == title:
+                return anime
+        return None
+
+
+@dataclass(frozen=True)
+class EpisodeList:
+    """Immutable episode list for an anime.
+
+    Stores episode metadata across multiple sources.
+
+    Attributes:
+        anime_title: Title of the anime
+        episodes: Immutable tuple of (title, urls, source) tuples
+    """
+
+    anime_title: str
+    episodes: tuple[tuple[str, list[str], str], ...]
+
+    def get_episode_titles(self) -> list[str]:
+        """Get unified episode title list (from longest source).
+
+        Returns:
+            List of episode titles
+        """
+        if not self.episodes:
+            return []
+        # Return longest episode list (most complete source)
+        longest_list = max([ep[1] for ep in self.episodes], key=len)
+        return longest_list
+
+    def get_episode_url(self, episode_num: int) -> tuple[str, str] | None:
+        """Get episode URL and source name (1-indexed).
+
+        Args:
+            episode_num: Episode number (1-indexed, e.g., 1, 2, 3)
+
+        Returns:
+            Tuple of (url, source_name) or None if not found
+        """
+        for _title_list, url_list, source in self.episodes:
+            if len(url_list) >= episode_num:
+                return (url_list[episode_num - 1], source)
+        return None
