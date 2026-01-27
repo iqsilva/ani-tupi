@@ -65,7 +65,7 @@ class MangaLivre:
             for card in manga_cards:
                 try:
                     # Extract link and title
-                    link = card.css_first("a.manga-card-link")
+                    link = card.css_first("a")
                     if not link:
                         continue
 
@@ -73,11 +73,18 @@ class MangaLivre:
                     if not url:
                         continue
 
-                    # Extract title from h3
-                    title_elem = card.css_first("h3.manga-card-title")
-                    title = title_elem.text(strip=True) if title_elem else ""
+                    # Extract title - try multiple selectors
+                    # MangaLivre uses h2, h3, h4 or spans for titles
+                    title_elem = (
+                        card.css_first("h2")
+                        or card.css_first("h3")
+                        or card.css_first("h4")
+                        or card.css_first("span[class*='title']")
+                        or card.css_first(".title")
+                    )
+                    title = title_elem.text(strip=True) if title_elem else link.text(strip=True)
 
-                    if not title:
+                    if not title or title.isspace():
                         continue
 
                     # Extract description if available

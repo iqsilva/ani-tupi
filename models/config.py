@@ -238,7 +238,7 @@ class MangaSettings(BaseModel):
         description="Preferred languages in order (pt-br, en, ja, etc)",
     )
     preferred_sources: list[str] = Field(
-        default_factory=lambda: ["mugiwaras", "mangadex"],
+        default_factory=lambda: ["mangalivre", "mugiwaras", "mangadex"],
         description="Preferred manga sources in priority order",
     )
     pdf_reader: str | None = Field(

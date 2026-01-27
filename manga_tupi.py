@@ -182,8 +182,27 @@ def _start_manga_search(service: UnifiedMangaService, title: str) -> None:
         for manga in results:
             if manga.id == preferred_manga_id:
                 selected_manga = manga
-                print(f"✓ Usando manga salvo: {manga.title}")
                 break
+
+    # If preferred manga found, ask user to confirm or change
+    if selected_manga:
+        # Give user option to continue with saved or change
+        confirm_options = [
+            f"⭐ Continuar com: {selected_manga.title} (salvo)",
+            "🔄 Trocar de mangá",
+        ]
+
+        try:
+            choice = menu_navigate(confirm_options, f"Qual mangá deseja ler?")
+
+            if choice is None:
+                # User selected "← Voltar"
+                return
+            elif choice and choice.startswith("🔄"):
+                # User wants to change - show all results
+                selected_manga = None
+        except KeyboardInterrupt:
+            return
 
     # Select manga if not found in preferences or multiple results
     if not selected_manga:
@@ -284,7 +303,8 @@ def _continue_manga_flow(
     service: UnifiedMangaService, selected_manga, allow_source_change: bool = True
 ) -> None:
     """Continue with chapter selection and reading for selected manga."""
-    selected_source = service.current_source
+    # Use the source where manga was found, or fall back to current source
+    selected_source = service.last_found_source or service.current_source
 
     # Allow user to change source if requested
     if allow_source_change:
@@ -293,18 +313,30 @@ def _continue_manga_flow(
             # Check if user has a saved preference
             saved_source = manga_source_preferences.get_preferred_source(selected_manga.title)
 
-            # Build menu options
-            menu_options = [f"📖 Ler com {service.current_source}"]
-            if saved_source and saved_source != service.current_source:
-                menu_options.append(f"⭐ Usar fonte salva: {saved_source}")
+            # Get sources that actually have this manga (quick check)
+            print("🔍 Verificando disponibilidade em outras fontes...")
+            sources_with_manga = service.get_available_sources_for_manga(selected_manga.title)
 
-            for source in available_sources:
-                if source != service.current_source:
+            # Build menu options - only show sources that have the manga
+            menu_options = [f"📖 Ler com {selected_source}"]
+
+            # Check if saved source has the manga (but different from current)
+            if saved_source and saved_source != selected_source:
+                if saved_source in sources_with_manga:
+                    menu_options.append(f"⭐ Usar fonte salva: {saved_source}")
+                else:
+                    # Saved source doesn't have it anymore, forget it
+                    manga_source_preferences.remove_preference(selected_manga.title)
+                    saved_source = None
+
+            # Add other sources that have the manga (but different from current)
+            for source in sources_with_manga:
+                if source != selected_source:
                     menu_options.append(f"🔄 Trocar para: {source}")
 
             try:
                 action = menu_navigate(
-                    menu_options, f"{selected_manga.title} - Fonte: {service.current_source}"
+                    menu_options, f"{selected_manga.title} - Fonte: {selected_source}"
                 )
             except KeyboardInterrupt:
                 return
