@@ -182,8 +182,27 @@ def _start_manga_search(service: UnifiedMangaService, title: str) -> None:
         for manga in results:
             if manga.id == preferred_manga_id:
                 selected_manga = manga
-                print(f"✓ Usando manga salvo: {manga.title}")
                 break
+
+    # If preferred manga found, ask user to confirm or change
+    if selected_manga:
+        # Give user option to continue with saved or change
+        confirm_options = [
+            f"⭐ Continuar com: {selected_manga.title} (salvo)",
+            "🔄 Trocar de mangá",
+        ]
+
+        try:
+            choice = menu_navigate(confirm_options, f"Qual mangá deseja ler?")
+
+            if choice is None:
+                # User selected "← Voltar"
+                return
+            elif choice and choice.startswith("🔄"):
+                # User wants to change - show all results
+                selected_manga = None
+        except KeyboardInterrupt:
+            return
 
     # Select manga if not found in preferences or multiple results
     if not selected_manga:
