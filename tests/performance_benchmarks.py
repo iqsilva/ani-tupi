@@ -109,7 +109,7 @@ class PerformanceBenchmark:
         read_times = []
         for i in range(operations):
             start = time.time()
-            result = cache.get(f"test_key_{i}")
+            _ = cache.get(f"test_key_{i}")
             end = time.time()
             read_times.append(end - start)
 
@@ -117,7 +117,7 @@ class PerformanceBenchmark:
         miss_times = []
         for i in range(operations, operations * 2):
             start = time.time()
-            result = cache.get(f"nonexistent_key_{i}")
+            _ = cache.get(f"nonexistent_key_{i}")
             end = time.time()
             miss_times.append(end - start)
 
@@ -154,9 +154,9 @@ class PerformanceBenchmark:
 
         # Test sequential execution
         sequential_start = time.time()
-        result1 = await mock_scraper("scraper1", 0.5)
-        result2 = await mock_scraper("scraper2", 0.7)
-        result3 = await mock_scraper("scraper3", 0.6)
+        _ = await mock_scraper("scraper1", 0.5)
+        _ = await mock_scraper("scraper2", 0.7)
+        _ = await mock_scraper("scraper3", 0.6)
         sequential_time = time.time() - sequential_start
 
         # Test concurrent execution
@@ -319,7 +319,7 @@ class PerformanceBenchmark:
 def main():
     """Run performance benchmarks."""
     benchmark = PerformanceBenchmark()
-    results = benchmark.run_full_benchmark()
+    _ = benchmark.run_full_benchmark()
 
     # Print final validation
     print("\n🎯 VALIDATION AGAINST PROPOSAL TARGETS:")

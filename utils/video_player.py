@@ -1,4 +1,4 @@
-from typing import NamedTuple, Optional, Any
+from typing import NamedTuple
 
 import os
 import platform
@@ -79,8 +79,6 @@ class VideoPlayer:
         if debug:
             print("DEBUG MODE: Skipping video playback")
             return VideoPlaybackResult(exit_code=0, action="quit", data=None)
-
-        
 
         if not use_ipc:
             # Use legacy blocking playback

@@ -157,7 +157,11 @@ def open_pdf_reader(pdf_path: Path) -> subprocess.Popen | None:
         logger.warning(f"PDF reader not found: {message}")
         print(f"   PDF salvo em: {pdf_path}")
         return None
-        
+
+    # Configure Zathura if it's being used and auto-config is enabled
+    if reader == "zathura" and settings.manga.zathura_auto_config:
+        ensure_zathura_config()
+
     try:
         # Launch reader in background (non-blocking) with a timeout
         process = subprocess.Popen(

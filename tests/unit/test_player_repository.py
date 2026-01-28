@@ -1,5 +1,5 @@
 """Tests for PlayerRepository class."""
-import asyncio
+
 import pytest
 from services.player_repository import PlayerRepository
 

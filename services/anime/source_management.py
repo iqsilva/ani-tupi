@@ -204,5 +204,3 @@ def switch_anime_source(
 
 
 # get_next_episode_context is now imported from services.anime.episode_context
-
-

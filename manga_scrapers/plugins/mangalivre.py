@@ -89,17 +89,11 @@ class MangaLivre:
 
                     # Extract description if available
                     desc_elem = card.css_first("p")
-                    description = (
-                        desc_elem.text(strip=True) if desc_elem else None
-                    )
+                    description = desc_elem.text(strip=True) if desc_elem else None
 
                     # Extract status if available
                     status_elem = card.css_first("span")
-                    status = (
-                        status_elem.text(strip=True).lower()
-                        if status_elem
-                        else "ongoing"
-                    )
+                    status = status_elem.text(strip=True).lower() if status_elem else "ongoing"
 
                     # Extract manga ID from URL (slug)
                     manga_id = url.rstrip("/").split("/")[-1]
@@ -191,7 +185,9 @@ class MangaLivre:
 
                     # Extract chapter number from title or URL
                     # Typical format: "Capítulo 222 - Título" or "capitulo-222"
-                    number_match = re.search(r"capítulo\s+(\d+(?:\.\d+)?)", chapter_title, re.IGNORECASE)
+                    number_match = re.search(
+                        r"capítulo\s+(\d+(?:\.\d+)?)", chapter_title, re.IGNORECASE
+                    )
                     if number_match:
                         chapter_number = number_match.group(1)
                     else:
@@ -320,8 +316,7 @@ class MangaLivre:
 
                 # Ensure it's an actual image file
                 is_image = any(
-                    img_url.lower().endswith(ext)
-                    for ext in [".jpg", ".jpeg", ".png", ".webp"]
+                    img_url.lower().endswith(ext) for ext in [".jpg", ".jpeg", ".png", ".webp"]
                 )
 
                 if is_manga_page and not is_noise and is_image and img_url not in page_urls:

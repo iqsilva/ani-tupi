@@ -132,7 +132,7 @@ def menu_navigate(
     show_preview: bool = False,
     preview_callback: Callable | None = None,
     enable_search: bool = True,
-    search_state = None,
+    search_state=None,
 ) -> str | None:
     """Display interactive menu for navigation (returns None instead of exit).
 
@@ -168,11 +168,15 @@ def menu_navigate(
 
         if search_state.has_previous():
             prev_result = search_state.search_history[search_state.current_index - 1]
-            opts_copy.append(f"◀ Resultados Anteriores ({prev_result.word_count} palavras: {len(prev_result.results)} resultados)")
+            opts_copy.append(
+                f"◀ Resultados Anteriores ({prev_result.word_count} palavras: {len(prev_result.results)} resultados)"
+            )
 
         if search_state.has_next():
             next_result = search_state.search_history[search_state.current_index + 1]
-            opts_copy.append(f"▶ Próximos Resultados ({next_result.word_count} palavras: {len(next_result.results)} resultados)")
+            opts_copy.append(
+                f"▶ Próximos Resultados ({next_result.word_count} palavras: {len(next_result.results)} resultados)"
+            )
 
     if not enable_search and not search_state:
         opts_copy.append("─" * 30)

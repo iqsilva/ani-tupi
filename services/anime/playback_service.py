@@ -15,7 +15,6 @@ import logging
 
 from models.models import Status
 from services.anime.anilist_discovery_service import (
-    AniListDiscoveryResult,
     discover_anilist_info,
 )
 from services.anilist_service import anilist_client

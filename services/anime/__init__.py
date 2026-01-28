@@ -55,4 +55,11 @@ __all__ = [
     "ProgressContext",
     "get_episode_progress_info",
     "calculate_watch_context",
+    "PlaybackContext",
+    "EpisodePlaybackResult",
+    "prepare_playback_from_search",
+    "prepare_playback_from_history",
+    "get_episode_url_and_source",
+    "sync_progress_to_anilist",
+    "navigate_episodes",
 ]

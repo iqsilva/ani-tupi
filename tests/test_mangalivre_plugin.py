@@ -124,7 +124,9 @@ class TestMangaLivreSearch:
             assert results[0]["url"] == "/manga/jujutsu-kaisen/"
             assert "status:" in results[0]["status"] or results[0]["status"] == "status: ongoing"
 
-    def test_search_manga_no_results(self, mangalivre_scraper, mock_mangalivre_empty_search_response):
+    def test_search_manga_no_results(
+        self, mangalivre_scraper, mock_mangalivre_empty_search_response
+    ):
         """Test search handles no results gracefully."""
         with patch("requests.Session.get") as mock_get:
             mock_response = Mock()
@@ -157,7 +159,9 @@ class TestMangaLivreSearch:
 
             assert isinstance(results, list)
 
-    def test_search_manga_special_characters(self, mangalivre_scraper, mock_mangalivre_search_response):
+    def test_search_manga_special_characters(
+        self, mangalivre_scraper, mock_mangalivre_search_response
+    ):
         """Test search handles special characters."""
         with patch("requests.Session.get") as mock_get:
             mock_response = Mock()
@@ -217,8 +221,7 @@ class TestMangaLivreChapters:
             mock_pw.return_value = mock_context
 
             chapters = mangalivre_scraper.get_chapters(
-                "jujutsu-kaisen",
-                "https://mangalivre.blog/manga/jujutsu-kaisen/"
+                "jujutsu-kaisen", "https://mangalivre.blog/manga/jujutsu-kaisen/"
             )
 
             assert len(chapters) == 4
@@ -233,8 +236,7 @@ class TestMangaLivreChapters:
             mock_pw.return_value = mock_context
 
             chapters = mangalivre_scraper.get_chapters(
-                "jujutsu-kaisen",
-                "https://mangalivre.blog/manga/jujutsu-kaisen/"
+                "jujutsu-kaisen", "https://mangalivre.blog/manga/jujutsu-kaisen/"
             )
 
             assert all(isinstance(ch["number"], str) for ch in chapters)
@@ -247,8 +249,7 @@ class TestMangaLivreChapters:
             mock_pw.return_value = mock_context
 
             chapters = mangalivre_scraper.get_chapters(
-                "jujutsu-kaisen",
-                "https://mangalivre.blog/manga/jujutsu-kaisen/"
+                "jujutsu-kaisen", "https://mangalivre.blog/manga/jujutsu-kaisen/"
             )
 
             # Verify descending order
@@ -277,8 +278,7 @@ class TestMangaLivreChapters:
             mock_pw.return_value = mock_pw_instance
 
             chapters = mangalivre_scraper.get_chapters(
-                "invalid",
-                "https://invalid-url-that-does-not-exist.com"
+                "invalid", "https://invalid-url-that-does-not-exist.com"
             )
 
             assert chapters == []
@@ -290,8 +290,7 @@ class TestMangaLivreChapters:
             mock_pw.return_value = mock_context
 
             chapters = mangalivre_scraper.get_chapters(
-                "jujutsu-kaisen",
-                "https://mangalivre.blog/manga/jujutsu-kaisen/"
+                "jujutsu-kaisen", "https://mangalivre.blog/manga/jujutsu-kaisen/"
             )
 
             for chapter in chapters:
@@ -323,15 +322,16 @@ class TestMangaLivrePages:
 
         return mock_pw_instance
 
-    def test_get_chapter_pages_valid_url(self, mangalivre_scraper, mock_mangalivre_chapter_pages_html):
+    def test_get_chapter_pages_valid_url(
+        self, mangalivre_scraper, mock_mangalivre_chapter_pages_html
+    ):
         """Test page extraction from valid chapter URL."""
         with patch("manga_scrapers.plugins.mangalivre.sync_playwright") as mock_pw:
             mock_context = self._create_playwright_context(mock_mangalivre_chapter_pages_html)
             mock_pw.return_value = mock_context
 
             pages = mangalivre_scraper.get_chapter_pages(
-                "capitulo-287",
-                "https://mangalivre.blog/manga/jujutsu-kaisen/capitulo-287/"
+                "capitulo-287", "https://mangalivre.blog/manga/jujutsu-kaisen/capitulo-287/"
             )
 
             # Should include manga pages but exclude ads, logos, gifs
@@ -339,15 +339,16 @@ class TestMangaLivrePages:
             assert all(isinstance(p, str) for p in pages)
             assert all(p.startswith("http") for p in pages)
 
-    def test_get_chapter_pages_image_filtering(self, mangalivre_scraper, mock_mangalivre_chapter_pages_html):
+    def test_get_chapter_pages_image_filtering(
+        self, mangalivre_scraper, mock_mangalivre_chapter_pages_html
+    ):
         """Test that ads and logos are filtered out."""
         with patch("manga_scrapers.plugins.mangalivre.sync_playwright") as mock_pw:
             mock_context = self._create_playwright_context(mock_mangalivre_chapter_pages_html)
             mock_pw.return_value = mock_context
 
             pages = mangalivre_scraper.get_chapter_pages(
-                "capitulo-287",
-                "https://mangalivre.blog/manga/jujutsu-kaisen/capitulo-287/"
+                "capitulo-287", "https://mangalivre.blog/manga/jujutsu-kaisen/capitulo-287/"
             )
 
             # Verify no logos, ads, or gifs are included
@@ -379,10 +380,7 @@ class TestMangaLivrePages:
 
             mock_pw.return_value = mock_pw_instance
 
-            pages = mangalivre_scraper.get_chapter_pages(
-                "invalid",
-                "https://invalid-url.com"
-            )
+            pages = mangalivre_scraper.get_chapter_pages("invalid", "https://invalid-url.com")
 
             assert pages == []
 
@@ -395,8 +393,7 @@ class TestMangaLivrePages:
             mock_pw.return_value = mock_context
 
             pages = mangalivre_scraper.get_chapter_pages(
-                "test",
-                "https://mangalivre.blog/manga/test/capitulo-1/"
+                "test", "https://mangalivre.blog/manga/test/capitulo-1/"
             )
 
             assert pages == []

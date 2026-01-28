@@ -106,8 +106,7 @@ class TestMangaLivreIntegration:
             mock_pw.return_value = mock_pw_instance
 
             chapters = mangalivre_scraper.get_chapters(
-                "test",
-                "https://mangalivre.blog/manga/test/"
+                "test", "https://mangalivre.blog/manga/test/"
             )
 
             assert len(chapters) == 3
@@ -148,8 +147,7 @@ class TestMangaLivreIntegration:
             mock_pw.return_value = mock_pw_instance
 
             pages = mangalivre_scraper.get_chapter_pages(
-                "test",
-                "https://mangalivre.blog/manga/test/capitulo-1/"
+                "test", "https://mangalivre.blog/manga/test/capitulo-1/"
             )
 
             # All manga images should be normalized to https:// and include /wp-manga/
@@ -194,8 +192,7 @@ class TestMangaLivreIntegration:
             mock_pw.return_value = mock_pw_instance
 
             chapters = mangalivre_scraper.get_chapters(
-                "test",
-                "https://mangalivre.blog/manga/test/"
+                "test", "https://mangalivre.blog/manga/test/"
             )
 
             # Should return empty list, not raise exception

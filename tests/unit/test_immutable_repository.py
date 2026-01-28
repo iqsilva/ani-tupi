@@ -115,7 +115,7 @@ class TestRepositoryNoStateMutation:
         initial_state = id(rep.anime_to_urls)
 
         # Perform search
-        result = rep.search_anime("test")
+        _ = rep.search_anime("test")
 
         # State object reference should remain same (not replaced)
         final_state = id(rep.anime_to_urls)

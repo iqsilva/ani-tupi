@@ -53,7 +53,9 @@ def patch_repository(mock_rep):
 @pytest.fixture
 def no_anilist():
     """Patch AniList discovery to avoid external calls."""
-    with patch("utils.anilist_discovery.auto_discover_anilist_id", side_effect=Exception("No AniList")):
+    with patch(
+        "utils.anilist_discovery.auto_discover_anilist_id", side_effect=Exception("No AniList")
+    ):
         yield
 
 
@@ -67,12 +69,19 @@ def test_incremental_search_stops_at_5_results(patch_repository, no_anilist):
 
     # Setup: 3 words returns 8 results (>5, so continue)
     # Results contain anime titles with sources, so filtering can work on them
-    mock_rep.setup_search_result("boku no hero", [
-        "Boku no Hero [animefire]",
-        "Boku no Hero Season 2 [animefire]",
-        "Boku no Hero Season 3 [animefire]",
-        "A1", "A2", "A3", "A4", "A5",
-    ])
+    mock_rep.setup_search_result(
+        "boku no hero",
+        [
+            "Boku no Hero [animefire]",
+            "Boku no Hero Season 2 [animefire]",
+            "Boku no Hero Season 3 [animefire]",
+            "A1",
+            "A2",
+            "A3",
+            "A4",
+            "A5",
+        ],
+    )
 
     state, results = incremental_search_anime("boku no hero academia")
 
@@ -98,13 +107,18 @@ def test_incremental_search_uses_all_words_if_needed(patch_repository, no_anilis
     # Note: "attack on titan season 4" gets normalized to "attack on titan 4" (season removed)
     # So it has 4 words: "attack", "on", "titan", "4"
     # Starts with min(3,4)=3 words
-    mock_rep.setup_search_result("attack on titan", [
-        "Attack on Titan [animefire]",
-        "Attack on Titan Season 2 [animefire]",
-        "Attack on Titan Season 3 [animefire]",
-        "Attack on Titan Season 4 [animefire]",
-        "B1", "B2", "B3",
-    ])
+    mock_rep.setup_search_result(
+        "attack on titan",
+        [
+            "Attack on Titan [animefire]",
+            "Attack on Titan Season 2 [animefire]",
+            "Attack on Titan Season 3 [animefire]",
+            "Attack on Titan Season 4 [animefire]",
+            "B1",
+            "B2",
+            "B3",
+        ],
+    )
 
     state, results = incremental_search_anime("attack on titan season 4")
 
@@ -164,14 +178,17 @@ def test_incremental_search_state_navigation(patch_repository, no_anilist):
     # So it has 4 words: "my", "hero", "academia", "2"
     # Starts with min(3,4)=3 words
     # Base search returns results containing titles with all relevant information
-    mock_rep.setup_search_result("my hero academia", [
-        "My Hero Academia [animefire]",
-        "My Hero Academia Season 2 [animefire]",
-        "My Hero Academia Season 3 [animefire]",
-        "My Hero Academia Season 4 [animefire]",
-        "My Hero Academia Season 5 [animefire]",
-        "A1",
-    ])
+    mock_rep.setup_search_result(
+        "my hero academia",
+        [
+            "My Hero Academia [animefire]",
+            "My Hero Academia Season 2 [animefire]",
+            "My Hero Academia Season 3 [animefire]",
+            "My Hero Academia Season 4 [animefire]",
+            "My Hero Academia Season 5 [animefire]",
+            "A1",
+        ],
+    )
 
     state, results = incremental_search_anime("my hero academia season 2")
 
@@ -192,12 +209,17 @@ def test_incremental_search_zero_results_fallback(patch_repository, no_anilist):
 
     # Setup: 3 words returns 6 results (>5)
     # "my hero academia ultra rare edition" has 6 words
-    mock_rep.setup_search_result("my hero academia", [
-        "My Hero Academia [animefire]",
-        "My Hero Academia Season 2 [animefire]",
-        "My Hero Academia Season 3 [animefire]",
-        "A4", "A5", "A6",
-    ])
+    mock_rep.setup_search_result(
+        "my hero academia",
+        [
+            "My Hero Academia [animefire]",
+            "My Hero Academia Season 2 [animefire]",
+            "My Hero Academia Season 3 [animefire]",
+            "A4",
+            "A5",
+            "A6",
+        ],
+    )
 
     state, results = incremental_search_anime("my hero academia ultra rare edition")
 
@@ -214,7 +236,9 @@ def test_incremental_search_source_counts(patch_repository, no_anilist):
     """Test that source counts are tracked in state."""
     mock_rep = patch_repository
 
-    mock_rep.setup_search_result("test anime", ["Anime 1 - Source1", "Anime 2 - Source2", "Anime 3 - Source1"])
+    mock_rep.setup_search_result(
+        "test anime", ["Anime 1 - Source1", "Anime 2 - Source2", "Anime 3 - Source1"]
+    )
 
     state, results = incremental_search_anime("test anime")
 
@@ -392,20 +416,29 @@ def test_incremental_search_filters_not_searches(patch_repository, no_anilist):
     # Starts with min(3,6)=3 words
 
     # First search (3 words) returns many results
-    mock_rep.setup_search_result("tate no yuusha", [
-        "Shield Hero [animefire]",
-        "Shield Hero Season 2 [animefire]",
-        "Shield Hero Season 3 [animefire]",
-        "A1", "A2", "A3", "A4",
-    ])
+    mock_rep.setup_search_result(
+        "tate no yuusha",
+        [
+            "Shield Hero [animefire]",
+            "Shield Hero Season 2 [animefire]",
+            "Shield Hero Season 3 [animefire]",
+            "A1",
+            "A2",
+            "A3",
+            "A4",
+        ],
+    )
 
     # If 4 words were searched (not filtered), it would return these
     # But we should NOT call this since we're filtering instead
-    mock_rep.setup_search_result("tate no yuusha no", [
-        "Shield Hero [animefire]",
-        "Shield Hero Season 2 [animefire]",
-        "Shield Hero Season 3 [animefire]",
-    ])
+    mock_rep.setup_search_result(
+        "tate no yuusha no",
+        [
+            "Shield Hero [animefire]",
+            "Shield Hero Season 2 [animefire]",
+            "Shield Hero Season 3 [animefire]",
+        ],
+    )
 
     state, results = incremental_search_anime("tate no yuusha no nariagari 2")
 
@@ -427,12 +460,17 @@ def test_incremental_search_fallback_on_zero_filter(patch_repository, no_anilist
     mock_rep = patch_repository
 
     # Setup: 3-word search returns 6 results (>5, so continue)
-    mock_rep.setup_search_result("my hero academia", [
-        "My Hero Academia [animefire]",
-        "My Hero Academia Season 2 [animefire]",
-        "My Hero Academia Season 3 [animefire]",
-        "A4", "A5", "A6",
-    ])
+    mock_rep.setup_search_result(
+        "my hero academia",
+        [
+            "My Hero Academia [animefire]",
+            "My Hero Academia Season 2 [animefire]",
+            "My Hero Academia Season 3 [animefire]",
+            "A4",
+            "A5",
+            "A6",
+        ],
+    )
     # 4-word search (if it were called) would return 0
     # But with filtering, we filter base_results by "my hero academia ultra"
     # No results will match, so we fall back without calling search
@@ -480,7 +518,9 @@ def test_incremental_search_small_base_results_stops():
         # Return only 3 results from base search
         mock_rep.get_anime_titles_with_sources = Mock(return_value=["T1", "T2", "T3"])
 
-        with patch("utils.anilist_discovery.auto_discover_anilist_id", side_effect=Exception("No AniList")):
+        with patch(
+            "utils.anilist_discovery.auto_discover_anilist_id", side_effect=Exception("No AniList")
+        ):
             state, results = incremental_search_anime("test anime series long")
 
         # Should stop after one search (base search returned <= 5)
@@ -526,14 +566,17 @@ def test_incremental_search_season_2_query_real_world(patch_repository, no_anili
 
     # Setup: base search with 3 words returns various titles
     # This simulates what would happen when searching "tate no yuusha"
-    mock_rep.setup_search_result("tate no yuusha", [
-        "Tate no Yuusha no Nariagari [animefire, animesonlinecc]",
-        "Tate no Yuusha no Nariagari 2 [animesdigital]",
-        "Tate no Yuusha no Nariagari Dublado [animefire]",
-        "Tate no Yuusha no Nariagari Season 2 [animefire, animesonlinecc]",
-        "Tate no Yuusha no Nariagari Season 3 [animefire]",
-        "Tate no Yuusha no Nariagari Season 4 [animefire, animesonlinecc]",
-    ])
+    mock_rep.setup_search_result(
+        "tate no yuusha",
+        [
+            "Tate no Yuusha no Nariagari [animefire, animesonlinecc]",
+            "Tate no Yuusha no Nariagari 2 [animesdigital]",
+            "Tate no Yuusha no Nariagari Dublado [animefire]",
+            "Tate no Yuusha no Nariagari Season 2 [animefire, animesonlinecc]",
+            "Tate no Yuusha no Nariagari Season 3 [animefire]",
+            "Tate no Yuusha no Nariagari Season 4 [animefire, animesonlinecc]",
+        ],
+    )
 
     # Perform the search with the full normalized query
     # "tate no yuusha no nariagari season 2" normalizes to "tate no yuusha no nariagari 2"
@@ -577,5 +620,7 @@ def test_filter_by_number_finds_all_containing_results():
     assert len(filtered) == 2, f"Should find 2 results, got {len(filtered)}: {filtered}"
 
     # Both variants should be present
-    assert any("nariagari 2" in title.lower() and "season" not in title.lower() for title in filtered)
+    assert any(
+        "nariagari 2" in title.lower() and "season" not in title.lower() for title in filtered
+    )
     assert any("season 2" in title.lower() for title in filtered)

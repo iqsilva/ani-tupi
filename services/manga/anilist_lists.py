@@ -56,8 +56,7 @@ def handle_anilist_list(
     """
     if list_type not in LIST_CONFIG:
         raise ValueError(
-            f"Unknown list type: {list_type}. "
-            f"Must be one of {list(LIST_CONFIG.keys())}"
+            f"Unknown list type: {list_type}. Must be one of {list(LIST_CONFIG.keys())}"
         )
 
     anilist_status, loading_msg, empty_msg, menu_title = LIST_CONFIG[list_type]

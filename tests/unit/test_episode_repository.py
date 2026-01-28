@@ -1,4 +1,5 @@
 """Tests for EpisodeRepository class."""
+
 import pytest
 from services.episode_repository import EpisodeRepository
 
@@ -164,8 +165,8 @@ class TestEpisodeRepository:
 
     def test_get_next_available_episode(self, episode_repo):
         """Should find next available episode from given number."""
-        titles = [f"Episode {i+1}" for i in range(10)]
-        urls = [f"http://ep{i+1}.com" for i in range(10)]
+        titles = [f"Episode {i + 1}" for i in range(10)]
+        urls = [f"http://ep{i + 1}.com" for i in range(10)]
 
         episode_repo.add_episode_list("Naruto", titles, urls, "animefire")
 
@@ -185,12 +186,12 @@ class TestEpisodeRepository:
     def test_get_next_available_episode_multiple_sources(self, episode_repo):
         """Should find best next episode across multiple sources."""
         # Source 1: 5 episodes
-        titles1 = [f"Episode {i+1}" for i in range(5)]
-        urls1 = [f"http://s1-ep{i+1}.com" for i in range(5)]
+        titles1 = [f"Episode {i + 1}" for i in range(5)]
+        urls1 = [f"http://s1-ep{i + 1}.com" for i in range(5)]
 
         # Source 2: 10 episodes
-        titles2 = [f"Episode {i+1}" for i in range(10)]
-        urls2 = [f"http://s2-ep{i+1}.com" for i in range(10)]
+        titles2 = [f"Episode {i + 1}" for i in range(10)]
+        urls2 = [f"http://s2-ep{i + 1}.com" for i in range(10)]
 
         episode_repo.add_episode_list("Naruto", titles1, urls1, "source1")
         episode_repo.add_episode_list("Naruto", titles2, urls2, "source2")

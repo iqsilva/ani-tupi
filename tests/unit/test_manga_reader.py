@@ -1,15 +1,11 @@
 """Tests for Manga PDF reader launcher functionality."""
 
 import pytest
-import shutil
 import subprocess
-from pathlib import Path
 from unittest.mock import patch, MagicMock
 
-from models.config import MangaSettings, AppSettings, get_data_path
 from utils.manga_reader import (
     is_zathura_running,
-    ensure_zathura_config,
     find_pdf_reader,
     open_pdf_reader,
 )
@@ -195,7 +191,7 @@ class TestMangaReader:
         process = open_pdf_reader(temp_pdf_file)
         assert process is None
         mock_print.assert_any_call(
-            f"⚠️  Erro: PDF reader executable not found: zathura. Error: reader not found"
+            "⚠️  Erro: PDF reader executable not found: zathura. Error: reader not found"
         )
         mock_print.assert_any_call(f"   PDF salvo em: {temp_pdf_file}")
         mock_logger.error.assert_called_once()
@@ -216,7 +212,7 @@ class TestMangaReader:
         process = open_pdf_reader(temp_pdf_file)
         assert process is None
         mock_print.assert_any_call(
-            f"⚠️  Erro: PDF reader zathura exited with error code 1. Error: Command 'cmd' returned non-zero exit status 1."
+            "⚠️  Erro: PDF reader zathura exited with error code 1. Error: Command 'cmd' returned non-zero exit status 1."
         )
         mock_print.assert_any_call(f"   PDF salvo em: {temp_pdf_file}")
         mock_logger.error.assert_called_once()
@@ -236,6 +232,6 @@ class TestMangaReader:
         """Should handle TimeoutExpired from Popen."""
         process = open_pdf_reader(temp_pdf_file)
         assert process is None
-        mock_print.assert_any_call(f"⚠️  Erro: PDF reader zathura took too long to launch.")
+        mock_print.assert_any_call("⚠️  Erro: PDF reader zathura took too long to launch.")
         mock_print.assert_any_call(f"   PDF salvo em: {temp_pdf_file}")
         mock_logger.error.assert_called_once()

@@ -67,6 +67,7 @@ class SearchResultSet:
     Tracks metadata about search results including word count, query used,
     and source distribution for UI display and navigation.
     """
+
     word_count: int
     query: str
     results: list[str]
@@ -98,7 +99,15 @@ class IncrementalSearchState:
         self.search_history: list[SearchResultSet] = []
         self.current_index: int = -1
 
-    def add_result(self, word_count: int, query: str, results: list[str], source_counts: dict[str, int] | None = None, used_query: str | None = None, is_filtered: bool = False) -> None:
+    def add_result(
+        self,
+        word_count: int,
+        query: str,
+        results: list[str],
+        source_counts: dict[str, int] | None = None,
+        used_query: str | None = None,
+        is_filtered: bool = False,
+    ) -> None:
         """Add a new search result set to the history.
 
         Args:
@@ -115,11 +124,11 @@ class IncrementalSearchState:
             results=results,
             is_filtered=is_filtered,
             used_query=used_query or query,
-            source_counts=source_counts or {}
+            source_counts=source_counts or {},
         )
         # If we've navigated backward, discard forward history
         if self.current_index < len(self.search_history) - 1:
-            self.search_history = self.search_history[:self.current_index + 1]
+            self.search_history = self.search_history[: self.current_index + 1]
 
         self.search_history.append(result_set)
         self.current_index = len(self.search_history) - 1
@@ -171,7 +180,9 @@ class IncrementalSearchState:
 
     def __repr__(self) -> str:
         current = self.get_current()
-        current_str = f"{current.word_count} words, {len(current.results)} results" if current else "none"
+        current_str = (
+            f"{current.word_count} words, {len(current.results)} results" if current else "none"
+        )
         return f"IncrementalSearchState(current={current_str}, history_size={len(self.search_history)})"
 
 
@@ -262,7 +273,14 @@ def incremental_search_anime(query: str) -> tuple[IncrementalSearchState, list[s
                         source_counts[source] = source_counts.get(source, 0) + 1
 
                 # Store results in state (with normalized used_query)
-                state.add_result(current_word_count, partial_query, titles_with_sources, source_counts, used_query=used_query, is_filtered=False)
+                state.add_result(
+                    current_word_count,
+                    partial_query,
+                    titles_with_sources,
+                    source_counts,
+                    used_query=used_query,
+                    is_filtered=False,
+                )
 
                 # Check stopping condition
                 if len(current_results) <= 5:
@@ -300,7 +318,14 @@ def incremental_search_anime(query: str) -> tuple[IncrementalSearchState, list[s
                             source = source.rstrip("]")
                             source_counts[source] = source_counts.get(source, 0) + 1
 
-                    state.add_result(current_word_count, partial_query, filtered, source_counts, used_query=partial_query, is_filtered=True)
+                    state.add_result(
+                        current_word_count,
+                        partial_query,
+                        filtered,
+                        source_counts,
+                        used_query=partial_query,
+                        is_filtered=True,
+                    )
                 else:
                     # Filtered to 0 results - fallback to previous iteration
                     # Important: we do NOT re-search when filtering fails

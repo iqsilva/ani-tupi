@@ -58,7 +58,9 @@ def patch_repository(mock_repository):
 @pytest.fixture
 def no_anilist():
     """Patch AniList discovery to avoid external calls."""
-    with patch("utils.anilist_discovery.auto_discover_anilist_id", side_effect=Exception("No AniList")):
+    with patch(
+        "utils.anilist_discovery.auto_discover_anilist_id", side_effect=Exception("No AniList")
+    ):
         yield
 
 
@@ -68,10 +70,13 @@ class TestAnimeSearchBasicWorkflow:
     def test_user_searches_for_anime(self, patch_repository, no_anilist):
         """User searches for anime by title."""
         repo = patch_repository
-        repo.setup_search_result("dandadan", [
-            "Dandadan - AnimeFire",
-            "Dandadan - AnimesonlineCC",
-        ])
+        repo.setup_search_result(
+            "dandadan",
+            [
+                "Dandadan - AnimeFire",
+                "Dandadan - AnimesonlineCC",
+            ],
+        )
 
         state, results = incremental_search_anime("dandadan")
 
@@ -81,11 +86,14 @@ class TestAnimeSearchBasicWorkflow:
     def test_user_searches_returns_multiple_sources(self, patch_repository, no_anilist):
         """Search returns anime from multiple sources."""
         repo = patch_repository
-        repo.setup_search_result("jujutsu kaisen", [
-            "Jujutsu Kaisen - AnimeFire",
-            "Jujutsu Kaisen - AnimesonlineCC",
-            "Jujutsu Kaisen - AnimesDigital",
-        ])
+        repo.setup_search_result(
+            "jujutsu kaisen",
+            [
+                "Jujutsu Kaisen - AnimeFire",
+                "Jujutsu Kaisen - AnimesonlineCC",
+                "Jujutsu Kaisen - AnimesDigital",
+            ],
+        )
 
         state, results = incremental_search_anime("jujutsu kaisen")
 
@@ -99,13 +107,16 @@ class TestIncrementalSearchRefinementWorkflow:
     def test_user_progressively_narrows_search_results(self, patch_repository, no_anilist):
         """User progressively refines search for better results."""
         repo = patch_repository
-        repo.setup_search_result("my hero academia", [
-            "My Hero Academia S1",
-            "My Hero Academia S2",
-            "My Hero Academia S3",
-            "My Hero Academia S4",
-            "My Hero Academia S5",
-        ])
+        repo.setup_search_result(
+            "my hero academia",
+            [
+                "My Hero Academia S1",
+                "My Hero Academia S2",
+                "My Hero Academia S3",
+                "My Hero Academia S4",
+                "My Hero Academia S5",
+            ],
+        )
 
         state, results = incremental_search_anime("my hero academia")
 
@@ -116,10 +127,13 @@ class TestIncrementalSearchRefinementWorkflow:
     def test_search_with_long_query(self, patch_repository, no_anilist):
         """Search with full multi-word query."""
         repo = patch_repository
-        repo.setup_search_result("blue lock", [
-            "Blue Lock - AnimeFire",
-            "Blue Lock S2 - AnimesDigital",
-        ])
+        repo.setup_search_result(
+            "blue lock",
+            [
+                "Blue Lock - AnimeFire",
+                "Blue Lock S2 - AnimesDigital",
+            ],
+        )
 
         state, results = incremental_search_anime("blue lock")
 
@@ -132,10 +146,13 @@ class TestAnimeSelectionWorkflow:
     def test_user_selects_anime_from_results(self, patch_repository, no_anilist):
         """User selects anime from search results."""
         repo = patch_repository
-        repo.setup_search_result("dandadan", [
-            "Dandadan - AnimeFire",
-            "Dandadan - AnimesonlineCC",
-        ])
+        repo.setup_search_result(
+            "dandadan",
+            [
+                "Dandadan - AnimeFire",
+                "Dandadan - AnimesonlineCC",
+            ],
+        )
 
         state, results = incremental_search_anime("dandadan")
 
@@ -189,9 +206,12 @@ class TestCompleteAnimeWatchingWorkflow:
         repo = patch_repository
 
         # Step 1: Search for anime
-        repo.setup_search_result("dandadan", [
-            "Dandadan - AnimeFire",
-        ])
+        repo.setup_search_result(
+            "dandadan",
+            [
+                "Dandadan - AnimeFire",
+            ],
+        )
         state, results = incremental_search_anime("dandadan")
         assert len(results) > 0
 

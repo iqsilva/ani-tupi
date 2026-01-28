@@ -11,7 +11,10 @@ import requests
 
 from models.config import settings
 from models.models import AniListViewerInfo, AniListTitle
-from services.anilist.formatters import format_title as _format_title, get_search_title as _get_search_title
+from services.anilist.formatters import (
+    format_title as _format_title,
+    get_search_title as _get_search_title,
+)
 from services.anilist.anime_operations import AnimeOperationsMixin
 from services.anilist.manga_operations import MangaOperationsMixin
 

@@ -98,9 +98,7 @@ def mock_mugiwaras_pages_html():
 class TestMugiwarasSearchWorkflow:
     """Test manga search with Mugiwaras API."""
 
-    def test_search_manga_returns_results(
-        self, mugiwaras_scraper, mock_mugiwaras_search_response
-    ):
+    def test_search_manga_returns_results(self, mugiwaras_scraper, mock_mugiwaras_search_response):
         """Search should parse Mugiwaras HTML and return manga results."""
         with patch("requests.Session.get") as mock_get:
             mock_response = Mock()
@@ -161,9 +159,7 @@ class TestMugiwarasSearchWorkflow:
 class TestMugiwarasChapterSelectionWorkflow:
     """Test chapter selection and fetching."""
 
-    def test_get_chapters_parses_list(
-        self, mugiwaras_scraper, mock_mugiwaras_chapters_html
-    ):
+    def test_get_chapters_parses_list(self, mugiwaras_scraper, mock_mugiwaras_chapters_html):
         """get_chapters should parse chapter list from rendered HTML."""
         with patch("manga_scrapers.plugins.mugiwaras.sync_playwright") as mock_pw:
             mock_context = Mock()
@@ -188,9 +184,7 @@ class TestMugiwarasChapterSelectionWorkflow:
             assert chapters[1]["number"] == "49"
             assert chapters[2]["number"] == "48"
 
-    def test_get_chapters_sorts_descending(
-        self, mugiwaras_scraper, mock_mugiwaras_chapters_html
-    ):
+    def test_get_chapters_sorts_descending(self, mugiwaras_scraper, mock_mugiwaras_chapters_html):
         """Chapters should be sorted by number descending (latest first)."""
         with patch("manga_scrapers.plugins.mugiwaras.sync_playwright") as mock_pw:
             mock_context = Mock()
@@ -266,9 +260,7 @@ class TestMugiwarasChapterSelectionWorkflow:
 class TestMugiwarasPageFetchingWorkflow:
     """Test chapter page image fetching."""
 
-    def test_get_chapter_pages_extracts_images(
-        self, mugiwaras_scraper, mock_mugiwaras_pages_html
-    ):
+    def test_get_chapter_pages_extracts_images(self, mugiwaras_scraper, mock_mugiwaras_pages_html):
         """get_chapter_pages should extract image URLs from HTML."""
         with patch("manga_scrapers.plugins.mugiwaras.sync_playwright") as mock_pw:
             mock_context = Mock()
@@ -294,9 +286,7 @@ class TestMugiwarasPageFetchingWorkflow:
             assert len(pages) == 3
             assert all("mugiwarasoficial.com" in url for url in pages)
 
-    def test_get_chapter_pages_filters_noise(
-        self, mugiwaras_scraper, mock_mugiwaras_pages_html
-    ):
+    def test_get_chapter_pages_filters_noise(self, mugiwaras_scraper, mock_mugiwaras_pages_html):
         """get_chapter_pages should filter out logos and non-manga images."""
         with patch("manga_scrapers.plugins.mugiwaras.sync_playwright") as mock_pw:
             mock_context = Mock()

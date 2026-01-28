@@ -457,7 +457,9 @@ class TestGetEpisodeUrlAndSource:
         assert result.success is False
         assert result.player_url is None
         assert result.error_message is not None
-        assert "video" in result.error_message.lower() or "encontrado" in result.error_message.lower()
+        assert (
+            "video" in result.error_message.lower() or "encontrado" in result.error_message.lower()
+        )
 
     @patch("services.anime.playback_service.rep")
     def test_api_error_during_lookup(self, mock_rep):

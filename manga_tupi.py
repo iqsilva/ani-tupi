@@ -4,7 +4,6 @@ Command-line interface for searching and reading manga chapters.
 Uses MangaDexClient service layer with Rich menus and loading spinners.
 """
 
-
 from InquirerPy import inquirer
 
 from models.config import settings
@@ -510,9 +509,7 @@ def _continue_manga_flow(
         if recommended_chapter:
             # Verify chapter has a URL before attempting to read
             if not recommended_chapter.url:
-                print(
-                    f"⚠️  Capítulo {recommended_chapter_num} não disponível em {selected_source}."
-                )
+                print(f"⚠️  Capítulo {recommended_chapter_num} não disponível em {selected_source}.")
                 print("   Capítulo não disponível nesta fonte. Mostrando lista completa...")
                 # Fall back to normal chapter selection (continue to menu below)
             else:
@@ -1248,7 +1245,10 @@ def _process_chapter(
 
     # Ask for next action
     try:
-        action = menu_navigate(["Próximo", "Anterior", "Ler novamente", "Selecionar outro capítulo"], "O que deseja fazer?")
+        action = menu_navigate(
+            ["Próximo", "Anterior", "Ler novamente", "Selecionar outro capítulo"],
+            "O que deseja fazer?",
+        )
     except KeyboardInterrupt:
         return
 

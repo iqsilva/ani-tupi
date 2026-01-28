@@ -14,7 +14,6 @@ from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 
 
-
 class PooledHTTPClient:
     """Thread-safe HTTP client with connection pooling and retry logic.
 

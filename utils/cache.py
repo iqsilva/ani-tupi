@@ -160,7 +160,6 @@ class MemoryCache(Cache):
     def get_stats(self) -> CacheStats:
         """Get cache statistics."""
         with self._lock:
-            expired_count = sum(1 for item in self._cache.values() if item.is_expired())
             return CacheStats(
                 size=len(self._cache),
                 total_items=len(self._cache),

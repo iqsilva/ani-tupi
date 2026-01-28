@@ -186,7 +186,9 @@ class ChapterData(BaseModel):
     id: str = Field(..., min_length=1, description="Chapter UUID")
     number: str = Field(..., min_length=1, description="Chapter number (e.g., '42', '42.5')")
     title: str | None = Field(None, description="Chapter title")
-    url: str | None = Field(None, description="Chapter URL extracted by plugin (required for reading)")
+    url: str | None = Field(
+        None, description="Chapter URL extracted by plugin (required for reading)"
+    )
     language: str = Field(..., min_length=1, description="Language code (pt-br, en, ja)")
     published_at: datetime | None = Field(None, description="Publication date")
     scanlation_group: str | None = Field(None, description="Scanlation group name")

@@ -187,7 +187,7 @@ except Exception:
 class AnimeService:
     def search_anime(self, query: str) -> List[AnimeMetadata]:
         """Search for anime across all enabled scrapers."""
-        
+
     def get_episodes(self, anime: AnimeMetadata) -> List[EpisodeData]:
         """Fetch episode list for specific anime."""
 ```

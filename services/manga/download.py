@@ -54,9 +54,7 @@ def download_chapter(
         print(f"\n[{chapter_idx}/{total_chapters}] Capítulo {chapter.number}...")
 
         # Construct chapter URL based on source
-        chapter_url = _construct_chapter_url(
-            selected_source, manga_url, chapter, selected_manga
-        )
+        chapter_url = _construct_chapter_url(selected_source, manga_url, chapter, selected_manga)
 
         if config.debug_download_failures:
             print(f"  🔍 Buscando páginas do capítulo {chapter.number}...")
@@ -69,9 +67,7 @@ def download_chapter(
                 chapter.id, chapter_url=chapter_url, source=selected_source
             )
         except Exception as e:
-            error_msg = (
-                f"Falha ao buscar páginas do capítulo {chapter.number}: {str(e)}"
-            )
+            error_msg = f"Falha ao buscar páginas do capítulo {chapter.number}: {str(e)}"
             if config.debug_download_failures:
                 print(f"  ❌ {error_msg}")
             return False, error_msg
@@ -268,10 +264,7 @@ def _construct_chapter_url(
     if source == "mugiwaras":
         # Mugiwaras uses format: /manga/{manga-slug}/capitulo-{number}-{manga-slug}/
         manga_slug = (
-            manga_metadata.title.lower()
-            .replace(" ", "-")
-            .replace(":", "")
-            .replace("?", "")
+            manga_metadata.title.lower().replace(" ", "-").replace(":", "").replace("?", "")
         )
         return f"{manga_url}capitulo-{chapter.number}-{manga_slug}/"
     elif source == "mangadex":
@@ -284,10 +277,7 @@ def _construct_chapter_url(
             return chapter.url
         # Fallback construction if URL is missing
         manga_slug = (
-            manga_metadata.title.lower()
-            .replace(" ", "-")
-            .replace(":", "")
-            .replace("?", "")
+            manga_metadata.title.lower().replace(" ", "-").replace(":", "").replace("?", "")
         )
         return f"{manga_url}capitulo/{manga_slug}-capitulo-{chapter.number}/"
 
@@ -341,9 +331,7 @@ def _download_images(pages: list, output_path: Path, config) -> int:
                 failed_pages.append(f"Page {i}: Connection error")
                 continue
             except requests.exceptions.HTTPError:
-                status_code = (
-                    getattr(response, "status_code", "unknown") if response else "unknown"
-                )
+                status_code = getattr(response, "status_code", "unknown") if response else "unknown"
                 failed_pages.append(f"Page {i}: HTTP {status_code}")
                 continue
             except Exception as e:

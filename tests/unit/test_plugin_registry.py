@@ -1,4 +1,5 @@
 """Tests for PluginRegistry class."""
+
 import pytest
 from services.plugin_registry import PluginRegistry
 

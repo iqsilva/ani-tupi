@@ -25,12 +25,8 @@ class ChapterContext(BaseModel):
     manga_url: Optional[str] = Field(None, description="Base manga URL for scrapers")
 
     # Navigation context (optional, for chapter navigation)
-    all_chapters: Optional[list[Any]] = Field(
-        None, description="All chapters for navigation"
-    )
-    chapter_labels: Optional[list[str]] = Field(
-        None, description="Formatted chapter labels"
-    )
+    all_chapters: Optional[list[Any]] = Field(None, description="All chapters for navigation")
+    chapter_labels: Optional[list[str]] = Field(None, description="Formatted chapter labels")
     current_index: int = Field(0, ge=0, description="Current chapter index in list")
 
     class Config:
@@ -55,9 +51,7 @@ class DownloadRequest(BaseModel):
     # Download options
     output_directory: Path = Field(..., description="Base output directory")
     pdf_quality: int = Field(85, ge=1, le=100, description="PDF JPEG quality")
-    delete_images_after_pdf: bool = Field(
-        False, description="Delete images after PDF creation"
-    )
+    delete_images_after_pdf: bool = Field(False, description="Delete images after PDF creation")
 
     # Progress tracking (for batch downloads)
     chapter_idx: int = Field(1, ge=1, description="Chapter index for progress (1-based)")
