@@ -43,7 +43,7 @@ class AnimesOnlineCC:
             num_seasons = len(tree.css("div.se-c"))
             if num_seasons > 1:
                 for n in range(2, num_seasons + 1):
-                    rep.add_anime(title + " Temporada " + str(n), url, AnimesOnlineCC.name, n)
+                    rep.add_anime(title + " Temporada " + str(n), url, AnimesOnlineCC.name, {"season": n})
 
         with ThreadPool(cpu_count()) as pool:
             for title, url in zip(titles, titles_urls):
