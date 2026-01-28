@@ -768,18 +768,8 @@ def _download_single_chapter(
         print(f"\n[{chapter_idx}/{total_chapters}] Capítulo {chapter.number}...")
 
         # Construct chapter URL based on source
-        chapter_url = None
-        if selected_source == "mugiwaras":
-            # Mugiwaras uses format: /manga/{manga-slug}/capitulo-{number}-{manga-slug}/
-            manga_slug = (
-                selected_manga.title.lower().replace(" ", "-").replace(":", "").replace("?", "")
-            )
-            chapter_url = f"{manga_url}capitulo-{chapter.number}-{manga_slug}/"
-        elif selected_source == "mangadex":
-            chapter_url = f"https://mangadex.org/chapter/{chapter.id}"
-        elif selected_source == "mangalivre":
-            # For MangaLivre, use URL provided by plugin
-            chapter_url = chapter.url
+        # Use chapter URL provided by plugin
+        chapter_url = chapter.url or ""
 
         if config.debug_download_failures:
             print(f"  🔍 Buscando páginas do capítulo {chapter.number}...")
@@ -1125,18 +1115,8 @@ def _process_chapter(
         print("📖 Abrindo capítulo existente...")
     else:
         # Construct chapter URL for scrapers that need it
-        chapter_url = None
-        if selected_source == "mugiwaras":
-            # For MugiwarasOficial, reconstruct URL with proper format
-            manga_slug = (
-                selected_manga.title.lower().replace(" ", "-").replace(":", "").replace("?", "")
-            )
-            chapter_url = f"{manga_url}capitulo-{selected_chapter.number}-{manga_slug}/"
-        elif selected_source == "mangadex":
-            chapter_url = f"https://mangadex.org/chapter/{selected_chapter.id}"
-        elif selected_source == "mangalivre":
-            # For MangaLivre, use URL provided by plugin
-            chapter_url = selected_chapter.url
+        # Use chapter URL provided by plugin
+        chapter_url = selected_chapter.url or ""
 
         # Load chapter pages (only if PDF doesn't exist)
         try:
@@ -1324,13 +1304,6 @@ def _process_chapter(
     if auto_load_next:
         # Update current chapter reference before calling recursively
         selected_chapter = chapters[current_index]
-
-        # Update chapter URL for new chapter
-        chapter_url = None
-        if selected_source == "mugiwaras":
-            chapter_url = f"{manga_url}{selected_chapter.id}/"
-        elif selected_source == "mangadex":
-            chapter_url = f"https://mangadex.org/chapter/{selected_chapter.id}"
 
         # Process the chapter recursively
         _process_chapter(

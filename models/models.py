@@ -174,7 +174,10 @@ class ChapterData(BaseModel):
         id: Chapter UUID or identifier
         number: Chapter number (supports decimals like "42.5")
         title: Optional chapter title
-        url: Optional chapter URL (for scraper plugins that provide it)
+        url: Chapter URL extracted by the plugin during scraping.
+            Must be populated by the plugin's get_chapters() method.
+            For web scrapers: the href attribute from chapter links.
+            For API sources: constructed from response data (e.g., MangaDex).
         language: Language code (pt-br, en, ja, etc.)
         published_at: Optional publication date
         scanlation_group: Optional scanlation group name
@@ -183,7 +186,7 @@ class ChapterData(BaseModel):
     id: str = Field(..., min_length=1, description="Chapter UUID")
     number: str = Field(..., min_length=1, description="Chapter number (e.g., '42', '42.5')")
     title: str | None = Field(None, description="Chapter title")
-    url: str | None = Field(None, description="Chapter URL (if provided by source)")
+    url: str | None = Field(None, description="Chapter URL extracted by plugin (required for reading)")
     language: str = Field(..., min_length=1, description="Language code (pt-br, en, ja)")
     published_at: datetime | None = Field(None, description="Publication date")
     scanlation_group: str | None = Field(None, description="Scanlation group name")
@@ -446,15 +449,15 @@ class SearchMetadata(BaseModel):
         source: Source of the search (cache or scraper)
     """
 
-    original_query: str | None = Field(None, description="Original user query")
-    used_query: str | None = Field(None, description="Query actually used")
-    used_words: int | None = Field(None, ge=0, description="Words used in search")
-    total_words: int | None = Field(None, ge=0, description="Total words in query")
-    min_words: int | None = Field(None, ge=0, description="Minimum word limit")
-    variant_tested: str | None = Field(None, description="Title variation tested")
-    variant_index: int | None = Field(None, ge=0, description="Variation index")
-    total_variants: int | None = Field(None, ge=0, description="Total variations")
-    source: str | None = Field(None, description="Search source (cache/scraper)")
+    original_query: str | None = None
+    used_query: str | None = None
+    used_words: int | None = None
+    total_words: int | None = None
+    min_words: int | None = None
+    variant_tested: str | None = None
+    variant_index: int | None = None
+    total_variants: int | None = None
+    source: str | None = None
 
 
 # Cache Models

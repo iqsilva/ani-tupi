@@ -76,12 +76,15 @@ class MangaDex:
     def get_chapters(self, manga_id: str, manga_url: str) -> list[dict[str, Any]]:
         """Fetch chapter list for a manga.
 
+        Extracts chapter URLs by constructing them from chapter IDs:
+        https://mangadex.org/chapter/{chapter_id}
+
         Args:
             manga_id: MangaDex manga ID
             manga_url: Manga URL (not used for API)
 
         Returns:
-            List of chapters
+            List of chapters with "url" field populated by plugin
         """
         try:
             chapters = []

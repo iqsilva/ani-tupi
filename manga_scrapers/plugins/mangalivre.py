@@ -127,12 +127,15 @@ class MangaLivre:
     def get_chapters(self, manga_id: str, manga_url: str) -> list[dict[str, Any]]:
         """Fetch chapter list for a manga.
 
+        Extracts chapter URLs directly from HTML href attributes in the chapter list.
+        Each chapter's "url" field is populated with the link extracted from the website.
+
         Args:
             manga_id: Manga ID (slug)
             manga_url: Manga URL
 
         Returns:
-            List of chapters with structure:
+            List of chapters with "url" field extracted from HTML href attributes:
             [
                 {
                     "id": "chapter-id",

@@ -13,7 +13,8 @@ and the new multi-source unified service into a single source of truth.
 
 import json
 from datetime import datetime
-from typing import Any
+from typing import Any, Dict, List, Optional
+from collections import OrderedDict
 
 
 from manga_scrapers.loader import load_manga_plugins
@@ -346,36 +347,56 @@ class UnifiedMangaService:
 
         Metadata maps manga_id to which plugin has it (e.g., {"manga-id": "mugiwaras"})
         This allows us to remember which plugin a manga was found in.
+        Uses OrderedDict to implement LRU behavior.
         """
-        self.manga_plugin_map: dict[str, str] = {}
+        self.manga_plugin_map: OrderedDict[str, str] = OrderedDict()
         if self.metadata_file.exists():
             try:
                 with open(self.metadata_file) as f:
-                    self.manga_plugin_map = json.load(f)
+                    data = json.load(f)
+                    # Load into OrderedDict, limiting to 1000 most recent
+                    # Assuming the file stores them in some order, or just take first 1000
+                    # For LRU, we want the most recent ones.
+                    count = 0
+                    for k, v in data.items():
+                        self.manga_plugin_map[k] = v
+                        count += 1
+                        if count >= 1000:
+                            break
             except Exception:
-                self.manga_plugin_map = {}
+                self.manga_plugin_map = OrderedDict()
 
     def _save_metadata(self) -> None:
         """Save manga plugin metadata to file."""
         try:
             self.metadata_file.parent.mkdir(parents=True, exist_ok=True)
             with open(self.metadata_file, "w") as f:
-                json.dump(self.manga_plugin_map, f, indent=2)
+                # Save all entries from current in-memory map
+                json.dump(dict(self.manga_plugin_map), f, indent=2)
         except Exception:
             pass  # Silently ignore save errors
 
     def _record_manga_in_plugin(self, manga_id: str, plugin_name: str) -> None:
-        """Record which plugin a manga was found in.
+        """Record which plugin a manga was found in with LRU eviction.
 
         Args:
             manga_id: The manga ID
             plugin_name: The plugin name that has this manga
         """
+        if manga_id in self.manga_plugin_map:
+            # Move to end (most recent)
+            self.manga_plugin_map.move_to_end(manga_id)
+
         self.manga_plugin_map[manga_id] = plugin_name
+
+        # Evict oldest if limit exceeded (1000 entries)
+        if len(self.manga_plugin_map) > 1000:
+            self.manga_plugin_map.popitem(last=False)
+
         self._save_metadata()
 
     def _get_known_plugin_for_manga(self, manga_id: str) -> str | None:
-        """Get the plugin where a manga was previously found.
+        """Get the plugin where a manga was previously found, updating LRU.
 
         Args:
             manga_id: The manga ID
@@ -383,7 +404,11 @@ class UnifiedMangaService:
         Returns:
             Plugin name or None if not found in metadata
         """
-        return self.manga_plugin_map.get(manga_id)
+        if manga_id in self.manga_plugin_map:
+            # Move to end (most recent)
+            self.manga_plugin_map.move_to_end(manga_id)
+            return self.manga_plugin_map[manga_id]
+        return None
 
     def _determine_default_source(self) -> str:
         """Determine the default manga source based on availability and preferences.
@@ -642,13 +667,16 @@ class UnifiedMangaService:
     ) -> list[ChapterData]:
         """Get chapters from a specific source.
 
+        Calls the plugin's get_chapters() method and converts results to ChapterData objects.
+        Validates that chapter URLs are populated by the plugin (no CLI-side URL construction).
+
         Args:
             manga_id: Manga ID
             manga_url: Optional manga URL
             source_name: Source name
 
         Returns:
-            List of ChapterData objects
+            List of ChapterData objects with URLs populated by plugins
         """
         plugin = self.plugins[source_name]
 
@@ -670,11 +698,16 @@ class UnifiedMangaService:
         chapters = []
         for item in raw_chapters:
             try:
+                # Validate URL is populated by plugin
+                url = item.get("url")
+                if not url:
+                    print(f"⚠️  Capítulo {item['id']} de {source_name} sem URL extraída")
+
                 chapter = ChapterData(
                     id=item["id"],
                     number=item["number"],
                     title=item.get("title"),
-                    url=item.get("url"),  # Store chapter URL from plugin if available
+                    url=url,  # Store chapter URL from plugin if available
                     language=source_name,  # Use source as language for now
                     published_at=None,  # Not all sources provide this
                     scanlation_group=None,  # Not all sources provide this
