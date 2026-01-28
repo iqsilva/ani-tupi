@@ -5,9 +5,8 @@ while maintaining episode progress and AniList synchronization.
 """
 
 import json
-from pathlib import Path
 
-from models.config import settings
+from models.config import get_data_path
 from services.repository import rep
 from ui.components import loading, menu_navigate
 from services.anime.title_normalization import normalize_anime_title
@@ -15,7 +14,7 @@ from services.anime.mappings import (
     load_anilist_search_title,
 )
 
-HISTORY_PATH = Path(settings.history_file).parent
+HISTORY_PATH = get_data_path()
 
 
 def switch_anime_source(
