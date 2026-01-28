@@ -97,13 +97,13 @@ def load_history() -> tuple[str, int, int | None, str | None] | None:
 
         if search_title != anime:
             with loading(f"Buscando '{search_title}' (título simplificado)..."):
-                rep.search_anime(search_title)
+                search_results = rep.search_anime(search_title)
         else:
             with loading(f"Buscando '{anime}'..."):
-                rep.search_anime(anime)
+                search_results = rep.search_anime(anime)
 
         # Check if multiple anime results (different sources/versions)
-        anime_titles = rep.get_anime_titles()
+        anime_titles = search_results.get_anime_titles()
         selected_anime_title = None
         episode_list = []
 
@@ -112,7 +112,7 @@ def load_history() -> tuple[str, int, int | None, str | None] | None:
             print(f"ℹ️  Validando fontes disponíveis para '{anime}'...")
 
             valid_sources = {}  # {anime_title: episode_count}
-            anime_with_sources = rep.get_anime_titles_with_sources()
+            anime_with_sources = search_results.get_anime_titles_with_sources()
 
             for anime_with_source in anime_with_sources:
                 # Extract anime title and sources
@@ -211,9 +211,9 @@ def load_history() -> tuple[str, int, int | None, str | None] | None:
                 # Search with manual query
                 rep.clear_search_results()
                 with loading(f"Buscando '{manual_query}'..."):
-                    rep.search_anime(manual_query)
+                    search_results = rep.search_anime(manual_query)
 
-                anime_titles = rep.get_anime_titles()
+                anime_titles = search_results.get_anime_titles()
 
                 if not anime_titles:
                     print(f"\n❌ Nenhum resultado encontrado para '{manual_query}'")
@@ -221,7 +221,7 @@ def load_history() -> tuple[str, int, int | None, str | None] | None:
                     return load_history()
 
                 # Show results and let user choose
-                anime_with_sources = rep.get_anime_titles_with_sources()
+                anime_with_sources = search_results.get_anime_titles_with_sources()
                 if len(anime_with_sources) == 1:
                     selected_anime_title = anime_titles[0]
                 else:

@@ -17,7 +17,7 @@ from typing import Dict, List
 # Import optimized components
 from scrapers.core.http_client import http_client
 from scrapers.core.browser_pool import browser_pool
-from scrapers.core.cache import smart_cache
+from utils.cache import get_cache
 
 # Import existing scrapers for comparison
 
@@ -94,11 +94,14 @@ class PerformanceBenchmark:
         """
         print("💾 Benchmarking smart cache...")
 
+        # Get unified cache for testing
+        cache = get_cache()
+
         # Test cache writes
         write_times = []
         for i in range(operations):
             start = time.time()
-            smart_cache.set(f"test_key_{i}", f"test_value_{i}", 300)
+            cache.set(f"test_key_{i}", f"test_value_{i}", 300)
             end = time.time()
             write_times.append(end - start)
 
@@ -106,7 +109,7 @@ class PerformanceBenchmark:
         read_times = []
         for i in range(operations):
             start = time.time()
-            result = smart_cache.get(f"test_key_{i}")
+            result = cache.get(f"test_key_{i}")
             end = time.time()
             read_times.append(end - start)
 
@@ -114,7 +117,7 @@ class PerformanceBenchmark:
         miss_times = []
         for i in range(operations, operations * 2):
             start = time.time()
-            result = smart_cache.get(f"nonexistent_key_{i}")
+            result = cache.get(f"nonexistent_key_{i}")
             end = time.time()
             miss_times.append(end - start)
 

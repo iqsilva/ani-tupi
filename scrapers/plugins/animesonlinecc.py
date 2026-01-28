@@ -6,12 +6,12 @@ from multiprocessing.pool import ThreadPool
 from os import cpu_count
 
 from scrapers.core.browser_pool import get_browser_pool
-from scrapers.loader import PluginInterface
+
 from scrapers.plugins.utils import get_with_retry
 from services.repository import rep
 
 
-class AnimesOnlineCC(PluginInterface):
+class AnimesOnlineCC:
     languages = ["pt-br"]
     name = "animesonlinecc"
 

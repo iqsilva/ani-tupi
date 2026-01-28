@@ -6,8 +6,9 @@ internal state. This enforces the Immutable Data Flow principle from CLAUDE.md.
 
 import pytest
 from dataclasses import FrozenInstanceError
+from pydantic import ValidationError
 
-from services.repository import rep, Repository
+from services.repository import rep
 from models.models import SearchResults, AnimeSearchResult, EpisodeList
 
 
@@ -22,8 +23,8 @@ class TestSearchResultsImmutability:
             metadata={},
         )
 
-        # Should not be able to modify frozen dataclass
-        with pytest.raises((AttributeError, FrozenInstanceError)):
+        # Should not be able to modify frozen Pydantic model
+        with pytest.raises((AttributeError, FrozenInstanceError, ValidationError)):
             result.query = "modified"
 
     def test_search_results_tuple_is_immutable(self):
@@ -55,7 +56,7 @@ class TestAnimeSearchResultImmutability:
             sources=(("url", "source", {}),),
         )
 
-        with pytest.raises((AttributeError, FrozenInstanceError)):
+        with pytest.raises((AttributeError, FrozenInstanceError, ValidationError)):
             anime.title = "Modified"
 
     def test_anime_search_result_sources_immutable(self):
@@ -229,7 +230,7 @@ class TestEpisodeListImmutability:
             episodes=(("Episode 1", ["url1", "url2"], "source1"),),
         )
 
-        with pytest.raises((AttributeError, FrozenInstanceError)):
+        with pytest.raises((AttributeError, FrozenInstanceError, ValidationError)):
             episodes.anime_title = "Modified"
 
     def test_episode_list_episodes_immutable(self):
@@ -266,9 +267,7 @@ class TestEpisodeListMethods:
         """EpisodeList.get_episode_url() should return URL and source."""
         episodes = EpisodeList(
             anime_title="Test",
-            episodes=(
-                ("Episode 1", ["url1", "url2", "url3"], "source1"),
-            ),
+            episodes=(("Episode 1", ["url1", "url2", "url3"], "source1"),),
         )
 
         # Get episode 2 (1-indexed)
@@ -282,9 +281,7 @@ class TestEpisodeListMethods:
         """EpisodeList.get_episode_url() should return None if episode not found."""
         episodes = EpisodeList(
             anime_title="Test",
-            episodes=(
-                ("Episode 1", ["url1"], "source1"),
-            ),
+            episodes=(("Episode 1", ["url1"], "source1"),),
         )
 
         # Episode 5 doesn't exist

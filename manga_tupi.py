@@ -193,7 +193,7 @@ def _start_manga_search(service: UnifiedMangaService, title: str) -> None:
         ]
 
         try:
-            choice = menu_navigate(confirm_options, f"Qual mangá deseja ler?")
+            choice = menu_navigate(confirm_options, "Qual mangá deseja ler?")
 
             if choice is None:
                 # User selected "← Voltar"
@@ -513,7 +513,7 @@ def _continue_manga_flow(
                 print(
                     f"⚠️  Capítulo {recommended_chapter_num} não disponível em {selected_source}."
                 )
-                print(f"   Capítulo não disponível nesta fonte. Mostrando lista completa...")
+                print("   Capítulo não disponível nesta fonte. Mostrando lista completa...")
                 # Fall back to normal chapter selection (continue to menu below)
             else:
                 print(f"✓ Capítulo {recommended_chapter_num} encontrado. Iniciando leitura...")

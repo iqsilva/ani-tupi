@@ -69,17 +69,11 @@ class AniListSettings(BaseModel):
 
 
 class CacheSettings(BaseModel):
-    """Scraper cache configuration (SQLite via diskcache)."""
+    """Unified cache configuration."""
 
-    duration_hours: int = Field(
-        168,
-        ge=1,
-        le=720,
-        description="Cache validity duration in hours (default 7 days, max 30 days)",
-    )
     cache_dir: Path = Field(
         default_factory=lambda: get_data_path() / "cache",
-        description="Path to SQLite cache directory (diskcache)",
+        description="Path to cache directory (unified backends)",
     )
     # Kept for migration compatibility
     cache_file: Path = Field(
@@ -215,6 +209,30 @@ class PerformanceSettings(BaseModel):
         description="Maximum size of smart cache (MB)",
     )
 
+    # Unified Cache Settings
+    cache_type: str = Field(
+        "disk",
+        description="Cache backend: memory, disk, or hybrid",
+    )
+
+    # Consolidated Cache TTL Settings (replaces duplicate duration_hours fields)
+    default_ttl_hours: int = Field(
+        168,
+        ge=1,
+        le=720,
+        description="Default cache TTL in hours (7 days, max 30 days)",
+    )
+    source_ttls: dict[str, int] = Field(
+        default_factory=lambda: {
+            "search": 5,  # 5 minutes for search results
+            "episodes": 30,  # 30 minutes for episode lists
+            "video": 15,  # 15 minutes for video URLs (expire quickly)
+            "manga": 24,  # 24 hours for manga chapters
+            "anilist_meta": 720,  # 30 days for AniList metadata
+        },
+        description="Source-specific TTL in hours",
+    )
+
 
 class MangaSettings(BaseModel):
     """Manga reader settings with multi-source support."""
@@ -223,12 +241,7 @@ class MangaSettings(BaseModel):
         "https://api.mangadex.org",
         description="MangaDex API base URL",
     )
-    cache_duration_hours: int = Field(
-        24,
-        ge=1,
-        le=72,
-        description="How long to cache chapter lists (hours)",
-    )
+
     output_directory: Path = Field(
         default_factory=lambda: Path.home() / ".manga_tupi",
         description="Where to save downloaded manga chapters",

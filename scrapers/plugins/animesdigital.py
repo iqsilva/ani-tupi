@@ -1,7 +1,7 @@
 from selectolax.parser import HTMLParser
 
 from scrapers.core.browser_pool import get_browser_pool
-from scrapers.loader import PluginInterface
+
 from scrapers.plugins.utils import get_with_retry
 from services.repository import rep
 
@@ -10,7 +10,7 @@ from services.repository import rep
 REQUEST_TIMEOUT = 30
 
 
-class AnimesDigital(PluginInterface):
+class AnimesDigital:
     languages = ["pt-br"]
     name = "animesdigital"
 

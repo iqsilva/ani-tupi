@@ -55,7 +55,7 @@ class PluginProtocol(Protocol):
 
 
 # For backwards compatibility with existing code
-PluginInterface = PluginProtocol
+# Note: PluginInterface alias removed to enforce structural typing
 
 
 def get_resource_path(relative_path):

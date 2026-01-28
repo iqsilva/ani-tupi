@@ -6,7 +6,6 @@ from os import cpu_count
 from threading import Thread
 
 from models.config import settings
-from scrapers.loader import PluginInterface
 from models.models import EpisodeData, SearchMetadata, SearchResults, AnimeSearchResult
 
 
@@ -43,7 +42,7 @@ class Repository:
 
         Repository._initialized = True
 
-    def register(self, plugin: PluginInterface) -> None:
+    def register(self, plugin) -> None:
         self.sources[plugin.name] = plugin
 
     def get_active_sources(self) -> list[str]:
@@ -98,7 +97,7 @@ class Repository:
         if not self.sources:
             print("\n❌ Erro: Nenhum plugin carregado!")
             print("Verifique se os plugins estão instalados em plugins/")
-            return SearchResults(query=query, results=(), metadata=None)
+            return SearchResults(query=query, results=(), metadata={})
 
         # CACHE CHECK: Try to get search results from cache first
         cache_key = f"search:{query.lower()}"
@@ -218,7 +217,7 @@ class Repository:
         if not self.sources:
             print("\n❌ Erro: Nenhum plugin carregado!")
             print("Verifique se os plugins estão instalados em plugins/")
-            return SearchResults(query=query, results=(), metadata=None)
+            return SearchResults(query=query, results=(), metadata={})
 
         words = query.split()
         min_words = settings.search.progressive_search_min_words

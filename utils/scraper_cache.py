@@ -1,16 +1,12 @@
 """Cache system for scraper results (wrapper for backward compatibility).
 
 DEPRECATED: This module is kept for backward compatibility only.
-New code should use cache_manager.py instead.
+New code should use utils.cache instead.
 
 Cache settings (location, duration) are configured in config.py
 """
 
-from utils.cache_manager import (
-    get_cache as _get_diskcache,
-    clear_cache_all,
-    clear_cache_by_prefix,
-)
+from utils.cache import get_cache as _get_unified_cache, clear_cache_all, clear_cache_by_prefix
 from utils.anilist_discovery import get_anilist_id_from_title
 from models.models import ScraperCacheData
 
@@ -35,13 +31,13 @@ def get_cache(anime_title: str) -> ScraperCacheData | None:
         else:
             cache_key = f"episodes:{anime_title}"
 
-        # Get from new cache system
-        cache_obj = _get_diskcache()
+        # Get from unified cache system
+        cache_obj = _get_unified_cache()
         cached_urls = cache_obj.get(cache_key)
 
         if cached_urls and isinstance(cached_urls, list):
             return ScraperCacheData(
-                episode_urls=cached_urls,  # type: ignore[arg-type]  # diskcache returns Any
+                episode_urls=cached_urls,  # type: ignore[arg-type]  # unified cache returns Any
                 episode_count=len(cached_urls),
                 timestamp=0,  # Not used in new system
             )
@@ -62,7 +58,7 @@ def set_cache(anime_title: str, episode_count: int, episode_urls: list[str]) -> 
 
     """
     try:
-        from utils.cache_manager import get_cache as dc
+        cache_obj = _get_unified_cache()
         from models.config import settings
 
         # Try to discover AniList ID for better cache key
@@ -73,8 +69,8 @@ def set_cache(anime_title: str, episode_count: int, episode_urls: list[str]) -> 
         else:
             cache_key = f"episodes:{anime_title}"
 
-        # Save to new cache system
-        dc().set(cache_key, episode_urls, expire=settings.cache.duration_hours * 3600)
+        # Save to unified cache system
+        cache_obj.set(cache_key, episode_urls, ttl=settings.performance.default_ttl_hours * 3600)
 
     except Exception:
         pass  # Silent fail - cache is optional

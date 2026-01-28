@@ -4,12 +4,12 @@ from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.wait import WebDriverWait
 
 from scrapers.core.browser_pool import get_browser_pool
-from scrapers.loader import PluginInterface
+
 from scrapers.plugins.utils import get_with_retry, head_with_retry
 from services.repository import rep
 
 
-class AnimeFire(PluginInterface):
+class AnimeFire:
     languages = ["pt-br"]
     name = "animefire"
 

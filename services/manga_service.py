@@ -2,7 +2,6 @@
 
 Provides:
 - UnifiedMangaService: Multi-source manga service with plugin support
-- MangaCache: Simple in-memory cache with TTL
 - MangaHistory: Reading progress persistence
 - DownloadedChaptersTracker: Download tracking and metadata
 - MangaDexClient: Backward compatibility alias
@@ -13,12 +12,9 @@ and the new multi-source unified service into a single source of truth.
 """
 
 import json
-import time
 from datetime import datetime
-from pathlib import Path
 from typing import Any
 
-import requests
 
 from manga_scrapers.loader import load_manga_plugins
 from models.config import MangaSettings, get_data_path
@@ -62,52 +58,6 @@ class ChapterNotAvailableError(MangaError):
 # ============================================================================
 # UTILITY CLASSES
 # ============================================================================
-
-
-class MangaCache:
-    """Simple in-memory cache with TTL."""
-
-    def __init__(self, ttl_hours: int):
-        """Initialize cache with TTL.
-
-        Args:
-            ttl_hours: Time to live for cached items in hours
-        """
-        self.ttl_seconds = ttl_hours * 3600
-        self.cache: dict[str, tuple[Any, float]] = {}
-
-    def get(self, key: str) -> Any | None:
-        """Get cached value if not expired.
-
-        Args:
-            key: Cache key
-
-        Returns:
-            Cached value or None if not found or expired
-        """
-        if key not in self.cache:
-            return None
-
-        value, expire_time = self.cache[key]
-        if time.time() > expire_time:
-            del self.cache[key]
-            return None
-
-        return value
-
-    def set(self, key: str, value: Any) -> None:
-        """Set cached value with TTL.
-
-        Args:
-            key: Cache key
-            value: Value to cache
-        """
-        expire_time = time.time() + self.ttl_seconds
-        self.cache[key] = (value, expire_time)
-
-    def clear(self) -> None:
-        """Clear all cache."""
-        self.cache.clear()
 
 
 class MangaHistory:
@@ -670,9 +620,7 @@ class UnifiedMangaService:
             known_source = self._get_known_plugin_for_manga(manga_id)
             if known_source and known_source != source_name:
                 try:
-                    print(
-                        f"⚠️  Falha em {source_name}, tentando fonte conhecida {known_source}..."
-                    )
+                    print(f"⚠️  Falha em {source_name}, tentando fonte conhecida {known_source}...")
                     return self._get_chapters_from_source(manga_id, manga_url, known_source)
                 except Exception:
                     pass

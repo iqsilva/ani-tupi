@@ -4,10 +4,8 @@ Tests verify that all manga service components are available from a single
 consolidated manga_service module, replacing split implementations.
 """
 
-import pytest
 from services.manga_service import (
     UnifiedMangaService,
-    MangaCache,
     MangaHistory,
     DownloadedChaptersTracker,
     MangaError,
@@ -35,9 +33,11 @@ class TestUnifiedServiceImport:
 class TestUtilityClassesImport:
     """Verify all utility classes are importable from consolidated module."""
 
-    def test_manga_cache_available(self):
-        """MangaCache should be importable."""
-        assert MangaCache is not None
+    def test_unified_cache_available(self):
+        """Unified cache should be importable."""
+        from utils.cache import Cache
+
+        assert Cache is not None
 
     def test_manga_history_available(self):
         """MangaHistory should be importable."""
@@ -72,23 +72,29 @@ class TestExceptionClassesImport:
         assert issubclass(ChapterNotAvailableError, MangaError)
 
 
-class TestMangaCacheFunctionality:
-    """Verify MangaCache works correctly after consolidation."""
+class TestUnifiedCacheFunctionality:
+    """Verify unified cache works correctly for manga service."""
 
     def test_cache_set_and_get(self):
         """Cache should store and retrieve values."""
-        cache = MangaCache(ttl_hours=1)
+        from utils.cache import MemoryCache
+
+        cache = MemoryCache(max_size_mb=10, default_ttl=3600)
         cache.set("key", "value")
         assert cache.get("key") == "value"
 
     def test_cache_returns_none_for_missing_key(self):
         """Cache should return None for missing keys."""
-        cache = MangaCache(ttl_hours=1)
+        from utils.cache import MemoryCache
+
+        cache = MemoryCache(max_size_mb=10, default_ttl=3600)
         assert cache.get("nonexistent") is None
 
     def test_cache_clear(self):
         """Cache should clear all entries."""
-        cache = MangaCache(ttl_hours=1)
+        from utils.cache import MemoryCache
+
+        cache = MemoryCache(max_size_mb=10, default_ttl=3600)
         cache.set("key1", "value1")
         cache.set("key2", "value2")
         cache.clear()

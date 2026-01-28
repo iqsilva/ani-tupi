@@ -13,7 +13,6 @@ Defines DTOs (Data Transfer Objects) for:
 - EpisodeList: Immutable episode list
 """
 
-from dataclasses import dataclass
 from datetime import datetime
 from enum import Enum
 from pathlib import Path
@@ -508,16 +507,15 @@ class Status(str, Enum):
 # ============================================================================
 # IMMUTABLE DATA STRUCTURES (Phase 2 - C3)
 # ============================================================================
-# These frozen dataclasses enforce Immutable Data Flow principle from CLAUDE.md
+# These frozen Pydantic models enforce Immutable Data Flow principle from CLAUDE.md
 # Services return new immutable values, never mutate state
 
 
-@dataclass(frozen=True)
-class AnimeSearchResult:
+class AnimeSearchResult(BaseModel, frozen=True):
     """Immutable anime search result.
 
     Represents one anime found across one or more sources.
-    Cannot be modified after creation (frozen dataclass).
+    Cannot be modified after creation (frozen=True Pydantic model).
 
     Attributes:
         title: Human-readable anime title
@@ -525,20 +523,23 @@ class AnimeSearchResult:
         sources: Immutable tuple of (url, source_name, params) tuples
     """
 
-    title: str
-    normalized_title: str
-    sources: tuple[tuple[str, str, dict], ...]
+    title: str = Field(..., min_length=1, description="Human-readable anime title")
+    normalized_title: str = Field(
+        ..., min_length=1, description="Normalized title for deduplication"
+    )
+    sources: tuple[tuple[str, str, dict], ...] = Field(
+        ..., description="Tuple of (url, source_name, params) tuples"
+    )
 
-    def __post_init__(self):
-        """Validate at construction time."""
-        if not self.title:
-            raise ValueError("title cannot be empty")
+    @model_validator(mode="after")
+    def validate_sources(self) -> "AnimeSearchResult":
+        """Validate sources is not empty."""
         if not self.sources:
             raise ValueError("sources cannot be empty")
+        return self
 
 
-@dataclass(frozen=True)
-class SearchResults:
+class SearchResults(BaseModel, frozen=True):
     """Immutable collection of anime search results.
 
     Returned by Repository.search_anime() instead of mutating repository state.
@@ -550,15 +551,11 @@ class SearchResults:
         metadata: Search metadata (dict[str, Any])
     """
 
-    query: str
-    results: tuple[AnimeSearchResult, ...]
-    metadata: dict[str, Any] | None = None
-
-    def __post_init__(self):
-        """Set default metadata if None."""
-        if self.metadata is None:
-            # Use object.__setattr__ because dataclass is frozen
-            object.__setattr__(self, "metadata", {})
+    query: str = Field(..., min_length=1, description="Original search query")
+    results: tuple[AnimeSearchResult, ...] = Field(
+        default_factory=tuple, description="Immutable tuple of AnimeSearchResult objects"
+    )
+    metadata: dict[str, Any] = Field(default_factory=dict, description="Search metadata")
 
     def get_anime_titles(self) -> list[str]:
         """Get list of anime titles from results.
@@ -581,7 +578,7 @@ class SearchResults:
             result_list.append(f"{anime.title} [{sources_str}]")
         return result_list
 
-    def find_by_title(self, title: str) -> "AnimeSearchResult | None":
+    def find_by_title(self, title: str) -> AnimeSearchResult | None:
         """Find anime by exact title match.
 
         Args:
@@ -596,8 +593,7 @@ class SearchResults:
         return None
 
 
-@dataclass(frozen=True)
-class EpisodeList:
+class EpisodeList(BaseModel, frozen=True):
     """Immutable episode list for an anime.
 
     Stores episode metadata across multiple sources.
@@ -607,8 +603,10 @@ class EpisodeList:
         episodes: Immutable tuple of (title, urls, source) tuples
     """
 
-    anime_title: str
-    episodes: tuple[tuple[str, list[str], str], ...]
+    anime_title: str = Field(..., min_length=1, description="Title of the anime")
+    episodes: tuple[tuple[str, list[str], str], ...] = Field(
+        default_factory=tuple, description="Immutable tuple of (title, urls, source) tuples"
+    )
 
     def get_episode_titles(self) -> list[str]:
         """Get unified episode title list (from longest source).
