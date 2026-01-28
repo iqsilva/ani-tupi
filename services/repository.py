@@ -186,7 +186,7 @@ class Repository:
                 cache_key = f"search:{query.lower()}"
                 # Convert anime_to_urls to dict format for caching
                 cache_data = dict(self.anime_to_urls)
-                dc.set(cache_key, cache_data, expire=settings.cache.duration_hours * 3600)
+                dc.set(cache_key, cache_data, ttl=settings.performance.default_ttl_hours * 3600)
             except Exception as e:
                 if verbose:
                     print(f"⚠️  Erro ao salvar cache: {e}")
