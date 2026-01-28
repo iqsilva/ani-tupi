@@ -17,6 +17,49 @@ from utils.logging import get_logger
 logger = get_logger(__name__)
 
 
+def _filter_anime_results(titles: list[str], query: str) -> list[str]:
+    """Filter anime titles by checking if all query words appear in title.
+
+    This function filters a list of "Title [sources]" formatted strings
+    by checking that all words in the query appear in the title (in any order).
+    This allows finding "Season 2" when searching for "2" because "2" is
+    contained in the title.
+
+    Uses the same normalization logic as the repository to ensure
+    consistent filtering behavior.
+
+    Args:
+        titles: List of anime titles in "Title [source1, source2]" format
+        query: Query to filter by (e.g., "tate no yuusha no nariagari 2")
+
+    Returns:
+        Filtered list of titles where all normalized query words
+        appear in the normalized title
+    """
+    from services.repository import Repository
+
+    normalize_fn = Repository._normalize_for_filter
+
+    query_normalized = normalize_fn(query)
+    query_words = query_normalized.split()
+    filtered = []
+
+    for title in titles:
+        # Extract base title (remove source indicators like "[source1, source2]")
+        base_title = title.split(" [")[0] if " [" in title else title
+
+        # Normalize title for comparison
+        title_normalized = normalize_fn(base_title)
+        title_words = title_normalized.split()
+
+        # Check if ALL query words appear in title words
+        # This is conjunctive (AND logic): all words must be present
+        if all(word in title_words for word in query_words):
+            filtered.append(title)
+
+    return filtered
+
+
 @dataclass
 class SearchResultSet:
     """Represents a single search result set from an incremental search iteration.
@@ -27,6 +70,7 @@ class SearchResultSet:
     word_count: int
     query: str
     results: list[str]
+    is_filtered: bool = False  # True if results were filtered from base search, not searched
     used_query: str | None = None  # Normalized query that was actually used for search
     timestamp: float = field(default_factory=time.time)
     source_counts: dict[str, int] = field(default_factory=dict)
@@ -54,7 +98,7 @@ class IncrementalSearchState:
         self.search_history: list[SearchResultSet] = []
         self.current_index: int = -1
 
-    def add_result(self, word_count: int, query: str, results: list[str], source_counts: dict[str, int] | None = None, used_query: str | None = None) -> None:
+    def add_result(self, word_count: int, query: str, results: list[str], source_counts: dict[str, int] | None = None, used_query: str | None = None, is_filtered: bool = False) -> None:
         """Add a new search result set to the history.
 
         Args:
@@ -63,11 +107,13 @@ class IncrementalSearchState:
             results: List of anime titles with sources
             source_counts: Optional dict of source names to result counts
             used_query: The normalized query that was actually used for search (lowercase, no punctuation)
+            is_filtered: If True, results were filtered from base search, not searched from scrapers
         """
         result_set = SearchResultSet(
             word_count=word_count,
             query=query,
             results=results,
+            is_filtered=is_filtered,
             used_query=used_query or query,
             source_counts=source_counts or {}
         )
@@ -132,12 +178,13 @@ class IncrementalSearchState:
 def incremental_search_anime(query: str) -> tuple[IncrementalSearchState, list[str]]:
     """Perform incremental anime search starting with 3 words and adding progressively.
 
-    Implements the incremental word addition strategy:
+    Implements the filtering-based word addition strategy:
     1. Normalize query first (lowercase, remove season patterns, punctuation, etc)
     2. Start with first 3 words of normalized query (or all if fewer)
-    3. Add words one at a time
-    4. Stop when results ≤ 5
-    5. Fallback if zero results to previous iteration
+    3. Execute initial search to get base results
+    4. For each additional word: filter base results instead of re-searching
+    5. Stop when results ≤ 5
+    6. Fallback if zero results to previous iteration without re-searching
 
     Args:
         query: The user's search query (e.g., "Boku no Hero Academia Season 5")
@@ -164,63 +211,118 @@ def incremental_search_anime(query: str) -> tuple[IncrementalSearchState, list[s
     start_word_count = min(3, len(words))
     current_word_count = start_word_count
     current_results: list[str] = []
+    base_results: list[str] = []  # Store base search results for filtering
 
-    # Progressive search: add words until results ≤ 5
+    # Progressive filtering: add words until results ≤ 5
+    # After the initial base search, we filter results instead of re-searching scrapers
     while current_word_count <= len(words):
         # Build search query for this iteration
         partial_query = " ".join(words[:current_word_count])
 
-        # Execute search
-        rep.clear_search_results()
-        try:
-            with loading(f"Buscando '{partial_query}'..."):
-                rep.search_anime(partial_query, verbose=False)
-
-            # Get results from this iteration
-            search_metadata = rep.get_search_metadata()
-            used_query = search_metadata.used_query or partial_query
-
-            # Try to get AniList match for ranking
-            ranking_query = used_query
+        if current_word_count == start_word_count:
+            # Initial search: execute scraper search (only happens once)
+            # All subsequent iterations will filter this base result set
+            rep.clear_search_results()
             try:
-                from utils.anilist_discovery import auto_discover_anilist_id
+                with loading(f"Buscando '{partial_query}'..."):
+                    rep.search_anime(partial_query, verbose=False)
 
-                anilist_results = auto_discover_anilist_id(used_query)
-                if anilist_results:
-                    ranking_query = anilist_results[0].title
-            except Exception:
-                pass
+                # Get results from this iteration
+                search_metadata = rep.get_search_metadata()
+                used_query = search_metadata.used_query or partial_query
 
-            # Get anime titles with sources, ranked by AniList if available
-            titles_with_sources = rep.get_anime_titles_with_sources(
-                filter_by_query=used_query, original_query=ranking_query
-            )
+                # Try to get AniList match for ranking
+                ranking_query = used_query
+                try:
+                    from utils.anilist_discovery import auto_discover_anilist_id
 
-            # Count results from each source for metadata
-            source_counts: dict[str, int] = {}
-            for title_entry in titles_with_sources:
-                # Parse "Title - Source" format
-                if " - " in title_entry:
-                    _, source = title_entry.rsplit(" - ", 1)
-                    source_counts[source] = source_counts.get(source, 0) + 1
+                    anilist_results = auto_discover_anilist_id(used_query)
+                    if anilist_results:
+                        ranking_query = anilist_results[0].title
+                except Exception:
+                    pass
 
-            # Store results in state (with normalized used_query)
-            state.add_result(current_word_count, partial_query, titles_with_sources, source_counts, used_query=used_query)
-            current_results = titles_with_sources
+                # Get anime titles with sources, ranked by AniList if available
+                titles_with_sources = rep.get_anime_titles_with_sources(
+                    filter_by_query=used_query, original_query=ranking_query
+                )
+
+                # Store base results for filtering in subsequent iterations
+                # These results are from the base N-word search and will be filtered, not re-searched
+                base_results = titles_with_sources.copy()
+                current_results = titles_with_sources
+
+                # Count results from each source for metadata
+                source_counts: dict[str, int] = {}
+                for title_entry in titles_with_sources:
+                    # Parse "Title [source]" format
+                    if " [" in title_entry:
+                        _, source = title_entry.rsplit(" [", 1)
+                        source = source.rstrip("]")
+                        source_counts[source] = source_counts.get(source, 0) + 1
+
+                # Store results in state (with normalized used_query)
+                state.add_result(current_word_count, partial_query, titles_with_sources, source_counts, used_query=used_query, is_filtered=False)
+
+                # Check stopping condition
+                if len(current_results) <= 5:
+                    # Good result set size - stop here
+                    break
+
+            except Exception as e:
+                logger.warning(f"Error during incremental search at word {current_word_count}: {e}")
+                # Fall back to previous results if available
+                if state.has_previous():
+                    state.go_back()
+                    current_results = state.get_current().results
+                    break
+                raise
+
+        else:
+            # Subsequent iterations: filter base results instead of re-searching
+            # This avoids unnecessary scraper calls and is much faster
+            try:
+                with loading(f"Filtrando '{partial_query}'..."):
+                    # Filter the base results by the expanded query
+                    # Uses substring matching on normalized titles (same as repository does)
+                    filtered = _filter_anime_results(base_results, partial_query)
+
+                if filtered:
+                    # Filtered results found - use them
+                    current_results = filtered
+
+                    # Count results from each source for metadata
+                    source_counts: dict[str, int] = {}
+                    for title_entry in filtered:
+                        # Parse "Title [source]" format
+                        if " [" in title_entry:
+                            _, source = title_entry.rsplit(" [", 1)
+                            source = source.rstrip("]")
+                            source_counts[source] = source_counts.get(source, 0) + 1
+
+                    state.add_result(current_word_count, partial_query, filtered, source_counts, used_query=partial_query, is_filtered=True)
+                else:
+                    # Filtered to 0 results - fallback to previous iteration
+                    # Important: we do NOT re-search when filtering fails
+                    # Instead, we keep the previous result set
+                    state.go_back()
+                    current_results = state.get_current().results
+                    current_word_count += 1
+                    continue
+
+            except Exception as e:
+                logger.warning(f"Error during filtering at word {current_word_count}: {e}")
+                # Fall back to previous results if available
+                if state.has_previous():
+                    state.go_back()
+                    current_results = state.get_current().results
+                    break
+                raise
 
             # Check stopping condition
             if len(current_results) <= 5:
                 # Good result set size - stop here
                 break
-
-        except Exception as e:
-            logger.warning(f"Error during incremental search at word {current_word_count}: {e}")
-            # Fall back to previous results if available
-            if state.has_previous():
-                state.go_back()
-                current_results = state.get_current().results
-                break
-            raise
 
         # Continue adding words
         current_word_count += 1
