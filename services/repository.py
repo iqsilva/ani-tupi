@@ -1,7 +1,6 @@
 import asyncio
 from typing import Optional
 from collections import defaultdict
-from concurrent.futures import ThreadPoolExecutor
 from os import cpu_count
 from threading import Thread
 
@@ -145,9 +144,6 @@ class Repository:
         # Progressive search: start with all words, decrease if no results
         words = query.split()
         min_words = settings.search.progressive_search_min_words
-
-        # Store original query for later filtering
-        self._last_query = query
 
         # Progressive search (DECRESCENTE): len(words), len(words)-1, ..., min_words
         # Tries full query first, then progressively removes words from the end
@@ -739,7 +735,7 @@ class Repository:
 
         # Cache miss - search all sources in parallel
         async def search_all_sources():
-            nonlocal selected_urls, self, cache_key, dc, cache_key_full
+            nonlocal selected_urls, cache_key, dc, cache_key_full
             event = asyncio.Event()
             container = []
             found_event = asyncio.Event()  # Signal when found in priority source
