@@ -231,7 +231,7 @@ def cache_video_url(func):
 
         if result:
             # Save to cache
-            cache.set(key, result, expire=default_ttl())
+            cache.set(key, result, ttl=default_ttl())
 
         return result
 
@@ -261,7 +261,7 @@ def cache_episodes(func):
         result = func(cache_key)
 
         if result:
-            cache.set(key, result, expire=default_ttl())
+            cache.set(key, result, ttl=default_ttl())
 
         return result
 
@@ -291,7 +291,7 @@ def cache_search_results(func):
         result = func(query)
 
         if result:
-            cache.set(key, result, expire=default_ttl())
+            cache.set(key, result, ttl=default_ttl())
 
         return result
 
@@ -321,7 +321,7 @@ def cache_anilist_metadata(func):
         result = func(anilist_id)
 
         if result:
-            cache.set(key, result, expire=2592000)  # 30 days for metadata
+            cache.set(key, result, ttl=2592000)  # 30 days for metadata
 
         return result
 
@@ -339,7 +339,7 @@ def save_video_url(cache_key, episode: int, source: str, url: str) -> None:
     """Manually save video URL to cache."""
     cache = get_cache()
     key = f"video:{cache_key}:{episode}:{source}"
-    cache.set(key, url, expire=default_ttl())
+    cache.set(key, url, ttl=default_ttl())
 
 
 def clear_cache_all() -> None:

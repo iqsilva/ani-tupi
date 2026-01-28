@@ -49,7 +49,7 @@ def auto_discover_anilist_id(scraper_title: str) -> list[AniListSearchResult]:
 
         if not results:
             # Cache "not found" result for 1 day to avoid repeated API calls
-            cache.set(cache_key, [], expire=86400)
+            cache.set(cache_key, [], ttl=86400)
             return []
 
         # Fuzzy match against scraper title
@@ -89,7 +89,7 @@ def auto_discover_anilist_id(scraper_title: str) -> list[AniListSearchResult]:
         sorted_matches = sorted(matches, key=lambda x: x.score, reverse=True)
 
         # Cache for 30 days
-        cache.set(cache_key, [match.model_dump() for match in sorted_matches], expire=2592000)
+        cache.set(cache_key, [match.model_dump() for match in sorted_matches], ttl=2592000)
         return sorted_matches
 
     except Exception as e:
@@ -136,7 +136,7 @@ def get_anilist_metadata(anilist_id: int) -> AniListAnime | None:
 
         if metadata:
             # Cache as dict for compatibility
-            cache.set(cache_key, metadata.model_dump(), expire=2592000)
+            cache.set(cache_key, metadata.model_dump(), ttl=2592000)
             return metadata
 
         return None

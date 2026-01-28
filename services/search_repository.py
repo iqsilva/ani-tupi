@@ -189,10 +189,15 @@ class SearchRepository:
         """
         results = []
         for title, sources_list in self._anime_to_urls.items():
+            # Normalize sources: ensure params is always a dict (not None)
+            normalized_sources = []
+            for url, source, params in sources_list:
+                normalized_sources.append((url, source, params or {}))
+
             anime = AnimeSearchResult(
                 title=title,
                 normalized_title=self._norm_titles.get(title, title),
-                sources=tuple(sources_list),
+                sources=tuple(normalized_sources),
             )
             results.append(anime)
 
