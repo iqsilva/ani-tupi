@@ -3,6 +3,7 @@ from typing import Optional
 from collections import defaultdict
 from os import cpu_count
 from threading import Thread
+from concurrent.futures import ThreadPoolExecutor
 
 from models.config import settings
 from models.models import EpisodeData, SearchMetadata, SearchResults, AnimeSearchResult

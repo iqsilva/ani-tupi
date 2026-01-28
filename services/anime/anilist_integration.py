@@ -484,6 +484,12 @@ def anilist_anime_flow(
             return  # User cancelled, go back
 
         episode_idx = episode_list.index(selected_episode)
+
+    # At this point, episode_idx is guaranteed to be int, not None
+    if not isinstance(episode_idx, int):
+        raise ValueError(f"episode_idx should be int, got {type(episode_idx)}")
+
+    current_episode_idx: int = episode_idx
     num_episodes = len(episode_list)
 
     # Initialize video player for this session
@@ -491,7 +497,7 @@ def anilist_anime_flow(
 
     # Playback loop (with AniList sync)
     while True:
-        episode = episode_idx + 1
+        episode = current_episode_idx + 1
 
         # Get video URL from scraper plugins
         with loading("Buscando vídeo..."):
@@ -731,9 +737,9 @@ def anilist_anime_flow(
                 pass
 
         opts = []
-        if episode_idx < num_episodes - 1:
+        if current_episode_idx < num_episodes - 1:
             opts.append("▶️  Próximo")
-        if episode_idx > 0:
+        if current_episode_idx > 0:
             opts.append("◀️  Anterior")
         opts.append("🔁 Replay")
         opts.append("📋 Escolher outro episódio")
@@ -744,9 +750,9 @@ def anilist_anime_flow(
         if not selected_opt or selected_opt == "🔙 Voltar":
             return  # Exit to previous menu
         if selected_opt == "▶️  Próximo":
-            episode_idx += 1
+            current_episode_idx += 1
         elif selected_opt == "◀️  Anterior":
-            episode_idx -= 1
+            current_episode_idx -= 1
         elif selected_opt == "🔁 Replay":
             # Keep same episode_idx, loop continues to replay
             pass
@@ -755,7 +761,7 @@ def anilist_anime_flow(
             selected_episode = menu_navigate(episode_list, msg="Escolha o episódio.")
             if not selected_episode:
                 return  # User cancelled, go back
-            episode_idx = episode_list.index(selected_episode)
+            current_episode_idx = episode_list.index(selected_episode)
         elif selected_opt == "🔄 Trocar fonte":
             new_anime, new_episode_idx = switch_anime_source(
                 selected_anime, args, anilist_id, display_title

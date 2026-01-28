@@ -4,12 +4,18 @@ Allows users to switch between different scraper sources mid-playback
 while maintaining episode progress and AniList synchronization.
 """
 
+import json
+from pathlib import Path
+
+from models.config import settings
 from services.repository import rep
 from ui.components import loading, menu_navigate
 from services.anime.title_normalization import normalize_anime_title
 from services.anime.mappings import (
     load_anilist_search_title,
 )
+
+HISTORY_PATH = Path(settings.history_file).parent
 
 
 def switch_anime_source(
@@ -134,6 +140,8 @@ def switch_anime_source(
     # 8. If have anilist_id, always check AniList (source of truth)
     # Use AniList as primary when available (you might have watched via web/mobile)
     if anilist_id:
+        from services.anilist_service import anilist_client
+
         if anilist_client.is_authenticated():
             # Get media list entry for this anime
             entry = anilist_client.get_media_list_entry(anilist_id)

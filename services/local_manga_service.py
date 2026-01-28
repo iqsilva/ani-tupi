@@ -5,13 +5,16 @@ Provides functionality for PDF auto-creation and AniList sync (forward-only).
 """
 
 from pathlib import Path
-from typing import Optional
+from typing import TYPE_CHECKING, Optional
 
 from loguru import logger
 
 from models.models import LocalChapter
 from models.config import settings
 from utils.pdf_converter import create_pdf_from_images
+
+if TYPE_CHECKING:
+    from services.anilist.client import AniListClient as AniListService
 
 
 class LocalMangaService:
