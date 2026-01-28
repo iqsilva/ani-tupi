@@ -1248,7 +1248,7 @@ def _process_chapter(
 
     # Ask for next action
     try:
-        action = menu_navigate(["Próximo", "Anterior", "Ler novamente"], "O que deseja fazer?")
+        action = menu_navigate(["Próximo", "Anterior", "Ler novamente", "Selecionar outro capítulo"], "O que deseja fazer?")
     except KeyboardInterrupt:
         return
 
@@ -1261,7 +1261,10 @@ def _process_chapter(
 
     # Handle action
     auto_load_next = False  # Initialize flag
-    if action == "Próximo":
+    if action == "Selecionar outro capítulo":
+        # Return to chapter selection menu
+        return
+    elif action == "Próximo":
         # Find next chapter by number instead of array position
         current_chapter_num = float(selected_chapter.number)
         next_chapter_index = None
@@ -1492,8 +1495,13 @@ def _process_local_chapter(
         "Próximo capítulo",
         "Capítulo anterior",
         "Ler novamente",
+        "Selecionar outro capítulo",
     ]
     action = menu_navigate(actions, "O que deseja fazer?")
+
+    if action == "Selecionar outro capítulo":
+        # Return to chapter selection menu
+        return
 
     if action == "Próximo capítulo":
         if current_index + 1 < len(all_chapters):

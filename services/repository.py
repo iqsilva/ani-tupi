@@ -86,14 +86,12 @@ class Repository:
             anime = AnimeSearchResult(
                 title=title,
                 normalized_title=self.norm_titles.get(title, title),
-                sources=tuple(normalized_sources)
+                sources=tuple(normalized_sources),
             )
             results.append(anime)
 
         return SearchResults(
-            query=query,
-            results=tuple(results),
-            metadata=self._last_search_metadata or {}
+            query=query, results=tuple(results), metadata=self._last_search_metadata or {}
         )
 
     @classmethod
@@ -263,7 +261,17 @@ class Repository:
             Returns empty SearchMetadata if no search has been performed yet.
         """
         if not self._last_search_metadata:
-            return SearchMetadata()
+            return SearchMetadata(
+                original_query=None,
+                used_query=None,
+                used_words=None,
+                total_words=None,
+                min_words=None,
+                variant_tested=None,
+                variant_index=None,
+                total_variants=None,
+                source=None,
+            )
         return SearchMetadata.model_validate(self._last_search_metadata)
 
     @staticmethod
@@ -713,13 +721,25 @@ class Repository:
         # Use anilist_id if available, fallback to anime title
         cache_key = anilist_id if anilist_id else anime
 
-        # CACHE DISABLED for video URLs - tokens expire too quickly
-        # Blogger URLs with tokens expire in minutes, caching causes playback failures
-        # Only episode lists are cached, not video stream URLs
+        # CACHE CHECK: Try to get video URL from cache first
+        try:
+            from utils.cache_manager import get_cache as get_dc
+
+            dc = get_dc()
+            cache_key_full = f"video:{cache_key}:ep:{episode_num}"
+            cached_url = dc.get(cache_key_full)
+            if cached_url:
+                print(
+                    f"   ℹ️  Usando vídeo em cache (válido por {settings.performance.video_url_cache_ttl_seconds // 60} min)"
+                )
+                return cached_url
+        except Exception:
+            dc = None
+            cache_key_full = None
 
         # Cache miss - search all sources in parallel
         async def search_all_sources():
-            nonlocal selected_urls, self, cache_key
+            nonlocal selected_urls, self, cache_key, dc, cache_key_full
             event = asyncio.Event()
             container = []
             found_event = asyncio.Event()  # Signal when found in priority source
@@ -808,9 +828,17 @@ class Repository:
                 # Get video URL if found, otherwise return None
                 video_url = container[0] if container else None
 
-                # Save to cache for future use
-                # DON'T cache video URLs - they expire too quickly
-                # Caching Blogger URLs causes playback failures due to token expiration
+                # CACHE SAVE: Save video URL to cache with TTL
+                if video_url and dc and cache_key_full:
+                    try:
+                        dc.set(
+                            cache_key_full,
+                            video_url,
+                            ttl=settings.performance.video_url_cache_ttl_seconds,
+                        )
+                    except Exception:
+                        pass
+
                 return video_url
 
         return asyncio.run(search_all_sources())

@@ -1,5 +1,9 @@
 """Player repository for managing video playback and plugin state."""
+
 from collections import defaultdict
+from typing import Optional, Dict, List, Tuple, Any
+from utils.cache import get_cache
+from models.config import settings
 
 
 class PlayerRepository:
@@ -9,18 +13,19 @@ class PlayerRepository:
     maintain anime-to-AniList-ID mappings, and cache selected URLs.
     """
 
-    _instance = None
+    _instance: Optional["PlayerRepository"] = None
 
     def __new__(cls):
         """Enforce singleton pattern."""
         if not cls._instance:
             cls._instance = super().__new__(cls)
+            # Initialize attributes on the new instance
             cls._instance._plugins = {}
             cls._instance._anime_to_anilist_id = {}
             cls._instance._selected_urls = defaultdict(lambda: defaultdict(list))
         return cls._instance
 
-    def register_plugin(self, plugin) -> None:
+    def register_plugin(self, plugin: Any) -> None:
         """Register a plugin for video playback.
 
         Args:
@@ -28,7 +33,7 @@ class PlayerRepository:
         """
         self._plugins[plugin.name] = plugin
 
-    def get_plugin(self, name: str):
+    def get_plugin(self, name: str) -> Optional[Any]:
         """Get plugin by name.
 
         Args:
@@ -39,7 +44,7 @@ class PlayerRepository:
         """
         return self._plugins.get(name)
 
-    def get_active_sources(self) -> list[str]:
+    def get_active_sources(self) -> List[str]:
         """Get sorted list of registered plugin names.
 
         Returns:
@@ -56,7 +61,7 @@ class PlayerRepository:
         """
         self._anime_to_anilist_id[anime] = anilist_id
 
-    def get_anime_anilist_id(self, anime: str) -> int | None:
+    def get_anime_anilist_id(self, anime: str) -> Optional[int]:
         """Get AniList ID for anime title.
 
         Args:
@@ -67,7 +72,7 @@ class PlayerRepository:
         """
         return self._anime_to_anilist_id.get(anime)
 
-    def get_all_anime_ids(self) -> dict[str, int]:
+    def get_all_anime_ids(self) -> Dict[str, int]:
         """Get all anime-to-AniList-ID mappings.
 
         Returns:
@@ -75,7 +80,7 @@ class PlayerRepository:
         """
         return dict(self._anime_to_anilist_id)
 
-    def set_selected_urls(self, anime: str, episode_num: int, urls: list[tuple[str, str]]) -> None:
+    def set_selected_urls(self, anime: str, episode_num: int, urls: List[Tuple[str, str]]) -> None:
         """Store selected URLs for an episode.
 
         Args:
@@ -85,7 +90,7 @@ class PlayerRepository:
         """
         self._selected_urls[anime][episode_num] = urls
 
-    def get_selected_urls(self, anime: str, episode_num: int) -> list[tuple[str, str]]:
+    def get_selected_urls(self, anime: str, episode_num: int) -> List[Tuple[str, str]]:
         """Get selected URLs for an episode.
 
         Args:
@@ -106,6 +111,39 @@ class PlayerRepository:
         """
         if anime in self._selected_urls and episode_num in self._selected_urls[anime]:
             del self._selected_urls[anime][episode_num]
+
+    def get_video_url(self, anime: str, episode_num: int) -> Optional[str]:
+        """Get cached video URL for an episode.
+
+        Args:
+            anime: Anime title
+            episode_num: Episode number (1-indexed)
+
+        Returns:
+            Cached video URL or None if not found/expired
+        """
+        cache = get_cache()
+        anilist_id = self.get_anime_anilist_id(anime)
+        # Use AniList ID as cache key if available for better stability
+        key_base = str(anilist_id) if anilist_id else anime.lower()
+        cache_key = f"video:{key_base}:ep:{episode_num}"
+        return cache.get(cache_key)
+
+    def set_video_url(self, anime: str, episode_num: int, video_url: str) -> None:
+        """Cache video URL for an episode with TTL.
+
+        Args:
+            anime: Anime title
+            episode_num: Episode number (1-indexed)
+            video_url: Video player URL to cache
+        """
+        cache = get_cache()
+        anilist_id = self.get_anime_anilist_id(anime)
+        key_base = str(anilist_id) if anilist_id else anime.lower()
+        cache_key = f"video:{key_base}:ep:{episode_num}"
+
+        ttl = settings.performance.video_url_cache_ttl_seconds
+        cache.set(cache_key, video_url, ttl=ttl)
 
     @classmethod
     def reset_singleton(cls) -> None:

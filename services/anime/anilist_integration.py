@@ -13,8 +13,10 @@ from services.repository import rep
 from ui.components import loading, menu_navigate
 from utils.scraper_cache import get_cache, set_cache
 from scrapers import loader
+from models.models import Status
 from services.history_service import save_history, reset_history
-from utils.video_player import play_episode
+from utils.video_player import VideoPlayer
+from services.anime.source_management import switch_anime_source
 from services.anime.mappings import (
     load_anilist_mapping,
     save_anilist_mapping,
@@ -484,6 +486,9 @@ def anilist_anime_flow(
         episode_idx = episode_list.index(selected_episode)
     num_episodes = len(episode_list)
 
+    # Initialize video player for this session
+    player = VideoPlayer()
+
     # Playback loop (with AniList sync)
     while True:
         episode = episode_idx + 1
@@ -506,7 +511,7 @@ def anilist_anime_flow(
         print(f"   Fonte: {source or 'unknown'}")
         print(f"   URL: {player_url[:80]}{'...' if len(player_url) > 80 else ''}\n")
 
-        result = play_episode(
+        result = player.play_episode(
             url=player_url,
             anime_title=selected_anime,
             episode_number=episode,
@@ -559,7 +564,7 @@ def anilist_anime_flow(
         elif result.action == "auto-next":
             # Auto-play active and user pressed 'q' - already marked as watched in IPC handler
             # Sync with AniList and move to next episode
-            current_episode = result.data.get("episode", episode)
+            current_episode = result.data.get("episode", episode) if result.data else episode
 
             # Update AniList if authenticated
             if anilist_client.is_authenticated() and anilist_id:

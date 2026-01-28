@@ -1,4 +1,4 @@
-from typing import NamedTuple
+from typing import NamedTuple, Optional, Any
 
 import os
 import platform
@@ -6,6 +6,8 @@ import socket
 import subprocess
 import tempfile
 import uuid
+import json
+import time
 from pathlib import Path
 
 
@@ -23,182 +25,231 @@ class VideoPlaybackResult(NamedTuple):
     data: dict | None = None
 
 
-# Global session state for auto-play (persists across episodes)
-_autoplay_enabled = False
+class VideoPlayer:
+    """Manager for video playback using MPV with IPC support."""
 
+    def __init__(self, autoplay: bool = False):
+        """Initialize VideoPlayer with session state.
 
-def get_autoplay_state() -> bool:
-    """Get current auto-play state."""
-    global _autoplay_enabled
-    return _autoplay_enabled
+        Args:
+            autoplay: Whether to automatically play the next episode when current finishes
+        """
+        self.autoplay = autoplay
 
+    def get_autoplay_state(self) -> bool:
+        """Get current auto-play state."""
+        return self.autoplay
 
-def set_autoplay_state(enabled: bool) -> None:
-    """Set auto-play state."""
-    global _autoplay_enabled
-    _autoplay_enabled = enabled
+    def set_autoplay_state(self, enabled: bool) -> None:
+        """Set auto-play state."""
+        self.autoplay = enabled
 
+    def play_episode(
+        self,
+        url: str,
+        anime_title: str,
+        episode_number: int,
+        total_episodes: int,
+        source: str,
+        use_ipc: bool = True,
+        debug: bool = False,
+        anilist_id: int | None = None,
+        anilist_episodes: int | None = None,
+    ) -> VideoPlaybackResult:
+        """Play a single episode with optional IPC support for episode navigation.
 
-def _format_episode_progress(
-    episode_num: int,
-    scraper_total: int | None | str = None,
-    anilist_total: int | None = None,
-) -> str:
-    """Format episode progress with scraper and AniList episode counts.
+        Args:
+            url: Video URL to play
+            anime_title: Name of anime being watched
+            episode_number: Current episode number (1-indexed)
+            total_episodes: Total episodes available in scraper
+            source: Name of scraper source (e.g., "animefire")
+            use_ipc: Enable IPC socket for keybinding events (default True)
+            debug: Skip playback and return simulated result
+            anilist_id: AniList ID for syncing progress (optional)
+            anilist_episodes: Total episodes from AniList (optional, for display)
 
-    Args:
-        episode_num: Current episode number (1-indexed)
-        scraper_total: Total episodes available in scraper
-        anilist_total: Total episodes from AniList
+        Returns:
+            VideoPlaybackResult with exit code, action, and optional data
+        """
+        # Check if IPC should be disabled globally
+        if os.environ.get("ANI_TUPI_DISABLE_IPC") == "1":
+            use_ipc = False
 
-    Returns:
-        Formatted string like "3 / 12" or "3 / 12 (total: 24)"
-    """
-    if scraper_total is None:
-        scraper_total = "?"
+        if debug:
+            print("DEBUG MODE: Skipping video playback")
+            return VideoPlaybackResult(exit_code=0, action="quit", data=None)
 
-    # Show scraper total (primary)
-    result = f"{episode_num} / {scraper_total}"
+        
 
-    # Add AniList total if different and known
-    if anilist_total and anilist_total != scraper_total:
-        result += f" (total: {anilist_total})"
+        if not use_ipc:
+            # Use legacy blocking playback
+            return self._play_video_legacy(url, debug=False)
 
-    return result
+        # Try IPC-based playback with fallback
+        input_conf_path = None
+        socket_path = None
+        mpv_process = None
 
+        # Episode context passed to IPC handlers
+        episode_context = {
+            "anime_title": anime_title,
+            "episode_number": episode_number,
+            "total_episodes": total_episodes,
+            "anilist_episodes": anilist_episodes,
+            "source": source,
+            "url": url,
+            "anilist_id": anilist_id,
+        }
 
-def play_video(url: str, debug=False, ytdl_format: str | None = None) -> int:
-    """Play video using python-mpv and return exit code.
-
-    Args:
-        url: Video URL to play
-        debug: Skip playback and return simulated values
-        ytdl_format: yt-dlp format selector string
-
-    Returns:
-        Exit code from MPV:
-        - 0: Normal exit (video finished or user quit with 'q')
-        - 2: File couldn't be played OR window closed by user
-        - 3: User aborted with quit command
-    """
-
-    if debug:
-        print("DEBUG MODE: Skipping video playback")
-        return 0
-
-    import mpv
-
-    # Generate custom ani-tupi keybindings
-    input_conf_path, _ = _generate_input_conf()
-
-    player = None
-    try:
-        # Create MPV instance with current settings
-        player = mpv.MPV(
-            fullscreen=True,
-            cursor_autohide_fs_only=True,
-            log_handler=print,
-            ytdl=True,
-            ytdl_format=ytdl_format or "bestvideo[height<=1080]+bestaudio/best",
-            ytdl_raw_options="concurrent-fragments=5",
-            cache=True,
-            demuxer_max_bytes="400M",
-            demuxer_max_back_bytes="100M",
-            demuxer_readahead_secs=40,
-            stream_buffer_size="2M",
-            speed=1.8,  # Default playback speed
-            input_default_bindings=True,  # Enable default key bindings
-            input_vo_keyboard=True,  # Handle keyboard input on video output
-            input_conf=input_conf_path,  # Use custom ani-tupi keybindings
-            osc=True,  # On-screen controller for mouse interaction
-        )
-
-        # Start playback (blocking)
-        player.play(url)
-        player.wait_for_playback()
-        # TODO: how to track when a video did not play vs the video was played until the end
-
-        return 0  # Normal playback completion
-
-    except mpv.ShutdownError:
-        # User aborted (Ctrl+C or window close)
-        return 3
-
-    except FileNotFoundError as e:
-        # Handle the case where mpv is not installed or not in PATH
-        msg = "Error: 'mpv' is not installed or not found in the system PATH."
-        raise OSError(msg) from e
-
-    except Exception as e:
-        # Playback error
-        print(f"⚠️  MPV error: {e}")
-        return 2
-
-    finally:
-        # Clean up player instance
         try:
-            if player is not None:
-                player.terminate()
-        except:  # noqa: E722
+            # Generate socket path and input.conf
+            socket_path = self._create_ipc_socket_path()
+            input_conf_path, _ = self._generate_input_conf()
+
+            # Launch MPV with IPC
+            mpv_process = self._launch_mpv_with_ipc(url, socket_path, input_conf_path)
+
+            # Start monitoring events
+            result = self._ipc_event_loop(mpv_process, socket_path, episode_context)
+
+            # Wait for process to finish if still running
+            if mpv_process.poll() is None:
+                try:
+                    mpv_process.wait(timeout=2)
+                except subprocess.TimeoutExpired:
+                    mpv_process.terminate()
+
+            return result
+
+        except (FileNotFoundError, OSError, Exception) as e:
+            # IPC launch failed, fallback to legacy
+            print(f"⚠️  IPC playback unavailable: {e}. Using legacy mode.")
+
+            # Clean up any dangling process
+            if mpv_process and mpv_process.poll() is None:
+                try:
+                    mpv_process.terminate()
+                    mpv_process.wait(timeout=1)
+                except:  # noqa: E722
+                    mpv_process.kill()
+
+            return self._play_video_legacy(url, debug=False)
+
+        finally:
+            # Clean up temporary files
+            if input_conf_path:
+                try:
+                    Path(input_conf_path).unlink()
+                except:  # noqa: E722
+                    pass
+
+            if socket_path:
+                self._cleanup_ipc_socket(socket_path)
+
+    def _play_video_legacy(self, url: str, debug: bool = False) -> VideoPlaybackResult:
+        """Play video using legacy python-mpv blocking mode (fallback)."""
+        if debug:
+            print("DEBUG MODE: Skipping video playback")
+            return VideoPlaybackResult(exit_code=0, action="quit", data=None)
+
+        try:
+            exit_code = self.play_video_raw(url, debug=False)
+            return VideoPlaybackResult(exit_code=exit_code, action="quit", data=None)
+        except Exception as e:
+            print(f"⚠️  Playback error: {e}")
+            return VideoPlaybackResult(exit_code=2, action="quit", data=None)
+
+    def play_video_raw(self, url: str, debug=False, ytdl_format: str | None = None) -> int:
+        """Play video using python-mpv and return exit code."""
+        if debug:
+            print("DEBUG MODE: Skipping video playback")
+            return 0
+
+        import mpv
+
+        # Generate custom ani-tupi keybindings
+        input_conf_path, _ = self._generate_input_conf()
+
+        player = None
+        try:
+            # Create MPV instance with current settings
+            player = mpv.MPV(
+                fullscreen=True,
+                cursor_autohide_fs_only=True,
+                log_handler=print,
+                ytdl=True,
+                ytdl_format=ytdl_format or "bestvideo[height<=1080]+bestaudio/best",
+                ytdl_raw_options="concurrent-fragments=5",
+                cache=True,
+                demuxer_max_bytes="400M",
+                demuxer_max_back_bytes="100M",
+                demuxer_readahead_secs=40,
+                stream_buffer_size="2M",
+                speed=1.8,  # Default playback speed
+                input_default_bindings=True,  # Enable default key bindings
+                input_vo_keyboard=True,  # Handle keyboard input on video output
+                input_conf=input_conf_path,  # Use custom ani-tupi keybindings
+                osc=True,  # On-screen controller for mouse interaction
+            )
+
+            # Start playback (blocking)
+            player.play(url)
+            player.wait_for_playback()
+
+            return 0  # Normal playback completion
+
+        except mpv.ShutdownError:
+            # User aborted (Ctrl+C or window close)
+            return 3
+        except FileNotFoundError as e:
+            msg = "Error: 'mpv' is not installed or not found in the system PATH."
+            raise OSError(msg) from e
+        except Exception as e:
+            # Playback error
+            print(f"⚠️  MPV error: {e}")
+            return 2
+        finally:
+            # Clean up player instance
+            try:
+                if player is not None:
+                    player.terminate()
+            except:  # noqa: E722
+                pass
+
+            # Clean up temporary input.conf file
+            if input_conf_path:
+                try:
+                    Path(input_conf_path).unlink()
+                except:  # noqa: E722
+                    pass
+
+    def _create_ipc_socket_path(self) -> str:
+        """Generate platform-specific IPC socket path for MPV communication."""
+        unique_id = str(uuid.uuid4())[:8]
+        system = platform.system()
+
+        if system == "Windows":
+            return f"\\\\.\\pipe\\ani-tupi-mpv-{unique_id}"
+        else:
+            temp_dir = tempfile.gettempdir()
+            return str(Path(temp_dir) / f"ani-tupi-mpv-{unique_id}.sock")
+
+    def _cleanup_ipc_socket(self, path: str) -> None:
+        """Clean up IPC socket file/pipe without errors."""
+        if not path:
+            return
+
+        try:
+            socket_path = Path(path)
+            if socket_path.exists():
+                socket_path.unlink()
+        except (OSError, FileNotFoundError):
             pass
 
-        # Clean up temporary input.conf file
-        try:
-            _cleanup_ipc_socket(input_conf_path)
-        except:  # noqa: E722
-            pass
-
-
-# ============================================================================
-# Phase 2: IPC Socket Infrastructure
-# ============================================================================
-
-
-def _create_ipc_socket_path() -> str:
-    r"""Generate platform-specific IPC socket path for MPV communication.
-
-    Returns:
-        Socket path appropriate for the current OS.
-        - Linux/macOS: /tmp/ani-tupi-mpv-{uuid}.sock
-        - Windows: \\.\pipe\ani-tupi-mpv-{uuid}
-    """
-    unique_id = str(uuid.uuid4())[:8]
-    system = platform.system()
-
-    if system == "Windows":
-        return f"\\\\.\\pipe\\ani-tupi-mpv-{unique_id}"
-    else:
-        # Linux and macOS
-        temp_dir = tempfile.gettempdir()
-        return str(Path(temp_dir) / f"ani-tupi-mpv-{unique_id}.sock")
-
-
-def _cleanup_ipc_socket(path: str) -> None:
-    """Clean up IPC socket file/pipe without errors.
-
-    Args:
-        path: Socket path to remove
-    """
-    if not path:
-        return
-
-    try:
-        socket_path = Path(path)
-        if socket_path.exists():
-            socket_path.unlink()
-    except (OSError, FileNotFoundError):
-        # Socket already removed or on Windows (pipes cleanup differently)
-        pass
-
-
-def _generate_input_conf() -> tuple[str, str]:
-    """Generate temporary MPV input.conf with custom IPC keybindings.
-
-    Returns:
-        Tuple of (input_conf_path, content) with the temporary config file path
-        and its content for verification.
-    """
-    input_conf_content = """# ani-tupi IPC Keybindings Configuration
+    def _generate_input_conf(self) -> tuple[str, str]:
+        """Generate temporary MPV input.conf with custom IPC keybindings."""
+        input_conf_content = """# ani-tupi IPC Keybindings Configuration
 # Auto-generated for episode navigation
 
 # Next Episode (mark watched, move to next)
@@ -219,602 +270,410 @@ shift+a script-message toggle-autoplay
 # Toggle Subtitle/Dub (switch if available)
 shift+t script-message toggle-sub-dub
 """
+        with tempfile.NamedTemporaryFile(
+            mode="w",
+            suffix=".conf",
+            prefix="ani-tupi-input-",
+            delete=False,
+            encoding="utf-8",
+        ) as f:
+            f.write(input_conf_content)
+            temp_path = f.name
 
-    # Create temp file with cleanup on exit
-    with tempfile.NamedTemporaryFile(
-        mode="w",
-        suffix=".conf",
-        prefix="ani-tupi-input-",
-        delete=False,
-        encoding="utf-8",
-    ) as f:
-        f.write(input_conf_content)
-        temp_path = f.name
+        return temp_path, input_conf_content
 
-    return temp_path, input_conf_content
+    def _handle_keybinding_action(
+        self,
+        action: str,
+        context: dict,
+    ) -> VideoPlaybackResult | None:
+        """Handle keybinding action from MPV and return navigation result."""
+        match action:
+            case "mark-next":
+                return VideoPlaybackResult(
+                    exit_code=0,
+                    action="next",
+                    data={"episode": context.get("episode_number", 0) + 1},
+                )
+            case "previous":
+                return VideoPlaybackResult(
+                    exit_code=0,
+                    action="previous",
+                    data={"episode": max(1, context.get("episode_number", 1) - 1)},
+                )
+            case "mark-menu":
+                return VideoPlaybackResult(
+                    exit_code=0,
+                    action="mark-menu",
+                    data={"episode": context.get("episode_number", 0)},
+                )
+            case "reload-episode":
+                return VideoPlaybackResult(
+                    exit_code=0,
+                    action="reload",
+                    data={"episode": context.get("episode_number", 0)},
+                )
+            case "toggle-autoplay":
+                self.autoplay = not self.autoplay
+                return VideoPlaybackResult(
+                    exit_code=0,
+                    action="toggle-autoplay",
+                    data={"enabled": self.autoplay},
+                )
+            case "toggle-sub-dub":
+                return VideoPlaybackResult(
+                    exit_code=0,
+                    action="toggle-sub-dub",
+                    data={"message": "Sub/Dub toggle (if available)"},
+                )
+            case _:
+                return None
 
+    def _launch_mpv_with_ipc(
+        self,
+        url: str,
+        socket_path: str,
+        input_conf: str,
+    ) -> subprocess.Popen:
+        """Launch MPV process with IPC socket support."""
+        mpv_args = [
+            "mpv",
+            f"--input-ipc-server={socket_path}",
+            f"--input-conf={input_conf}",
+            "--fullscreen=yes",
+            "--osc=yes",
+            "--cache=yes",
+            "--demuxer-max-bytes=400M",
+            "--demuxer-max-back-bytes=100M",
+            "--demuxer-readahead-secs=40",
+            "--stream-buffer-size=2M",
+            "--speed=1.8",
+            "--ytdl=yes",
+            "--ytdl-format=bestvideo[height<=1080]+bestaudio/best",
+            url,
+        ]
 
-def _handle_keybinding_action(
-    action: str,
-    context: dict,
-) -> VideoPlaybackResult | None:
-    """Handle keybinding action from MPV and return navigation result.
-
-    Args:
-        action: Action name from MPV input.conf (mark-next, previous, etc.)
-        context: Episode context with url, anime_title, episode_number, etc.
-
-    Returns:
-        VideoPlaybackResult with action and data, or None if action not handled
-    """
-    match action:
-        case "mark-next":
-            # Mark current episode as watched, move to next
-            return VideoPlaybackResult(
-                exit_code=0,
-                action="next",
-                data={"episode": context.get("episode_number", 0) + 1},
-            )
-
-        case "previous":
-            # Go to previous episode
-            return VideoPlaybackResult(
-                exit_code=0,
-                action="previous",
-                data={"episode": max(1, context.get("episode_number", 1) - 1)},
-            )
-
-        case "mark-menu":
-            # Mark current as watched, show menu
-            return VideoPlaybackResult(
-                exit_code=0,
-                action="mark-menu",
-                data={"episode": context.get("episode_number", 0)},
-            )
-
-        case "reload-episode":
-            # Retry current episode
-            return VideoPlaybackResult(
-                exit_code=0,
-                action="reload",
-                data={"episode": context.get("episode_number", 0)},
-            )
-
-        case "toggle-autoplay":
-            # Toggle global auto-play state
-            global _autoplay_enabled
-            _autoplay_enabled = not _autoplay_enabled
-            return VideoPlaybackResult(
-                exit_code=0,
-                action="toggle-autoplay",
-                data={"enabled": _autoplay_enabled},
-            )
-
-        case "toggle-sub-dub":
-            # Toggle subtitle/dub (no state change, just OSD message)
-            return VideoPlaybackResult(
-                exit_code=0,
-                action="toggle-sub-dub",
-                data={"message": "Sub/Dub toggle (if available)"},
-            )
-
-        case _:
-            return None
-
-
-def _launch_mpv_with_ipc(
-    url: str,
-    socket_path: str,
-    input_conf: str,
-) -> subprocess.Popen:
-    """Launch MPV process with IPC socket support.
-
-    Args:
-        url: Video URL to play
-        socket_path: IPC socket path for communication
-        input_conf: Path to input.conf file with keybindings
-
-    Returns:
-        Popen subprocess object for the MPV process
-
-    Raises:
-        FileNotFoundError: If mpv binary not found
-        OSError: If process launch fails
-    """
-    mpv_args = [
-        "mpv",
-        f"--input-ipc-server={socket_path}",
-        f"--input-conf={input_conf}",
-        "--fullscreen=yes",
-        "--osc=yes",
-        "--cache=yes",
-        "--demuxer-max-bytes=400M",
-        "--demuxer-max-back-bytes=100M",
-        "--demuxer-readahead-secs=40",
-        "--stream-buffer-size=2M",
-        "--speed=1.8",
-        "--ytdl=yes",
-        "--ytdl-format=bestvideo[height<=1080]+bestaudio/best",
-        url,
-    ]
-
-    try:
-        import os
-
-        # Enable detailed logging for debugging
-        debug_mode = os.environ.get("ANI_TUPI_DEBUG_MPV") == "1"
-
-        if debug_mode:
-            # Show MPV stderr for debugging
-            return subprocess.Popen(
-                mpv_args,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                universal_newlines=True,
-            )
-        else:
-            # Capture stderr even in normal mode for error detection
-            # This helps us see why MPV fails silently
-            return subprocess.Popen(
-                mpv_args,
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.PIPE,
-                universal_newlines=True,
-            )
-    except FileNotFoundError as e:
-        msg = "MPV not found in PATH. Please install mpv."
-        raise FileNotFoundError(msg) from e
-    except Exception as e:
-        msg = f"Failed to launch MPV: {e}"
-        raise OSError(msg) from e
-
-
-def _play_video_legacy(url: str, debug: bool = False) -> VideoPlaybackResult:
-    """Play video using legacy python-mpv blocking mode (fallback).
-
-    Args:
-        url: Video URL to play
-        debug: Skip playback if True
-
-    Returns:
-        VideoPlaybackResult with exit code and quit action
-    """
-    if debug:
-        print("DEBUG MODE: Skipping video playback")
-        return VideoPlaybackResult(exit_code=0, action="quit", data=None)
-
-    try:
-        exit_code = play_video(url, debug=False)
-        return VideoPlaybackResult(exit_code=exit_code, action="quit", data=None)
-    except Exception as e:
-        print(f"⚠️  Playback error: {e}")
-        return VideoPlaybackResult(exit_code=2, action="quit", data=None)
-
-
-def _send_mpv_command(sock: socket.socket, command: str, args: list) -> None:
-    """Send JSON-RPC command to MPV via IPC socket.
-
-    Args:
-        sock: Connected IPC socket
-        command: MPV command name (e.g., "loadfile", "show-text")
-        args: Command arguments
-    """
-    import json
-
-    request = {"command": [command] + args}
-    try:
-        message = json.dumps(request) + "\n"
-        sock.sendall(message.encode("utf-8"))
-    except Exception as e:
-        print(f"Failed to send MPV command: {e}")
-
-
-def _ipc_event_loop(
-    mpv_process: subprocess.Popen,
-    socket_path: str,
-    episode_context: dict,
-    timeout: float = 1.0,
-) -> VideoPlaybackResult:
-    """Monitor IPC socket for keybinding events from MPV.
-
-    Args:
-        mpv_process: Running MPV subprocess
-        socket_path: Path to IPC socket
-        episode_context: Dict with anime_title, episode_number, total_episodes, source
-        timeout: Socket read timeout in seconds
-
-    Returns:
-        VideoPlaybackResult when MPV closes or action is triggered
-    """
-    global _autoplay_enabled  # Declare at function level
-    import json
-    import time
-
-    # Wait for socket to be ready
-    max_wait = 5.0
-    start_time = time.time()
-    sock = None
-
-    while time.time() - start_time < max_wait:
         try:
-            if platform.system() == "Windows":
-                # Windows named pipes - handled differently
-                # For now, skip IPC on Windows and use legacy
-                return _play_video_legacy("", debug=False)
+            debug_mode = os.environ.get("ANI_TUPI_DEBUG_MPV") == "1"
+            if debug_mode:
+                return subprocess.Popen(
+                    mpv_args,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    universal_newlines=True,
+                )
+            else:
+                return subprocess.Popen(
+                    mpv_args,
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.PIPE,
+                    universal_newlines=True,
+                )
+        except FileNotFoundError as e:
+            raise FileNotFoundError("MPV not found in PATH. Please install mpv.") from e
+        except Exception as e:
+            raise OSError(f"Failed to launch MPV: {e}") from e
 
-            # Unix socket
-            sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-            sock.settimeout(timeout)
-            sock.connect(socket_path)
-            break
-        except (FileNotFoundError, ConnectionRefusedError, OSError):
-            time.sleep(0.1)
-            continue
+    def _ipc_event_loop(
+        self,
+        mpv_process: subprocess.Popen,
+        socket_path: str,
+        episode_context: dict,
+        timeout: float = 1.0,
+    ) -> VideoPlaybackResult:
+        """Monitor IPC socket for keybinding events from MPV."""
+        # Wait for socket to be ready
+        max_wait = 5.0
+        start_time = time.time()
+        sock = None
 
-    if not sock:
-        # Fallback to legacy if socket connection fails
-        return _play_video_legacy("", debug=False)
-
-    try:
-        buffer = ""
-        while mpv_process.poll() is None:  # While process is running
+        while time.time() - start_time < max_wait:
             try:
-                chunk = sock.recv(1024).decode("utf-8", errors="ignore")
-                if not chunk:
-                    break
-                buffer += chunk
+                if platform.system() == "Windows":
+                    # Fallback to legacy on Windows for now
+                    return self._play_video_legacy("", debug=False)
 
-                # Parse JSON-RPC messages (one per line)
-                while "\n" in buffer:
-                    line, buffer = buffer.split("\n", 1)
-                    if not line.strip():
-                        continue
+                sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+                sock.settimeout(timeout)
+                sock.connect(socket_path)
+                break
+            except (FileNotFoundError, ConnectionRefusedError, OSError):
+                time.sleep(0.1)
+                continue
 
-                    try:
-                        msg = json.loads(line)
+        if not sock:
+            return self._play_video_legacy("", debug=False)
 
-                        if msg.get("event") == "client-message":
-                            args = msg.get("args", [])
-                            if args:
-                                action = args[0]
+        try:
+            buffer = ""
+            while mpv_process.poll() is None:
+                try:
+                    chunk = sock.recv(1024).decode("utf-8", errors="ignore")
+                    if not chunk:
+                        break
+                    buffer += chunk
 
-                                # Handle navigation actions that load new episodes
-                                if action == "mark-next":
-                                    from services.history_service import (
-                                        save_history_from_event,
-                                    )
-                                    from services.repository import rep
+                    while "\n" in buffer:
+                        line, buffer = buffer.split("\n", 1)
+                        if not line.strip():
+                            continue
 
-                                    anime_title = episode_context.get("anime_title")
-                                    episode_number = episode_context.get(
-                                        "episode_number", 1
-                                    )
-                                    source = episode_context.get("source")
-                                    anilist_id = episode_context.get("anilist_id")
+                        try:
+                            msg = json.loads(line)
+                            if msg.get("event") == "client-message":
+                                args = msg.get("args", [])
+                                if args:
+                                    action = args[0]
+                                    if action == "mark-next":
+                                        from services.history_service import (
+                                            save_history_from_event,
+                                        )
+                                        from services.repository import rep
 
-                                    if not anime_title:
-                                        continue
+                                        anime_title = episode_context.get("anime_title")
+                                        episode_number = episode_context.get("episode_number", 1)
+                                        source = episode_context.get("source")
+                                        anilist_id = episode_context.get("anilist_id")
 
-                                    # Save current episode as watched (0-indexed)
-                                    episode_idx = episode_number - 1
-                                    save_history_from_event(
-                                        anime_title=anime_title,
-                                        episode_idx=episode_idx,
-                                        action="watched",
-                                        source=source,
-                                        anilist_id=anilist_id,
-                                    )
+                                        if not anime_title:
+                                            continue
 
-                                    # Search for player URL for next episode (this handles racing scrapers)
-                                    next_episode_number = episode_number + 1
-                                    # Show OSD message that we are searching
-                                    scraper_total = episode_context.get(
-                                        "total_episodes"
-                                    )
-                                    anilist_total = episode_context.get(
-                                        "anilist_episodes"
-                                    )
-                                    progress_str = _format_episode_progress(
-                                        next_episode_number,
-                                        scraper_total,
-                                        anilist_total,
-                                    )
-                                    _send_mpv_command(
-                                        sock,
-                                        "show-text",
-                                        [f"Buscando Episódio {progress_str}..."],
-                                    )
-                                    # This is a blocking call, but it's what we need to get the stream URL
-                                    next_url = rep.search_player(
-                                        anime_title, next_episode_number
-                                    )
-
-                                    if next_url:
-                                        # Send MPV command to load next episode
-                                        _send_mpv_command(
-                                            sock, "loadfile", [next_url, "replace"]
+                                        episode_idx = episode_number - 1
+                                        save_history_from_event(
+                                            anime_title=anime_title,
+                                            episode_idx=episode_idx,
+                                            action="watched",
+                                            source=source,
+                                            anilist_id=anilist_id,
                                         )
 
-                                        # Show OSD success message
-                                        scraper_total = episode_context.get(
-                                            "total_episodes"
-                                        )
-                                        anilist_total = episode_context.get(
-                                            "anilist_episodes"
-                                        )
+                                        next_episode_number = episode_number + 1
+                                        scraper_total = episode_context.get("total_episodes")
+                                        anilist_total = episode_context.get("anilist_episodes")
                                         progress_str = _format_episode_progress(
                                             next_episode_number,
                                             scraper_total,
                                             anilist_total,
                                         )
-                                        _send_mpv_command(
-                                            sock,
-                                            "show-text",
-                                            [f"▶️ Reproduzindo Episódio {progress_str}"],
-                                        )
-
-                                        # Update episode context for next iteration
-                                        episode_context["episode_number"] = (
-                                            next_episode_number
-                                        )
-                                        episode_context["url"] = next_url
-                                        # Preserve anilist_id and source for next episode
-
-                                        # Print terminal feedback
-                                        print(
-                                            f"▶️  Reproduzindo Episódio {progress_str}"
-                                        )
-
-                                        # Continue loop to listen for more keybindings
-                                        continue
-                                    else:
-                                        # Next episode URL not found or no more episodes
-                                        _send_mpv_command(
-                                            sock,
-                                            "show-text",
-                                            [
-                                                "Não há mais episódios disponíveis ou erro ao buscar"
-                                            ],
-                                        )
-                                        print(
-                                            f"❌ Falha ao carregar Episódio {next_episode_number}"
-                                        )
-
-                                elif action == "previous":
-                                    from services.repository import rep
-
-                                    anime_title = episode_context.get("anime_title")
-                                    episode_number = episode_context.get(
-                                        "episode_number", 1
-                                    )
-
-                                    if not anime_title:
-                                        continue
-
-                                    # Get previous episode URL
-                                    prev_episode_number = max(1, episode_number - 1)
-                                    if prev_episode_number < episode_number:
-                                        # Show OSD message that we are searching
-                                        scraper_total = episode_context.get(
-                                            "total_episodes"
-                                        )
-                                        anilist_total = episode_context.get(
-                                            "anilist_episodes"
-                                        )
-                                        progress_str = _format_episode_progress(
-                                            prev_episode_number,
-                                            scraper_total,
-                                            anilist_total,
-                                        )
-                                        _send_mpv_command(
+                                        self._send_mpv_command(
                                             sock,
                                             "show-text",
                                             [f"Buscando Episódio {progress_str}..."],
                                         )
-
-                                        # Search for player URL for previous episode
-                                        prev_url = rep.search_player(
-                                            anime_title, prev_episode_number
+                                        next_url = rep.search_player(
+                                            anime_title, next_episode_number
                                         )
 
-                                        if prev_url:
-                                            # Send MPV command to load previous episode
-                                            _send_mpv_command(
-                                                sock, "loadfile", [prev_url, "replace"]
+                                        if next_url:
+                                            self._send_mpv_command(
+                                                sock, "loadfile", [next_url, "replace"]
+                                            )
+                                            self._send_mpv_command(
+                                                sock,
+                                                "show-text",
+                                                [f"▶️ Reproduzindo Episódio {progress_str}"],
+                                            )
+                                            episode_context["episode_number"] = next_episode_number
+                                            episode_context["url"] = next_url
+                                            print(f"▶️  Reproduzindo Episódio {progress_str}")
+                                            continue
+                                        else:
+                                            self._send_mpv_command(
+                                                sock,
+                                                "show-text",
+                                                [
+                                                    "Não há mais episódios disponíveis ou erro ao buscar"
+                                                ],
+                                            )
+                                            print(
+                                                f"❌ Falha ao carregar Episódio {next_episode_number}"
                                             )
 
-                                            # Show OSD message
-                                            scraper_total = episode_context.get(
-                                                "total_episodes"
-                                            )
-                                            anilist_total = episode_context.get(
-                                                "anilist_episodes"
-                                            )
+                                    elif action == "previous":
+                                        from services.repository import rep
+
+                                        anime_title = episode_context.get("anime_title")
+                                        episode_number = episode_context.get("episode_number", 1)
+
+                                        if not anime_title:
+                                            continue
+
+                                        prev_episode_number = max(1, episode_number - 1)
+                                        if prev_episode_number < episode_number:
+                                            scraper_total = episode_context.get("total_episodes")
+                                            anilist_total = episode_context.get("anilist_episodes")
                                             progress_str = _format_episode_progress(
                                                 prev_episode_number,
                                                 scraper_total,
                                                 anilist_total,
                                             )
-                                            _send_mpv_command(
+                                            self._send_mpv_command(
                                                 sock,
                                                 "show-text",
-                                                [
-                                                    f"⏪ Voltando para Episódio {progress_str}"
-                                                ],
+                                                [f"Buscando Episódio {progress_str}..."],
+                                            )
+                                            prev_url = rep.search_player(
+                                                anime_title, prev_episode_number
                                             )
 
-                                            # Update episode context
-                                            episode_context["episode_number"] = (
-                                                prev_episode_number
-                                            )
-                                            episode_context["url"] = prev_url
-
-                                            # Print terminal feedback
-                                            print(
-                                                f"⏪ Voltando para Episódio {progress_str}"
-                                            )
-
-                                            # Continue loop
-                                            continue
+                                            if prev_url:
+                                                self._send_mpv_command(
+                                                    sock, "loadfile", [prev_url, "replace"]
+                                                )
+                                                self._send_mpv_command(
+                                                    sock,
+                                                    "show-text",
+                                                    [f"⏪ Voltando para Episódio {progress_str}"],
+                                                )
+                                                episode_context["episode_number"] = (
+                                                    prev_episode_number
+                                                )
+                                                episode_context["url"] = prev_url
+                                                print(f"⏪ Voltando para Episódio {progress_str}")
+                                                continue
+                                            else:
+                                                self._send_mpv_command(
+                                                    sock,
+                                                    "show-text",
+                                                    [
+                                                        "Episódio anterior não disponível ou erro ao buscar"
+                                                    ],
+                                                )
+                                                print(
+                                                    f"❌ Falha ao carregar Episódio {prev_episode_number}"
+                                                )
                                         else:
-                                            _send_mpv_command(
-                                                sock,
-                                                "show-text",
-                                                [
-                                                    "Episódio anterior não disponível ou erro ao buscar"
-                                                ],
+                                            self._send_mpv_command(
+                                                sock, "show-text", ["Não há episódios anteriores"]
                                             )
-                                            print(
-                                                f"❌ Falha ao carregar Episódio {prev_episode_number}"
-                                            )
-                                    else:
-                                        _send_mpv_command(
-                                            sock,
-                                            "show-text",
-                                            ["Não há episódios anteriores"],
-                                        )
 
-                                elif action == "reload-episode":
-                                    # Reload current episode
-                                    current_url = episode_context.get("url")
-                                    if current_url:
-                                        _send_mpv_command(
-                                            sock, "loadfile", [current_url, "replace"]
-                                        )
-                                        _send_mpv_command(
-                                            sock, "show-text", ["Reloading episode..."]
-                                        )
-                                        # Continue loop
+                                    elif action == "reload-episode":
+                                        current_url = episode_context.get("url")
+                                        if current_url:
+                                            self._send_mpv_command(
+                                                sock, "loadfile", [current_url, "replace"]
+                                            )
+                                            self._send_mpv_command(
+                                                sock, "show-text", ["Reloading episode..."]
+                                            )
+                                            continue
+
+                                    elif action == "toggle-autoplay":
+                                        self.autoplay = not self.autoplay
+                                        status = "ATIVADO" if self.autoplay else "DESATIVADO"
+                                        message = f"Auto-play {status} (válido para toda a sessão)"
+                                        self._send_mpv_command(sock, "show-text", [message, "3000"])
+                                        print(f"{message}")
                                         continue
 
-                                elif action == "toggle-autoplay":
-                                    # Toggle global auto-play state (declared at function level)
-                                    _autoplay_enabled = not _autoplay_enabled
+                                    result = self._handle_keybinding_action(action, episode_context)
+                                    if result:
+                                        return result
+                        except json.JSONDecodeError:
+                            continue
+                except socket.timeout:
+                    continue
+                except Exception as e:
+                    print(f"IPC error: {e}")
+                    break
 
-                                    # Show OSD message
-                                    status = (
-                                        "ATIVADO" if _autoplay_enabled else "DESATIVADO"
-                                    )
-                                    message = f"Auto-play {status} (válido para toda a sessão)"
-                                    _send_mpv_command(
-                                        sock, "show-text", [message, "3000"]
-                                    )
+            exit_code = mpv_process.returncode or 0
+            stderr_output = ""
+            if hasattr(mpv_process, "stderr") and mpv_process.stderr:
+                try:
+                    stderr_output = mpv_process.stderr.read()
+                except:
+                    pass
 
-                                    # Print terminal feedback
-                                    print(f"{message}")
+            if exit_code != 0 or "error" in stderr_output.lower():
+                print(f"⚠️  MPV exited with code {exit_code}")
+                if "error" in stderr_output.lower():
+                    error_lines = [
+                        line for line in stderr_output.split("\n") if "error" in line.lower()
+                    ]
+                    for error_line in error_lines[:3]:
+                        if error_line.strip():
+                            print(f"   ❌ {error_line.strip()[:100]}")
+                    if "400" in stderr_output:
+                        print("\n   ℹ️  AnimesonlineCC: Token expirado (URLs temporárias)")
+                print("   Tente ativar debug: ANI_TUPI_DEBUG_MPV=1 uv run ani-tupi")
 
-                                    # Continue loop - don't exit playback
-                                    continue
+            if self.autoplay and exit_code == 0:
+                from services.history_service import save_history_from_event
 
-                                # Handle other actions (mark-menu, toggle-sub-dub)
-                                result = _handle_keybinding_action(
-                                    action, episode_context
-                                )
-                                if result:
-                                    # For actions that require returning to caller
-                                    return result
+                anime_title = episode_context.get("anime_title")
+                episode_number = episode_context.get("episode_number", 1)
+                source = episode_context.get("source")
+                anilist_id = episode_context.get("anilist_id")
 
-                    except json.JSONDecodeError:
-                        # Skip malformed JSON
-                        continue
-
-            except socket.timeout:
-                # Timeout is normal, continue polling
-                continue
-            except Exception as e:
-                print(f"IPC error: {e}")
-                break
-
-        # MPV process exited normally
-        exit_code = mpv_process.returncode or 0
-
-        # Check stderr for error messages
-        stderr_output = ""
-        if hasattr(mpv_process, "stderr") and mpv_process.stderr:
-            try:
-                stderr_output = (
-                    mpv_process.stderr.read()
-                    if hasattr(mpv_process.stderr, "read")
-                    else ""
-                )
-            except:
-                pass
-
-        # Check if MPV failed to load the video
-        if exit_code != 0 or "error" in stderr_output.lower():
-            print(f"⚠️  MPV exited with code {exit_code}")
-            if "error" in stderr_output.lower():
-                # Extract relevant error messages
-                error_lines = [
-                    line
-                    for line in stderr_output.split("\n")
-                    if "error" in line.lower()
-                ]
-                for error_line in error_lines[:3]:  # Show first 3 errors
-                    if error_line.strip():
-                        print(f"   ❌ {error_line.strip()[:100]}")
-                # Special message for Blogger 400 errors
-                if "400" in stderr_output:
-                    print("\n   ℹ️  AnimesonlineCC: Token expirado (URLs temporárias)")
-                    print(
-                        "   💡 Solução: Use AnimeFire ou AnimesDigital (sem expiration)"
+                if anime_title:
+                    episode_idx = episode_number - 1
+                    save_history_from_event(
+                        anime_title=anime_title,
+                        episode_idx=episode_idx,
+                        action="watched",
+                        source=source,
+                        anilist_id=anilist_id,
                     )
-                    print(
-                        '   Modifique: export ANI_TUPI__PLUGINS__PRIORITY_ORDER=\'["animesdigital", "animefire"]\''
-                    )
-            print("   Tente ativar debug: ANI_TUPI_DEBUG_MPV=1 uv run ani-tupi")
-
-        # Check if auto-play is enabled (declared at function level)
-        if _autoplay_enabled and exit_code == 0:
-            # Auto-play active: mark as watched and move to next episode
-            from services.history_service import save_history_from_event
-
-            anime_title = episode_context.get("anime_title")
-            episode_number = episode_context.get("episode_number", 1)
-            source = episode_context.get("source")
-            anilist_id = episode_context.get("anilist_id")
-
-            if anime_title:
-                # Save current episode as watched (0-indexed)
-                episode_idx = episode_number - 1
-                save_history_from_event(
-                    anime_title=anime_title,
-                    episode_idx=episode_idx,
-                    action="watched",
-                    source=source,
-                    anilist_id=anilist_id,
+                print(f"▶️  Auto-play ativo: marcando Episódio {episode_number} como assistido")
+                return VideoPlaybackResult(
+                    exit_code=exit_code,
+                    action="auto-next",
+                    data={"episode": episode_number},
                 )
 
-            # Print terminal feedback
-            print(
-                f"▶️  Auto-play ativo: marcando Episódio {episode_number} como assistido"
-            )
-
-            # Return auto-next action
+            final_episode = episode_context.get("episode_number", 1)
             return VideoPlaybackResult(
-                exit_code=exit_code,
-                action="auto-next",
-                data={"episode": episode_number},
+                exit_code=exit_code, action="quit", data={"episode": final_episode}
             )
+        finally:
+            if sock:
+                try:
+                    sock.close()
+                except:
+                    pass
 
-        # Normal quit (auto-play disabled or error exit)
-        # Return the final episode_number so anime_service can sync episode_idx
-        # This is important when Shift+N was used to load a different episode
-        final_episode = episode_context.get("episode_number", 1)
-        return VideoPlaybackResult(
-            exit_code=exit_code, action="quit", data={"episode": final_episode}
-        )
-
-    finally:
+    def _send_mpv_command(self, sock: socket.socket, command: str, args: list) -> None:
+        """Send JSON-RPC command to MPV via IPC socket."""
+        request = {"command": [command] + args}
         try:
-            sock.close()
-        except:  # noqa: E722
-            pass
+            message = json.dumps(request) + "\n"
+            sock.sendall(message.encode("utf-8"))
+        except Exception as e:
+            print(f"Failed to send MPV command: {e}")
 
 
-# ============================================================================
-# Phase 3: New Play Interface (play_episode)
-# ============================================================================
+def _format_episode_progress(
+    episode_num: int,
+    scraper_total: int | None | str = None,
+    anilist_total: int | None = None,
+) -> str:
+    """Format episode progress with scraper and AniList episode counts."""
+    if scraper_total is None:
+        scraper_total = "?"
+    result = f"{episode_num} / {scraper_total}"
+    if anilist_total and anilist_total != scraper_total:
+        result += f" (total: {anilist_total})"
+    return result
+
+
+# Global functions for backward compatibility (will use a default instance)
+_default_player = VideoPlayer()
+
+
+def get_autoplay_state() -> bool:
+    """Get current auto-play state."""
+    return _default_player.get_autoplay_state()
+
+
+def set_autoplay_state(enabled: bool) -> None:
+    """Set auto-play state."""
+    _default_player.set_autoplay_state(enabled)
+
+
+def play_video(url: str, debug=False, ytdl_format: str | None = None) -> int:
+    """Play video using python-mpv and return exit code."""
+    return _default_player.play_video_raw(url, debug=debug, ytdl_format=ytdl_format)
 
 
 def play_episode(
@@ -828,94 +687,15 @@ def play_episode(
     anilist_id: int | None = None,
     anilist_episodes: int | None = None,
 ) -> VideoPlaybackResult:
-    """Play a single episode with optional IPC support for episode navigation.
-
-    Args:
-        url: Video URL to play
-        anime_title: Name of anime being watched
-        episode_number: Current episode number (1-indexed)
-        total_episodes: Total episodes available in scraper
-        source: Name of scraper source (e.g., "animefire")
-        use_ipc: Enable IPC socket for keybinding events (default True)
-        debug: Skip playback and return simulated result
-        anilist_id: AniList ID for syncing progress (optional)
-        anilist_episodes: Total episodes from AniList (optional, for display)
-
-    Returns:
-        VideoPlaybackResult with exit code, action, and optional data
-
-    Environment Variables:
-        ANI_TUPI_DISABLE_IPC: Set to "1" to force legacy playback
-    """
-    # Check if IPC should be disabled globally
-    if os.environ.get("ANI_TUPI_DISABLE_IPC") == "1":
-        use_ipc = False
-
-    if debug:
-        print("DEBUG MODE: Skipping video playback")
-        return VideoPlaybackResult(exit_code=0, action="quit", data=None)
-
-    # Episode context passed to IPC handlers
-    episode_context = {
-        "anime_title": anime_title,
-        "episode_number": episode_number,
-        "total_episodes": total_episodes,
-        "anilist_episodes": anilist_episodes,
-        "source": source,
-        "url": url,
-        "anilist_id": anilist_id,
-    }
-
-    if not use_ipc:
-        # Use legacy blocking playback
-        return _play_video_legacy(url, debug=False)
-
-    # Try IPC-based playback with fallback
-    input_conf_path = None
-    socket_path = None
-    mpv_process = None
-
-    try:
-        # Generate socket path and input.conf
-        socket_path = _create_ipc_socket_path()
-        input_conf_path, _ = _generate_input_conf()
-
-        # Launch MPV with IPC
-        mpv_process = _launch_mpv_with_ipc(url, socket_path, input_conf_path)
-
-        # Start monitoring events
-        result = _ipc_event_loop(mpv_process, socket_path, episode_context)
-
-        # Wait for process to finish if still running
-        if mpv_process.poll() is None:
-            try:
-                mpv_process.wait(timeout=2)
-            except subprocess.TimeoutExpired:
-                mpv_process.terminate()
-
-        return result
-
-    except (FileNotFoundError, OSError, Exception) as e:
-        # IPC launch failed, fallback to legacy
-        print(f"⚠️  IPC playback unavailable: {e}. Using legacy mode.")
-
-        # Clean up any dangling process
-        if mpv_process and mpv_process.poll() is None:
-            try:
-                mpv_process.terminate()
-                mpv_process.wait(timeout=1)
-            except:  # noqa: E722
-                mpv_process.kill()
-
-        return _play_video_legacy(url, debug=False)
-
-    finally:
-        # Clean up temporary files
-        if input_conf_path:
-            try:
-                Path(input_conf_path).unlink()
-            except:  # noqa: E722
-                pass
-
-        if socket_path:
-            _cleanup_ipc_socket(socket_path)
+    """Play a single episode with optional IPC support."""
+    return _default_player.play_episode(
+        url=url,
+        anime_title=anime_title,
+        episode_number=episode_number,
+        total_episodes=total_episodes,
+        source=source,
+        use_ipc=use_ipc,
+        debug=debug,
+        anilist_id=anilist_id,
+        anilist_episodes=anilist_episodes,
+    )

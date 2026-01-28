@@ -202,6 +202,12 @@ class PerformanceSettings(BaseModel):
         le=3600,
         description="TTL for episode list cache (seconds, 30 minutes default)",
     )
+    video_url_cache_ttl_seconds: int = Field(
+        3600,
+        ge=300,
+        le=86400,
+        description="TTL for video URL cache (seconds, 1 hour default)",
+    )
     smart_cache_max_size_mb: int = Field(
         100,
         ge=50,
@@ -257,6 +263,10 @@ class MangaSettings(BaseModel):
     pdf_reader: str | None = Field(
         None,
         description="PDF reader to use (zathura, evince, okular, mupdf). None = auto-detect",
+    )
+    pdf_reader_priority: list[str] = Field(
+        default_factory=lambda: ["zathura", "evince", "okular", "mupdf", "xdg-open"],
+        description="Priority list for PDF reader auto-detection",
     )
     delete_images_after_pdf: bool = Field(
         True,

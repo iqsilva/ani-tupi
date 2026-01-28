@@ -6,6 +6,7 @@ This package provides:
 - Source management
 - Episode navigation
 - Mapping persistence
+- Progress calculation
 """
 
 from .title_normalization import normalize_anime_title
@@ -21,6 +22,22 @@ from .anilist_integration import (
 )
 from .source_management import switch_anime_source
 from .search import search_anime_flow
+from .anilist_discovery_service import AniListDiscoveryResult, discover_anilist_info
+from .progress_service import (
+    EpisodeProgressInfo,
+    ProgressContext,
+    get_episode_progress_info,
+    calculate_watch_context,
+)
+from .playback_service import (
+    PlaybackContext,
+    EpisodePlaybackResult,
+    prepare_playback_from_search,
+    prepare_playback_from_history,
+    get_episode_url_and_source,
+    sync_progress_to_anilist,
+    navigate_episodes,
+)
 
 __all__ = [
     "normalize_anime_title",
@@ -32,4 +49,10 @@ __all__ = [
     "anilist_anime_flow",
     "switch_anime_source",
     "search_anime_flow",
+    "AniListDiscoveryResult",
+    "discover_anilist_info",
+    "EpisodeProgressInfo",
+    "ProgressContext",
+    "get_episode_progress_info",
+    "calculate_watch_context",
 ]

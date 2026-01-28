@@ -5,15 +5,21 @@ This module handles:
 - Episode selection and playback loop
 - History management and AniList progress sync
 - Source switching and quality selection
+
+This is a thin coordinator that delegates all business logic to services.
 """
 
 from services import anime_service
-from services.history_service import load_history, save_history
-from services.repository import rep
+from services.history_service import save_history
+from services.anime.playback_service import (
+    prepare_playback_from_search,
+    prepare_playback_from_history,
+    get_episode_url_and_source,
+    sync_progress_to_anilist,
+    navigate_episodes,
+)
 from ui.components import loading, menu_navigate
-from utils.video_player import play_video
-from utils.title_utils import normalize_title_for_search
-from models.models import Status
+from utils.video_player import VideoPlayer
 
 
 def anime(args) -> None:
@@ -27,134 +33,90 @@ def anime(args) -> None:
     - Source switching
     """
     # Variables for AniList integration and source tracking
-    anilist_id = None
-    anilist_title = None
     source = None
 
     # If command-line args provided, use them; otherwise handled by main menu
     if args.query or args.continue_watching:
         if args.continue_watching:
-            selected_anime, episode_idx, anilist_id, anilist_title = load_history()
-            if not selected_anime or episode_idx is None:
+            # Prepare playback context from history
+            ctx = prepare_playback_from_history()
+            if ctx is None:
                 raise Exception("Problema ao conseguir informacoes do anime.")
-            # Episodes already loaded by load_history()
         else:
-            selected_anime, episode_idx, source = anime_service.search_anime_flow(args)
-            if not selected_anime:
+            # Search for anime
+            result = anime_service.search_anime_flow(args)
+            selected_anime, episode_idx, source = result
+            if not selected_anime or episode_idx is None:
                 return
 
-            # Try to auto-discover AniList ID if authenticated
-            from services.anilist_service import anilist_client as anilist
-
-            if anilist.is_authenticated():
-                from utils.anilist_discovery import auto_discover_anilist_id
-
-                print(f"\n🔍 Procurando '{selected_anime}' no AniList...")
-                # Normalize title to remove Portuguese suffixes like (Dublado), (Legendado)
-                normalized_title = normalize_title_for_search(selected_anime)
-                anilist_results = auto_discover_anilist_id(normalized_title)
-
-                if anilist_results:
-                    anilist_id = anilist_results[0].anilist_id
-                    # Get anime metadata for display
-                    from utils.anilist_discovery import get_anilist_metadata
-
-                    metadata = get_anilist_metadata(anilist_id)
-                    if metadata:
-                        anilist_title = anilist.format_title(metadata.title)
-                        print(f"✅ Encontrado: {anilist_title}")
-                else:
-                    print(
-                        "⚠️  Não foi possível encontrar no AniList (continuando sem sincronização)"
-                    )
+            # Prepare playback context from search results
+            ctx = prepare_playback_from_search(selected_anime, episode_idx, source)
+            if ctx is None:
+                return
     else:
         # This path is used when called from main menu
-        selected_anime, episode_idx, source = anime_service.search_anime_flow(args)
-        if not selected_anime:
+        result = anime_service.search_anime_flow(args)
+        selected_anime, episode_idx, source = result
+        if not selected_anime or episode_idx is None:
             return
 
-        # Try to auto-discover AniList ID if authenticated
-        from services.anilist_service import anilist_client as anilist
+        # Prepare playback context from search results
+        ctx = prepare_playback_from_search(selected_anime, episode_idx, source)
+        if ctx is None:
+            return
 
-        if anilist.is_authenticated():
-            from utils.anilist_discovery import get_anilist_id_from_title
+    # Display AniList discovery info if found
+    if ctx.anilist_title:
+        print(f"✅ Encontrado: {ctx.anilist_title}")
+    else:
+        print("⚠️  Não foi possível encontrar no AniList (continuando sem sincronização)")
 
-            print(f"\n🔍 Procurando '{selected_anime}' no AniList...")
-            # Normalize title to remove Portuguese suffixes like (Dublado), (Legendado)
-            normalized_title = normalize_title_for_search(selected_anime)
-            anilist_id = get_anilist_id_from_title(normalized_title)
+    # Initialize video player for this session
+    player = VideoPlayer()
 
-            if anilist_id:
-                # Get anime metadata for display
-                from utils.anilist_discovery import get_anilist_metadata
-
-                metadata = get_anilist_metadata(anilist_id)
-                if metadata:
-                    anilist_title = anilist.format_title(metadata.title)
-                    print(f"✅ Encontrado: {anilist_title}")
-            else:
-                print("⚠️  Não foi possível encontrar no AniList (continuando sem sincronização)")
-
-    # Get episode list for playback
-    assert selected_anime is not None and episode_idx is not None, (
-        "selected_anime and episode_idx should be set"
-    )
-    # Type narrowing: assertion above proves these are not None
-    from typing import cast
-
-    episode_idx = cast(int, episode_idx)  # for pyright
-    episode_list = rep.get_episode_list(selected_anime)
-    num_episodes = len(episode_list)
-
-    # Try to get AniList total episodes if available
-    total_episodes_anilist = None
-    try:
-        from services.anilist_service import anilist_client
-
-        if anilist_client.is_authenticated():
-            from utils.anilist_discovery import get_anilist_metadata, get_anilist_id_from_title
-
-            normalized_title = normalize_title_for_search(selected_anime)
-            anilist_id = get_anilist_id_from_title(normalized_title)
-            if anilist_id:
-                metadata = get_anilist_metadata(anilist_id)
-                if metadata:
-                    total_episodes_anilist = metadata.episodes
-    except Exception:
-        pass  # Silent fail - just continue without AniList episode count
-
+    # Main playback loop
     while True:
-        episode = episode_idx + 1  # type: ignore[operator]
+        episode = ctx.episode_idx + 1  # Convert to 1-indexed
 
-        # Get episode URL and source to determine quality extraction method
-        episode_info = rep.get_episode_url_and_source(selected_anime, episode)
-
-        if not episode_info:
-            print(f"❌ Episódio {episode} não encontrado")
-            continue
-
-        episode_url, source = episode_info
-
-        # Get video URL from scraper plugins
+        # Get episode video URL
         with loading("Buscando vídeo..."):
-            player_url = rep.search_player(selected_anime, episode)
+            playback_result = get_episode_url_and_source(ctx.anime_title, episode)
 
-        # Check if video URL was found
-        if not player_url:
-            print("\n❌ Nenhuma fonte conseguiu extrair o vídeo.")
+        if not playback_result.success:
+            print(f"\n❌ {playback_result.error_message}")
             print("   💡 O episódio pode estar indisponível em todas as fontes.")
             print("   💡 Tente outro episódio ou espere e tente novamente mais tarde.\n")
             continue
 
         # Play video
-        from utils.video_player import _format_episode_progress
+        player_url = playback_result.player_url
+        source = playback_result.source
 
-        progress_str = _format_episode_progress(episode, num_episodes, total_episodes_anilist)
-        print(f"\n▶️  Iniciando reprodução do episódio {progress_str}...")
+        if player_url is None:
+            print("\n❌ Nenhum vídeo encontrado")
+            continue
+
+        # Format progress string
+        from services.anime.progress_service import get_episode_progress_info
+        from services.anime.anilist_discovery_service import AniListDiscoveryResult
+
+        anilist_result = None
+        if ctx.anilist_id:
+            anilist_result = AniListDiscoveryResult(
+                anilist_id=ctx.anilist_id,
+                anilist_title=ctx.anilist_title,
+                total_episodes=ctx.total_episodes_anilist,
+                found=True,
+                authenticated=True,
+            )
+
+        progress_info = get_episode_progress_info(episode, ctx.num_episodes, anilist_result)
+
+        print(f"\n▶️  Iniciando reprodução do episódio {progress_info.progress_str}...")
         print(f"   Fonte: {source or 'unknown'}")
         print(f"   URL: {player_url[:80]}{'...' if len(player_url) > 80 else ''}\n")
 
-        exit_code = play_video(player_url, args.debug)
+        exit_code = player.play_video_raw(player_url, args.debug)
 
         print(f"\n📊 Reprodução encerrada - Exit code: {exit_code}")
 
@@ -166,7 +128,6 @@ def anime(args) -> None:
 
         # Only clear terminal if playback was successful
         # If there was an error, keep messages visible for user to read
-
         if exit_code != 0:
             # Error occurred - give user time to see error messages
             print("\n⏳ Pressione Enter para continuar...")
@@ -181,92 +142,61 @@ def anime(args) -> None:
             confirm_options, msg=f"Você assistiu o episódio {episode} até o final?"
         )
 
-        # Only save history if user watched until the end
+        # Only save history and sync if user watched until the end
         if confirm == "✅ Sim, assisti até o final":
-            save_history(selected_anime, episode_idx, anilist_id, source)  # type: ignore[arg-type]
+            save_history(ctx.anime_title, ctx.episode_idx, ctx.anilist_id, source)
+
+            # AniList sync
+            if ctx.anilist_id:
+                success = sync_progress_to_anilist(ctx.anilist_id, episode, ctx.num_episodes)
+                if success:
+                    print("✅ Progresso salvo no AniList!")
+                else:
+                    print("⚠️  Não foi possível salvar no AniList (continuando...)")
+
+                # Check for sequels when last episode is watched
+                if episode == ctx.num_episodes:
+                    if anime_service.offer_sequel_and_continue(ctx.anilist_id, args):
+                        return  # Sequel started, exit this flow
         else:
             # User didn't finish - go back to episode menu without saving
             continue
 
-        # AniList sync (if coming from continue watching with anilist_id)
-        if anilist_id:
-            from services.anilist_service import anilist_client
-
-            if anilist_client.is_authenticated():
-                if confirm == "✅ Sim, assisti até o final":
-                    # Check if anime is in any list
-                    if not anilist_client.is_in_any_list(anilist_id):
-                        print("\n📝 Adicionando à sua lista do AniList...")
-                        anilist_client.add_to_list(anilist_id, Status.CURRENT)
-                    else:
-                        # Auto-promote from PLANNING to CURRENT, CURRENT to COMPLETED, or COMPLETED to REPEATING
-                        entry = anilist_client.get_media_list_entry(anilist_id)
-                        if entry:
-                            if entry.status == "PLANNING":
-                                print("\n📝 Movendo de 'Planejo Assistir' para 'Assistindo'...")
-                                anilist_client.add_to_list(anilist_id, Status.CURRENT)
-                            elif entry.status == "CURRENT":
-                                # If finishing last episode of a watched anime, mark as completed
-                                if episode == num_episodes:
-                                    print("\n✅ Marcando como 'Completo'...")
-                                    anilist_client.change_status(anilist_id, Status.COMPLETED)
-                            elif entry.status == "COMPLETED":
-                                # If rewatching, mark as repeating
-                                if episode == num_episodes:
-                                    print("\n🔄 Mudando para 'Recomassistindo'...")
-                                    anilist_client.change_status(anilist_id, Status.REPEATING)
-
-                    print(f"\n🔄 Sincronizando progresso com AniList (Ep {episode})...")
-                    success = anilist_client.update_progress(anilist_id, episode)
-                    if success:
-                        print("✅ Progresso salvo no AniList!")
-                    else:
-                        # Verify token is still valid if sync failed
-                        viewer = anilist_client.get_viewer_info()
-                        if not viewer:
-                            print("⚠️  Token do AniList expirou")
-                            print("   Execute: ani-tupi anilist auth")
-                        else:
-                            print("⚠️  Não foi possível salvar no AniList (continuando...)")
-
-                    # Check for sequels when last episode is watched
-                    if episode == num_episodes:
-                        if anime_service.offer_sequel_and_continue(anilist_id, args):
-                            return  # Sequel started, exit this flow
-
         # Episode navigation menu
         opts = []
-        if episode_idx is not None and episode_idx < num_episodes - 1:
+        if ctx.episode_idx < ctx.num_episodes - 1:
             opts.append("▶️  Próximo")
-        if episode_idx is not None and episode_idx > 0:
+        if ctx.episode_idx > 0:
             opts.append("◀️  Anterior")
         opts.append("🔁 Replay")
         opts.append("📋 Escolher outro episódio")
         opts.append("🔄 Trocar fonte")
 
-        selected_opt = menu_navigate(opts, msg="O que quer fazer agora?")
+        selected_opt = menu_navigate(list(opts), msg="O que quer fazer agora?")
 
         if not selected_opt or selected_opt == "🔙 Voltar":
             return  # Exit to main menu
-        if selected_opt == "▶️  Próximo":
-            episode_idx += 1  # type: ignore[operator]
+        elif selected_opt == "▶️  Próximo":
+            ctx = navigate_episodes(ctx, "next")
         elif selected_opt == "◀️  Anterior":
-            episode_idx -= 1  # type: ignore[operator]
+            ctx = navigate_episodes(ctx, "previous")
         elif selected_opt == "🔁 Replay":
-            # Keep same episode_idx, loop continues to replay
-            pass
+            ctx = navigate_episodes(ctx, "replay")
         elif selected_opt == "📋 Escolher outro episódio":
-            episode_list = rep.get_episode_list(selected_anime)
-            selected_episode = menu_navigate(episode_list, msg="Escolha o episódio.")
+            # User selects episode from menu
+            selected_episode = menu_navigate(list(ctx.episode_list), msg="Escolha o episódio.")
             if not selected_episode:
                 return  # User cancelled, exit function
-            episode_idx = episode_list.index(selected_episode)
+            episode_idx = ctx.episode_list.index(selected_episode)
+            ctx = navigate_episodes(ctx, "choose", episode_idx)
         elif selected_opt == "🔄 Trocar fonte":
-            new_anime, new_episode_idx = anime_service.switch_anime_source(
-                selected_anime, args, anilist_id
-            )
-            if new_anime:
-                selected_anime = new_anime
-                episode_idx = new_episode_idx
-                num_episodes = len(rep.get_episode_list(selected_anime))
-                # Continue loop with new anime/episode
+            # Source switching
+            result = anime_service.switch_anime_source(ctx.anime_title, args, ctx.anilist_id)
+            new_anime, new_episode_idx = result
+            if new_anime and new_episode_idx is not None:
+                # Prepare new context with switched source
+                new_ctx = prepare_playback_from_search(new_anime, new_episode_idx, source)
+                if new_ctx:
+                    ctx = new_ctx
+                    # Update episode count and list
+                    ctx = navigate_episodes(ctx, "choose", new_episode_idx)
