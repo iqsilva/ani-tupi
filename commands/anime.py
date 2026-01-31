@@ -17,6 +17,7 @@ from services.anime.playback_service import (
     get_episode_url_and_source,
     sync_progress_to_anilist,
     navigate_episodes,
+    PlaybackContext,
 )
 from ui.components import loading, menu_navigate
 from utils.video_player import VideoPlayer
@@ -116,9 +117,26 @@ def anime(args) -> None:
         print(f"   Fonte: {source or 'unknown'}")
         print(f"   URL: {player_url[:80]}{'...' if len(player_url) > 80 else ''}\n")
 
-        exit_code = player.play_video_raw(player_url, args.debug)
+        playback_result = player.play_episode(
+            url=player_url,
+            anime_title=ctx.anime_title,
+            episode_number=episode,
+            total_episodes=ctx.num_episodes,
+            source=source,
+            use_ipc=True,
+            debug=args.debug,
+            anilist_id=ctx.anilist_id,
+            anilist_episodes=ctx.total_episodes_anilist,
+        )
 
-        print(f"\n📊 Reprodução encerrada - Exit code: {exit_code}")
+        exit_code = playback_result.exit_code
+        final_episode = (
+            playback_result.data.get("episode", episode) if playback_result.data else episode
+        )
+
+        print("\n📊 Reprodução encerrada:")
+        print(f"   Exit code: {exit_code}")
+        print(f"   Ação: {playback_result.action}")
 
         # Log MPV exit code if it's not a normal exit
         if exit_code not in [0, 3]:  # 0=normal, 3=user quit with 'q'
@@ -136,10 +154,24 @@ def anime(args) -> None:
             except (EOFError, KeyboardInterrupt):
                 pass
 
+        # Update context with actual episode watched (accounts for Shift+N navigation)
+        # PlaybackContext is immutable, so create a new one with updated episode_idx
+        # Context tracks playback position (what was played), not watch status (what was confirmed)
+        ctx = PlaybackContext(
+            anime_title=ctx.anime_title,
+            episode_idx=final_episode - 1,  # Convert 1-indexed to 0-indexed
+            source=ctx.source,
+            anilist_id=ctx.anilist_id,
+            anilist_title=ctx.anilist_title,
+            total_episodes_anilist=ctx.total_episodes_anilist,
+            num_episodes=ctx.num_episodes,
+            episode_list=ctx.episode_list,
+        )
+
         # Ask if watched until the end
         confirm_options = ["✅ Sim, assisti até o final", "❌ Não, parei antes."]
         confirm = menu_navigate(
-            confirm_options, msg=f"Você assistiu o episódio {episode} até o final?"
+            confirm_options, msg=f"Você assistiu o episódio {final_episode} até o final?"
         )
 
         # Only save history and sync if user watched until the end
@@ -148,19 +180,18 @@ def anime(args) -> None:
 
             # AniList sync
             if ctx.anilist_id:
-                success = sync_progress_to_anilist(ctx.anilist_id, episode, ctx.num_episodes)
+                success = sync_progress_to_anilist(ctx.anilist_id, final_episode, ctx.num_episodes)
                 if success:
                     print("✅ Progresso salvo no AniList!")
                 else:
                     print("⚠️  Não foi possível salvar no AniList (continuando...)")
 
                 # Check for sequels when last episode is watched
-                if episode == ctx.num_episodes:
+                if final_episode == ctx.num_episodes:
                     if anime_service.offer_sequel_and_continue(ctx.anilist_id, args):
                         return  # Sequel started, exit this flow
-        else:
-            # User didn't finish - go back to episode menu without saving
-            continue
+        # If user didn't finish, context is still updated but history is NOT saved
+        # Navigation menu will show for both confirmation outcomes
 
         # Episode navigation menu
         opts = []

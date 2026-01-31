@@ -541,6 +541,7 @@ def anilist_anime_flow(
                 next_episode = result.data["episode"]
                 if next_episode <= num_episodes:
                     episode_idx = next_episode - 1
+                    current_episode_idx = next_episode - 1  # CRITICAL: sync both variables
                     # Check for sequels when last episode is watched
                     if next_episode == num_episodes:
                         # Get AniList episode count to check if series is truly complete
@@ -566,6 +567,7 @@ def anilist_anime_flow(
                 final_episode = result.data["episode"]
                 if final_episode >= 1 and final_episode <= num_episodes:
                     episode_idx = final_episode - 1
+                    current_episode_idx = final_episode - 1  # CRITICAL: sync both variables
                     episode = final_episode
         elif result.action == "auto-next":
             # Auto-play active and user pressed 'q' - already marked as watched in IPC handler
@@ -611,10 +613,12 @@ def anilist_anime_flow(
             # because episode_idx may be stale if Shift+N/P was used to load episodes
             # current_episode is 1-indexed, so convert to 0-indexed for episode_idx
             episode_idx = current_episode - 1  # Convert 1-indexed to 0-indexed
+            current_episode_idx = current_episode - 1  # CRITICAL: sync both variables
             next_episode_idx = episode_idx + 1
             if next_episode_idx < num_episodes:
                 # Move to next episode
                 episode_idx = next_episode_idx
+                current_episode_idx = next_episode_idx  # CRITICAL: sync both variables
                 print(f"▶️  Carregando próximo episódio: {episode_idx + 1}")
                 continue  # Loop to play next episode
             else:
@@ -642,6 +646,7 @@ def anilist_anime_flow(
                 prev_episode = result.data["episode"]
                 if prev_episode >= 1:
                     episode_idx = prev_episode - 1
+                    current_episode_idx = prev_episode - 1  # CRITICAL: sync both variables
                     continue  # Loop to play previous episode
             # Fall through to menu if no previous episode data
         elif result.action == "reload":
@@ -751,8 +756,10 @@ def anilist_anime_flow(
             return  # Exit to previous menu
         if selected_opt == "▶️  Próximo":
             current_episode_idx += 1
+            episode_idx = current_episode_idx  # CRITICAL: sync both variables
         elif selected_opt == "◀️  Anterior":
             current_episode_idx -= 1
+            episode_idx = current_episode_idx  # CRITICAL: sync both variables
         elif selected_opt == "🔁 Replay":
             # Keep same episode_idx, loop continues to replay
             pass
@@ -761,6 +768,7 @@ def anilist_anime_flow(
             selected_episode = menu_navigate(episode_list, msg="Escolha o episódio.")
             if not selected_episode:
                 return  # User cancelled, go back
+            episode_idx = episode_list.index(selected_episode)  # CRITICAL: sync both variables
             current_episode_idx = episode_list.index(selected_episode)
         elif selected_opt == "🔄 Trocar fonte":
             new_anime, new_episode_idx = switch_anime_source(
@@ -769,5 +777,6 @@ def anilist_anime_flow(
             if new_anime:
                 selected_anime = new_anime
                 episode_idx = new_episode_idx
+                current_episode_idx = new_episode_idx  # CRITICAL: sync both variables
                 num_episodes = len(rep.get_episode_list(selected_anime))
                 # Continue loop with new anime/episode
