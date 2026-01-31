@@ -14,46 +14,44 @@ class AniTube:
     def search_anime(self, query: str) -> None:
         """Search for anime on AniTube.
 
-        Uses WordPress search parameter (?s=) to find anime titles.
+        Uses Playwright to bypass anti-bot protection.
         Extracts anime titles and links from the search results page.
         """
+        from playwright.sync_api import sync_playwright
+
         url = "https://www.anitube.news/?s=" + "+".join(query.split())
-        response = get_with_retry(url, timeout=REQUEST_TIMEOUT)
-        tree = HTMLParser(response.text)
 
-        # Extract anime items from grid layout
-        # AniTube uses divs with data attributes for anime cards
-        anime_items = tree.css("article")
+        try:
+            with sync_playwright() as p:
+                browser = p.chromium.launch(headless=True)
+                page = browser.new_page()
 
-        titles = []
-        urls = []
+                try:
+                    page.goto(url, wait_until="networkidle", timeout=REQUEST_TIMEOUT * 1000)
+                    tree = HTMLParser(page.content())
+                finally:
+                    browser.close()
+        except Exception:
+            return  # Silently fail if Playwright isn't available
 
-        for item in anime_items:
-            # Get title from h2 or h3
-            title_elem = item.css_first("h2") or item.css_first("h3")
-            if not title_elem:
+        # Extract anime links directly
+        # AniTube search results have links with /video/ in href
+        links = tree.css("a[href*='/video/']")
+
+        for link in links:
+            href = link.attributes.get("href")
+            title = link.text().strip()
+
+            if not href or not title:
                 continue
 
-            title = title_elem.text().strip()
+            # Clean up title (remove extra whitespace)
+            title = " ".join(title.split())
 
-            # Get URL from the link inside the article
-            link = item.css_first("a[href*='/video/']")
-            if not link:
-                link = item.css_first("a")
-
-            href = None
-            if link:
-                href = link.attributes.get("href")
-
-            if href and title:
-                # Clean up title
-                title = " ".join(title.split())
-                urls.append(href)
-                titles.append(title)
-
-        # Add anime to repository
-        for title, url in zip(titles, urls):
-            rep.add_anime(title, url, AniTube.name)
+            if title:
+                if not href.startswith("http"):
+                    href = "https://www.anitube.news" + href
+                rep.add_anime(title, href, AniTube.name)
 
     def search_episodes(self, anime: str, url: str, params: dict | None) -> None:
         """Fetch episode list from anime page.

@@ -14,75 +14,51 @@ class TopAnimes:
     def search_anime(self, query: str) -> None:
         """Search for anime on TopAnimes.
 
-        Uses the WP JSON API endpoint (/wp-json/dooplay/search/) to fetch
-        search results as JSON. This is more reliable than HTML parsing.
-        Extracts anime titles and links from the API response.
+        Uses Playwright to load search results and extract anime links.
         """
-        # TopAnimes uses WP-JSON API for search
-        url = "https://topanimes.net/wp-json/dooplay/search/"
-        params = {"s": query}
+        from playwright.sync_api import sync_playwright
+
+        url = "https://topanimes.net/?s=" + "+".join(query.split())
 
         try:
-            response = get_with_retry(url, params=params, timeout=REQUEST_TIMEOUT)
-            data = response.json()
+            with sync_playwright() as p:
+                browser = p.chromium.launch(headless=True)
+                page = browser.new_page()
 
-            # API returns a list of anime results
-            if isinstance(data, list):
-                for item in data:
-                    if isinstance(item, dict):
-                        title = item.get("title") or item.get("name", "").strip()
-                        link = item.get("url") or item.get("link", "").strip()
+                try:
+                    page.goto(url, wait_until="networkidle", timeout=REQUEST_TIMEOUT * 1000)
+                    tree = HTMLParser(page.content())
+                finally:
+                    browser.close()
 
-                        if title and link:
-                            # Clean up title
-                            title = " ".join(title.split())
-                            rep.add_anime(title, link, TopAnimes.name)
+                # Extract anime links from search results
+                # TopAnimes has links to /animes/ and /filmes/
+                links = tree.css("a[href*='/animes/']")
+                links.extend(tree.css("a[href*='/filmes/']"))
 
-            elif isinstance(data, dict):
-                # If API returns a dict with results key
-                results = data.get("results", [])
-                for item in results:
-                    if isinstance(item, dict):
-                        title = item.get("title") or item.get("name", "").strip()
-                        link = item.get("url") or item.get("link", "").strip()
+                seen = set()  # Track seen URLs to avoid duplicates
+                for link in links:
+                    href = link.attributes.get("href")
+                    title = link.text().strip()
 
-                        if title and link:
-                            title = " ".join(title.split())
-                            rep.add_anime(title, link, TopAnimes.name)
+                    if not href or not title or href in seen:
+                        continue
+
+                    # Clean up title
+                    title = " ".join(title.split())
+
+                    # Filter out generic titles like "TV", "Movie", etc.
+                    if title.lower() in ("tv", "movie", "filme", "ep.", "legend", "dub"):
+                        continue
+
+                    if not href.startswith("http"):
+                        href = "https://topanimes.net" + href
+
+                    seen.add(href)
+                    rep.add_anime(title, href, TopAnimes.name)
 
         except Exception:
-            # Fallback to HTML parsing if API fails
-            self._search_anime_html(query)
-
-    def _search_anime_html(self, query: str) -> None:
-        """Fallback HTML parsing for anime search.
-
-        If API is unavailable, falls back to parsing HTML from search page.
-        """
-        url = "https://topanimes.net/?s=" + "+".join(query.split())
-        response = get_with_retry(url, timeout=REQUEST_TIMEOUT)
-        tree = HTMLParser(response.text)
-
-        # TopAnimes uses .module .content .items .item structure
-        anime_items = tree.css(".module .content .items .item")
-
-        for item in anime_items:
-            # Get title from h3 or h2
-            title_elem = item.css_first("h3") or item.css_first("h2")
-            if not title_elem:
-                continue
-
-            title = title_elem.text().strip()
-
-            # Get URL from the link
-            link = item.css_first("a")
-            href = None
-            if link:
-                href = link.attributes.get("href")
-
-            if href and title:
-                title = " ".join(title.split())
-                rep.add_anime(title, href, TopAnimes.name)
+            return  # Silently fail if Playwright isn't available
 
     def search_episodes(self, anime: str, url: str, params: dict | None) -> None:
         """Fetch episode list from anime page.
