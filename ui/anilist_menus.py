@@ -2,11 +2,13 @@
 Textual-based menu for browsing AniList trending and user lists.
 """
 
+import argparse
 import json
 import os
 import webbrowser
 
 from services.anilist_service import anilist_client
+from services.anime_service import anilist_anime_flow
 from models.config import get_data_path, settings
 from ui.components import loading, menu_navigate
 from models.models import AniListTitle
@@ -28,6 +30,30 @@ def get_search_title(title: AniListTitle, display_title: str = "") -> str:
     if settings.anilist.prefer_english_title:
         return title.english or title.romaji or display_title
     return title.romaji or title.english or display_title
+
+
+def _start_watching_anime(search_title: str, anime_id: int, display_title: str) -> None:
+    """Start watching anime with proper progress tracking.
+
+    Args:
+        search_title: Title to use for searching scrapers
+        anime_id: AniList anime ID
+        display_title: Full display title for the user
+
+    Returns:
+        None (loads playback flow, then returns to main menu)
+    """
+    args = argparse.Namespace(debug=False)
+    entry = anilist_client.get_media_list_entry(anime_id)
+    anilist_progress = entry.progress if entry and entry.progress else 0
+
+    anilist_anime_flow(
+        search_title,
+        anime_id,
+        args,
+        anilist_progress=anilist_progress,
+        display_title=display_title,
+    )
 
 
 def anilist_main_menu() -> tuple[str, int] | None:
@@ -584,16 +610,19 @@ def _search_and_add_anime(is_logged_in: bool) -> tuple[str, int] | None:
                     watch_choice = menu_navigate(watch_now_options, "Anime adicionado!")
 
                     if watch_choice == "▶️  Assistir agora":
-                        return (search_title, anime_id)
+                        _start_watching_anime(search_title, anime_id, display_title)
+                        return anilist_main_menu()
                     return anilist_main_menu()
                 # Status selection cancelled, show actions again
                 continue
             if action == "▶️  Assistir agora":
-                return (search_title, anime_id)
+                _start_watching_anime(search_title, anime_id, display_title)
+                return anilist_main_menu()
             return anilist_main_menu()
     else:
         # Not logged in - just watch
-        return (search_title, anime_id)
+        _start_watching_anime(search_title, anime_id, display_title)
+        return anilist_main_menu()
 
 
 def _choose_status() -> str | None:

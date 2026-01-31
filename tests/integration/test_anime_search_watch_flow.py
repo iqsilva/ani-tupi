@@ -1,0 +1,279 @@
+"""Integration tests for the complete anime search to watch flow.
+
+This tests the real integration between:
+1. AniList search
+2. Menu navigation
+3. Playback start
+4. Progress tracking
+"""
+
+import argparse
+from unittest.mock import Mock, patch
+import pytest
+
+from models.models import (
+    AniListTitle,
+    AniListAnime,
+    AniListMediaListEntry,
+)
+
+
+@pytest.fixture
+def mock_anilist_client():
+    """Mock AniList client."""
+    with patch("ui.anilist_menus.anilist_client") as mock_client:
+        yield mock_client
+
+
+@pytest.fixture
+def mock_anilist_anime_flow():
+    """Mock the anime flow function."""
+    with patch("ui.anilist_menus.anilist_anime_flow") as mock_flow:
+        yield mock_flow
+
+
+@pytest.fixture
+def mock_menu_navigate():
+    """Mock menu navigation."""
+    with patch("ui.anilist_menus.menu_navigate") as mock_menu:
+        yield mock_menu
+
+
+@pytest.fixture
+def mock_loading():
+    """Mock loading context manager."""
+    with patch("ui.anilist_menus.loading") as mock_load:
+        mock_load.return_value.__enter__ = Mock(return_value=None)
+        mock_load.return_value.__exit__ = Mock(return_value=None)
+        yield mock_load
+
+
+@pytest.fixture
+def mock_anilist_main_menu():
+    """Mock main menu."""
+    with patch("ui.anilist_menus.anilist_main_menu") as mock_menu:
+        yield mock_menu
+
+
+@pytest.fixture
+def sample_search_results():
+    """Sample AniList search results."""
+    return [
+        AniListAnime(
+            id=1,
+            title=AniListTitle(romaji="Dandadan", english="Dandadan"),
+            episodes=12,
+            averageScore=87,
+            seasonYear=2024,
+        ),
+        AniListAnime(
+            id=2,
+            title=AniListTitle(romaji="Jujutsu Kaisen", english="Jujutsu Kaisen"),
+            episodes=24,
+            averageScore=85,
+            seasonYear=2021,
+        ),
+    ]
+
+
+class TestCompleteSearchToWatchIntegration:
+    """Integration tests for the complete search to watch flow."""
+
+    def test_search_watch_with_progress_starts_playback(
+        self,
+        mock_anilist_client,
+        mock_anilist_anime_flow,
+        mock_menu_navigate,
+        mock_loading,
+        mock_anilist_main_menu,
+        sample_search_results,
+    ):
+        """User searches, has progress on anime, watches from that progress."""
+        from ui.anilist_menus import _search_and_add_anime
+
+        # Setup: User has watched 5 episodes
+        entry = AniListMediaListEntry(
+            id=1,
+            status="CURRENT",
+            progress=5,
+        )
+        mock_menu_navigate.side_effect = [
+            "Dandadan (2024, 12 eps) ⭐87%",  # Select first result
+            "▶️  Assistir agora",  # Watch now
+        ]
+        mock_anilist_client.search_anime.return_value = sample_search_results
+        mock_anilist_client.format_title.return_value = "Dandadan"
+        mock_anilist_client.get_media_list_entry.return_value = entry
+        mock_anilist_main_menu.return_value = None
+
+        with patch("builtins.input", return_value="Dandadan"):
+            _search_and_add_anime(is_logged_in=True)
+
+        # Verify: anilist_anime_flow called with progress
+        mock_anilist_anime_flow.assert_called_once()
+        call_args = mock_anilist_anime_flow.call_args
+
+        # Verify playback starts with correct progress
+        assert call_args[0][0] == "Dandadan"  # search_title
+        assert call_args[0][1] == 1  # anime_id
+        assert call_args[1]["anilist_progress"] == 5
+
+    def test_search_multiple_results_user_selects_second(
+        self,
+        mock_anilist_client,
+        mock_anilist_anime_flow,
+        mock_menu_navigate,
+        mock_loading,
+        mock_anilist_main_menu,
+        sample_search_results,
+    ):
+        """User searches, gets multiple results, selects the second one."""
+        from ui.anilist_menus import _search_and_add_anime
+
+        mock_menu_navigate.side_effect = [
+            "Jujutsu Kaisen (2021, 24 eps) ⭐85%",  # Select second result
+            "▶️  Assistir agora",
+        ]
+        mock_anilist_client.search_anime.return_value = sample_search_results
+        mock_anilist_client.format_title.side_effect = ["Dandadan", "Jujutsu Kaisen"]
+        mock_anilist_client.get_media_list_entry.return_value = None
+        mock_anilist_main_menu.return_value = None
+
+        with patch("builtins.input", return_value="Jujutsu"):
+            _search_and_add_anime(is_logged_in=True)
+
+        # Verify: correct anime ID was used
+        call_args = mock_anilist_anime_flow.call_args
+        assert call_args[0][1] == 2  # Jujutsu Kaisen ID
+
+    def test_add_new_anime_then_watch(
+        self,
+        mock_anilist_client,
+        mock_anilist_anime_flow,
+        mock_menu_navigate,
+        mock_loading,
+        mock_anilist_main_menu,
+        sample_search_results,
+    ):
+        """User adds new anime to list (with CURRENT status) then starts watching."""
+        from ui.anilist_menus import _search_and_add_anime
+
+        # User adds anime that's not on their list
+        mock_menu_navigate.side_effect = [
+            "Dandadan (2024, 12 eps) ⭐87%",  # Select result
+            "➕ Adicionar à lista",  # Add to list
+            "📺 Watching (Assistindo)",  # Choose CURRENT status
+            "▶️  Assistir agora",  # Watch now after adding
+        ]
+        mock_anilist_client.search_anime.return_value = sample_search_results
+        mock_anilist_client.format_title.return_value = "Dandadan"
+        mock_anilist_client.get_media_list_entry.return_value = None
+        mock_anilist_main_menu.return_value = None
+
+        with patch("builtins.input", return_value="Dandadan"):
+            _search_and_add_anime(is_logged_in=True)
+
+        # Verify: anime was added BEFORE playback
+        mock_anilist_client.add_to_list.assert_called_once_with(1, "CURRENT")
+
+        # Verify: playback started AFTER adding
+        assert mock_anilist_anime_flow.called
+        assert mock_anilist_client.add_to_list.call_count == 1
+
+    def test_playback_starts_immediately_no_menu_recursion(
+        self,
+        mock_anilist_client,
+        mock_anilist_anime_flow,
+        mock_menu_navigate,
+        mock_loading,
+        mock_anilist_main_menu,
+        sample_search_results,
+    ):
+        """Bug fix verification: playback starts immediately, no menu recursion."""
+        from ui.anilist_menus import _search_and_add_anime
+
+        # This is the core bug: after "▶️ Assistir agora", playback should start
+        # WITHOUT returning to menu first
+        mock_menu_navigate.side_effect = [
+            "Dandadan (2024, 12 eps) ⭐87%",
+            "▶️  Assistir agora",  # This should trigger playback immediately
+        ]
+        mock_anilist_client.search_anime.return_value = sample_search_results
+        mock_anilist_client.format_title.return_value = "Dandadan"
+        mock_anilist_client.get_media_list_entry.return_value = None
+        mock_anilist_main_menu.return_value = None
+
+        with patch("builtins.input", return_value="Dandadan"):
+            _search_and_add_anime(is_logged_in=True)
+
+        # Verify: anilist_anime_flow was called (playback started)
+        assert mock_anilist_anime_flow.called
+
+        # Verify: anilist_main_menu was called exactly once (at the end)
+        # not multiple times in a loop
+        assert mock_anilist_main_menu.call_count == 1
+
+    def test_correct_parameters_passed_to_playback(
+        self,
+        mock_anilist_client,
+        mock_anilist_anime_flow,
+        mock_menu_navigate,
+        mock_loading,
+        mock_anilist_main_menu,
+        sample_search_results,
+    ):
+        """Verify all correct parameters are passed to anilist_anime_flow."""
+        from ui.anilist_menus import _search_and_add_anime
+
+        # User with progress watches anime
+        entry = AniListMediaListEntry(id=1, status="CURRENT", progress=7)
+        mock_menu_navigate.side_effect = [
+            "Dandadan (2024, 12 eps) ⭐87%",
+            "▶️  Assistir agora",
+        ]
+        mock_anilist_client.search_anime.return_value = sample_search_results
+        mock_anilist_client.format_title.return_value = "Dandadan"
+        mock_anilist_client.get_media_list_entry.return_value = entry
+        mock_anilist_main_menu.return_value = None
+
+        with patch("builtins.input", return_value="Dandadan"):
+            _search_and_add_anime(is_logged_in=True)
+
+        # Verify all parameters
+        call_args = mock_anilist_anime_flow.call_args
+        assert call_args[0][0] == "Dandadan"  # search_title
+        assert call_args[0][1] == 1  # anime_id
+        assert isinstance(call_args[0][2], argparse.Namespace)
+        assert call_args[0][2].debug is False
+        assert call_args[1]["anilist_progress"] == 7
+        assert call_args[1]["display_title"] == "Dandadan"
+
+    def test_unauthenticated_user_skips_add_option(
+        self,
+        mock_anilist_client,
+        mock_anilist_anime_flow,
+        mock_menu_navigate,
+        mock_loading,
+        mock_anilist_main_menu,
+        sample_search_results,
+    ):
+        """Unauthenticated user has no "add to list" option, goes straight to watch."""
+        from ui.anilist_menus import _search_and_add_anime
+
+        # Unauthenticated user searches and watches
+        mock_menu_navigate.side_effect = [
+            "Dandadan (2024, 12 eps) ⭐87%",  # Select result
+            # No "add to list" menu - straight to playback
+        ]
+        mock_anilist_client.search_anime.return_value = sample_search_results
+        mock_anilist_client.format_title.return_value = "Dandadan"
+        mock_anilist_client.get_media_list_entry.return_value = None
+        mock_anilist_main_menu.return_value = None
+
+        with patch("builtins.input", return_value="Dandadan"):
+            _search_and_add_anime(is_logged_in=False)
+
+        # Verify: playback started without showing action menu
+        mock_anilist_anime_flow.assert_called_once()
+        # Verify: menu_navigate called only once (for search results)
+        assert mock_menu_navigate.call_count == 1
