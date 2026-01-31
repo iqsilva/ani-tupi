@@ -5,7 +5,7 @@ This plugin implements search, episode extraction, and HD video source discovery
 
 Site Structure:
 - Search: WordPress standard search via ?s=query parameter
-- Episodes: JavaScript-rendered via window.allEpisodes array (AJAX)
+- Episodes: JavaScript inline array (const allEpisodes = [...]) in HTML
 - Player: JWPlayer 8 with Blogger video CDN
 - Video Sources: Fetched via AJAX POST to decode_blogger_video endpoint
 
@@ -15,9 +15,12 @@ HD Quality Strategy:
 - Video URLs expire within minutes (contain timestamp parameters)
 """
 
+import json
+import re
 from selectolax.parser import HTMLParser
 from urllib.parse import urljoin
 
+from scrapers.core.browser_pool import get_browser_pool
 from scrapers.plugins.utils import get_with_retry
 from services.repository import rep
 
@@ -73,8 +76,8 @@ class Goyabu:
     def search_episodes(self, anime: str, url: str, params: dict | None) -> None:
         """Fetch episode list from anime detail page.
 
-        Episodes are dynamically loaded via JavaScript into window.allEpisodes array.
-        Uses Playwright to render the page and access the episode data.
+        Episodes are stored as JSON in const allEpisodes = [...] in the HTML.
+        Extracts the JSON array using regex pattern matching.
 
         Args:
             anime: Anime title
@@ -82,20 +85,37 @@ class Goyabu:
             params: Optional parameters (e.g., dubbed status from search)
         """
         try:
-            from playwright.sync_api import sync_playwright
+            from selenium.webdriver.common.by import By
+            from selenium.webdriver.support import expected_conditions as EC
+            from selenium.webdriver.support.wait import WebDriverWait
 
-            with sync_playwright() as p:
-                browser = p.chromium.launch(headless=True)
-                page = browser.new_page()
+            with get_browser_pool().get_browser() as driver:
+                driver.get(url)
 
-                # Navigate to episode page with timeout
-                page.goto(url, wait_until="networkidle", timeout=REQUEST_TIMEOUT * 1000)
+                # Wait for page to load
+                WebDriverWait(driver, REQUEST_TIMEOUT).until(
+                    EC.presence_of_element_located((By.XPATH, "//*"))
+                )
 
-                # Extract episode array from JavaScript context
-                episodes_data = page.evaluate("() => window.allEpisodes || []")
+                # Get page source and extract allEpisodes JSON
+                page_source = driver.page_source
+
+                # Pattern: const allEpisodes = [...]
+                match = re.search(
+                    r"const allEpisodes\s*=\s*(\[[^\]]*(?:\{[^}]*\}[^\]]*)*\])", page_source
+                )
+
+                if not match:
+                    return
+
+                try:
+                    # Extract and parse JSON
+                    json_str = match.group(1)
+                    episodes_data = json.loads(json_str)
+                except (json.JSONDecodeError, ValueError):
+                    return
 
                 if not episodes_data:
-                    browser.close()
                     return
 
                 episode_titles = []
@@ -115,8 +135,6 @@ class Goyabu:
                 # Add episodes to repository
                 if episode_urls:
                     rep.add_episode_list(anime, episode_titles, episode_urls, self.name)
-
-                browser.close()
 
         except Exception:
             # Graceful degradation: return without adding episodes

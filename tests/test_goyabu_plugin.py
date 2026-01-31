@@ -107,21 +107,22 @@ class TestGoyabuEpisodes:
         repo_mock = MagicMock()
 
         with patch("scrapers.plugins.goyabu.rep", repo_mock):
-            with patch("playwright.sync_api.sync_playwright") as mock_pw:
-                # Mock Playwright context
-                mock_page = MagicMock()
-                mock_browser = MagicMock()
-                mock_pw.return_value.__enter__.return_value.chromium.launch.return_value = (
-                    mock_browser
-                )
+            with patch("scrapers.plugins.goyabu.get_browser_pool") as mock_pool:
+                # Mock Selenium driver
+                mock_driver = MagicMock()
 
-                # Mock episode data from JavaScript
-                episodes_data = [
-                    {"episodio": "1", "episode_name": "", "link": "/69408"},
-                    {"episodio": "2", "episode_name": "Episódio 2", "link": "/69410"},
-                ]
-                mock_page.evaluate.return_value = episodes_data
-                mock_browser.new_page.return_value = mock_page
+                # HTML with episodes JSON
+                html_with_episodes = """
+                <html>
+                const allEpisodes = [
+                    {"episodio":"1","episode_name":"","link":"/69408"},
+                    {"episodio":"2","episode_name":"Episódio 2","link":"/69410"}
+                ];
+                </html>
+                """
+
+                mock_driver.page_source = html_with_episodes
+                mock_pool.return_value.get_browser.return_value.__enter__.return_value = mock_driver
 
                 plugin.search_episodes("Jujutsu Kaisen", "https://goyabu.io/anime/test", None)
 
@@ -136,20 +137,23 @@ class TestGoyabuEpisodes:
         repo_mock = MagicMock()
 
         with patch("scrapers.plugins.goyabu.rep", repo_mock):
-            with patch("playwright.sync_api.sync_playwright") as mock_pw:
-                mock_page = MagicMock()
-                mock_browser = MagicMock()
-                mock_pw.return_value.__enter__.return_value.chromium.launch.return_value = (
-                    mock_browser
-                )
+            with patch("scrapers.plugins.goyabu.get_browser_pool") as mock_pool:
+                mock_driver = MagicMock()
 
-                # Episodes in ascending order
-                episodes_data = [
-                    {"episodio": str(i), "episode_name": "", "link": f"/{69400 + i}"}
-                    for i in range(1, 5)
-                ]
-                mock_page.evaluate.return_value = episodes_data
-                mock_browser.new_page.return_value = mock_page
+                # HTML with episodes in order
+                html_with_episodes = """
+                <html>
+                const allEpisodes = [
+                    {"episodio":"1","episode_name":"","link":"/69401"},
+                    {"episodio":"2","episode_name":"","link":"/69402"},
+                    {"episodio":"3","episode_name":"","link":"/69403"},
+                    {"episodio":"4","episode_name":"","link":"/69404"}
+                ];
+                </html>
+                """
+
+                mock_driver.page_source = html_with_episodes
+                mock_pool.return_value.get_browser.return_value.__enter__.return_value = mock_driver
 
                 plugin.search_episodes("Test", "https://goyabu.io/anime/test", None)
 
@@ -308,19 +312,20 @@ class TestGoyabuEdgeCases:
         repo_mock = MagicMock()
 
         with patch("scrapers.plugins.goyabu.rep", repo_mock):
-            with patch("playwright.sync_api.sync_playwright") as mock_pw:
-                mock_page = MagicMock()
-                mock_browser = MagicMock()
-                mock_pw.return_value.__enter__.return_value.chromium.launch.return_value = (
-                    mock_browser
-                )
+            with patch("scrapers.plugins.goyabu.get_browser_pool") as mock_pool:
+                mock_driver = MagicMock()
 
-                # Episode with missing optional fields
-                episodes_data = [
-                    {"episodio": "1", "link": "/69408"},  # missing episode_name
-                ]
-                mock_page.evaluate.return_value = episodes_data
-                mock_browser.new_page.return_value = mock_page
+                # HTML with episode missing optional fields
+                html_with_episodes = """
+                <html>
+                const allEpisodes = [
+                    {"episodio":"1","link":"/69408"}
+                ];
+                </html>
+                """
+
+                mock_driver.page_source = html_with_episodes
+                mock_pool.return_value.get_browser.return_value.__enter__.return_value = mock_driver
 
                 # Should not crash
                 plugin.search_episodes("Test", "https://goyabu.io/anime/test", None)
