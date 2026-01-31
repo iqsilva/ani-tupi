@@ -21,6 +21,7 @@ from selectolax.parser import HTMLParser
 from urllib.parse import urljoin
 
 from scrapers.core.browser_pool import get_browser_pool
+from scrapers.core.http_client import http_client
 from scrapers.plugins.utils import get_with_retry
 from services.repository import rep
 
@@ -146,8 +147,11 @@ class Goyabu:
         Goyabu uses JWPlayer 8 with Blogger video CDN. Video sources are fetched
         via AJAX POST to wp-admin/admin-ajax.php?action=decode_blogger_video.
 
-        The AJAX response contains an array of quality options with labels and URLs.
-        This method selects the highest quality available (1080p > 720p > 480p > 360p).
+        Requires a blogger_token from the page. This method:
+        1. Uses Selenium to load the episode page
+        2. Extracts the blogger_token from page source
+        3. Makes AJAX POST request to get video URLs
+        4. Selects highest quality (1080p > 720p > 480p > 360p)
 
         Args:
             url: Episode player page URL
@@ -155,79 +159,80 @@ class Goyabu:
             event: Threading event to signal completion
         """
         try:
-            from playwright.sync_api import sync_playwright
+            from selenium.webdriver.common.by import By
+            from selenium.webdriver.support import expected_conditions as EC
+            from selenium.webdriver.support.wait import WebDriverWait
 
-            video_url = None
+            with get_browser_pool().get_browser() as driver:
+                driver.get(url)
 
-            with sync_playwright() as p:
-                browser = p.chromium.launch(headless=True)
-                page = browser.new_page()
+                # Wait for page to load
+                WebDriverWait(driver, REQUEST_TIMEOUT).until(
+                    EC.presence_of_element_located((By.XPATH, "//*"))
+                )
 
-                # Listen for AJAX responses containing video sources
-                def handle_response(response):
-                    nonlocal video_url
-                    if "decode_blogger_video" in response.url:
-                        try:
-                            data = response.json()
-                            # AJAX response is an array of quality objects
-                            if isinstance(data, list):
-                                video_url = self._select_best_quality(data)
-                        except Exception:
-                            pass
+                # Get page source and extract blogger_token from playersData
+                page_source = driver.page_source
 
-                page.on("response", handle_response)
+                # Pattern: playersData = [{..., "blogger_token": "value", ...}]
+                # Look for the token in JSON object with blogger_token field
+                token_match = re.search(r'"blogger_token"\s*:\s*"([^"]+)"', page_source)
 
-                # Navigate to episode page
-                page.goto(url, wait_until="networkidle", timeout=REQUEST_TIMEOUT * 1000)
+                if not token_match:
+                    raise Exception("blogger_token not found in page")
 
-                # If AJAX response was captured, we have the video URL
-                if video_url:
-                    if not event.is_set():
-                        container.append(video_url)
-                        event.set()
-                    browser.close()
-                    return
+                blogger_token = token_match.group(1)
 
-                # Fallback: try to extract video URL from player context
+                # Make AJAX request to get video sources
+                ajax_url = f"{self.base_url}/wp-admin/admin-ajax.php"
+
+                response = http_client.post(
+                    ajax_url,
+                    data={"action": "decode_blogger_video", "token": blogger_token},
+                    timeout=REQUEST_TIMEOUT,
+                )
+
                 try:
-                    video_url = page.evaluate("""
-                        () => {
-                            // Try to get from JWPlayer instance
-                            if (window.jwplayer && window.jwplayer().getPlaylist) {
-                                const playlist = window.jwplayer().getPlaylist();
-                                if (playlist && playlist[0] && playlist[0].sources) {
-                                    const best = playlist[0].sources.reduce((prev, current) => {
-                                        const prevQuality = parseInt(prev.label) || 0;
-                                        const currQuality = parseInt(current.label) || 0;
-                                        return currQuality > prevQuality ? current : prev;
-                                    });
-                                    return best.file;
-                                }
-                            }
-                            return '';
-                        }
-                    """)
+                    response_data = response.json()
+                except (json.JSONDecodeError, ValueError):
+                    raise Exception("Invalid JSON response from video API")
 
-                    if video_url and not event.is_set():
-                        container.append(video_url)
-                        event.set()
+                # Parse Goyabu response structure: {"success": true, "data": {"play": [...]}}
+                if not response_data.get("success"):
+                    raise Exception("API returned success=false")
 
-                except Exception:
-                    pass
+                video_data = response_data.get("data", {})
+                play_list = video_data.get("play", [])
 
-                browser.close()
+                if not play_list:
+                    raise Exception("No video sources in play list")
+
+                # play_list can be a list of sources or a single source
+                # Convert to list if needed
+                if isinstance(play_list, dict):
+                    play_list = [play_list]
+
+                # Select best quality from play list
+                video_url = self._select_best_quality(play_list)
+
+                if not video_url:
+                    raise Exception("Could not select video URL from sources")
 
                 if not event.is_set():
-                    raise Exception("Failed to extract video source from Goyabu player")
+                    container.append(video_url)
+                    event.set()
 
         except Exception as e:
             raise Exception(f"Failed to extract video from Goyabu: {str(e)}")
 
     def _select_best_quality(self, sources: list[dict]) -> str:
-        """Select highest quality video URL from AJAX response.
+        """Select highest quality video URL from API response.
+
+        Handles both Goyabu response format (src/label) and generic format (file/label).
+        Priority: 1080p > 720p > 480p > 360p > any available
 
         Args:
-            sources: Array of video source objects with 'label' and 'file' keys
+            sources: Array of video source objects with 'src'/'file' and 'label' keys
 
         Returns:
             Video URL of highest priority quality, or first source URL as fallback
@@ -236,17 +241,18 @@ class Goyabu:
         original_url = None
 
         for source in sources:
+            # Handle both 'src' (Goyabu) and 'file' (other formats) keys
+            source_url = source.get("src") or source.get("file")
             source_label = source.get("label", "").lower()
-            source_file = source.get("file")
 
-            # Store original (first) URL with valid file as ultimate fallback
-            if original_url is None and source_file:
-                original_url = source_file
+            # Store original (first) URL with valid URL as ultimate fallback
+            if original_url is None and source_url:
+                original_url = source_url
 
             # Try to match priority order
             for priority_quality in quality_priority:
-                if priority_quality in source_label and source_file:
-                    return source_file
+                if priority_quality in source_label and source_url:
+                    return source_url
 
         # Fallback: return first/original URL if no priority match
         return original_url if original_url else ""

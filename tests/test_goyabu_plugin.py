@@ -241,14 +241,16 @@ class TestGoyabuPlayerSource:
         assert "1080p" in result
 
     def test_player_src_timeout_handling(self):
-        """Test player source extraction handles timeouts gracefully."""
+        """Test player source extraction handles network errors gracefully."""
         plugin = Goyabu()
         container = []
         event = MagicMock()
 
-        with patch("playwright.sync_api.sync_playwright") as mock_pw:
-            mock_pw.return_value.__enter__.side_effect = Exception("Timeout")
+        with patch("scrapers.plugins.goyabu.get_browser_pool") as mock_pool:
+            # Simulate browser failure
+            mock_pool.return_value.get_browser.side_effect = Exception("Browser launch failed")
 
+            # Should raise exception but handle gracefully
             with pytest.raises(Exception):
                 plugin.search_player_src("https://goyabu.io/69408", container, event)
 
