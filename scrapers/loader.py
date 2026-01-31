@@ -71,6 +71,9 @@ def get_resource_path(relative_path):
 def load_plugins(languages: dict, plugins=None) -> None:
     """Load plugins based on preferences and language filters.
 
+    Respects plugin priority order from preferences if configured.
+    Plugins are loaded in priority order (highest priority first).
+
     Args:
         languages: Dict of supported languages (e.g., {"pt-br"})
         plugins: Optional list of specific plugins to load (overrides preferences)
@@ -86,15 +89,29 @@ def load_plugins(languages: dict, plugins=None) -> None:
 
     # Apply filtering based on preferences
     if plugins is None:
-        # Load preferences to get disabled plugins
+        # Load preferences to get disabled plugins and priority order
         try:
-            from plugin_manager import load_plugin_preferences
+            from plugin_manager import load_plugin_preferences, get_plugin_priority_order
 
             prefs = load_plugin_preferences()
             disabled_plugins = set(prefs.disabled_plugins)
 
             # Filter out disabled plugins
             plugins = [p for p in all_plugin_files if p not in disabled_plugins]
+
+            # Apply priority ordering if configured
+            priority_order = get_plugin_priority_order()
+            if priority_order:
+                # Sort plugins by priority order
+                # Plugins in priority_order come first (in order), others come after
+                def priority_key(plugin):
+                    if plugin in priority_order:
+                        return (0, priority_order.index(plugin))
+                    else:
+                        return (1, plugin)
+
+                plugins = sorted(plugins, key=priority_key)
+
         except Exception:
             # If preferences can't be loaded, load all plugins
             plugins = all_plugin_files
