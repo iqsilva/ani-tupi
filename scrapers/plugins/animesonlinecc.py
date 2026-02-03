@@ -1,4 +1,5 @@
 from selectolax.parser import HTMLParser
+from scrapling.fetchers import Fetcher
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.wait import WebDriverWait
@@ -6,8 +7,6 @@ from multiprocessing.pool import ThreadPool
 from os import cpu_count
 
 from scrapers.core.browser_pool import get_browser_pool
-
-from scrapers.plugins.utils import get_with_retry
 from services.repository import rep
 
 
@@ -17,8 +16,9 @@ class AnimesOnlineCC:
 
     def search_anime(self, query: str) -> None:
         url = "https://animesonlinecc.to/search/" + "+".join(query.split())
-        response = get_with_retry(url)
-        tree = HTMLParser(response.text)
+        fetcher = Fetcher()
+        response = fetcher.fetch(url)
+        tree = HTMLParser(response.html)
 
         divs = tree.css("div.data")
         titles_urls = []
@@ -38,8 +38,8 @@ class AnimesOnlineCC:
             rep.add_anime(title, url, AnimesOnlineCC.name)
 
         def parse_seasons(title, url):
-            response = get_with_retry(url)
-            tree = HTMLParser(response.text)
+            response = fetcher.fetch(url)
+            tree = HTMLParser(response.html)
             num_seasons = len(tree.css("div.se-c"))
             if num_seasons > 1:
                 for n in range(2, num_seasons + 1):
@@ -52,8 +52,9 @@ class AnimesOnlineCC:
                 pool.apply(parse_seasons, args=(title, url))
 
     def search_episodes(self, anime: str, url: str, params: dict | None) -> None:
-        response = get_with_retry(url)
-        tree = HTMLParser(response.text)
+        fetcher = Fetcher()
+        response = fetcher.fetch(url)
+        tree = HTMLParser(response.html)
 
         seasons = tree.css("ul.episodios")
         # Extract season number from params (backwards compatible with int)

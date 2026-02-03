@@ -1,11 +1,11 @@
 from selectolax.parser import HTMLParser
+from scrapling.fetchers import Fetcher
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.wait import WebDriverWait
 
 from scrapers.core.browser_pool import get_browser_pool
-
-from scrapers.plugins.utils import get_with_retry, head_with_retry
+from scrapers.plugins.utils import head_with_retry
 from services.repository import rep
 
 
@@ -15,8 +15,9 @@ class AnimeFire:
 
     def search_anime(self, query: str) -> None:
         url = "https://animefire.plus/pesquisar/" + "-".join(query.split())
-        response = get_with_retry(url)
-        tree = HTMLParser(response.text)
+        fetcher = Fetcher()
+        response = fetcher.fetch(url)
+        tree = HTMLParser(response.html)
         target_class = "col-6 col-sm-4 col-md-3 col-lg-2 mb-1 minWDanime divCardUltimosEps"
         titles_urls = []
         for div in tree.css(f"div.{target_class.replace(' ', '.')}"):
@@ -31,8 +32,9 @@ class AnimeFire:
                 rep.add_anime(title, url, self.name)
 
     def search_episodes(self, anime: str, url: str, params: dict | None) -> None:
-        response = get_with_retry(url)
-        tree = HTMLParser(response.text)
+        fetcher = Fetcher()
+        response = fetcher.fetch(url)
+        tree = HTMLParser(response.html)
         links = tree.css("a.lEp.epT.divNumEp.smallbox.px-2.mx-1.text-left.d-flex")
         episode_links = [href for a in links if (href := a.attributes.get("href")) is not None]
         opts = [a.text() for a in links]

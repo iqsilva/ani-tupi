@@ -5,7 +5,7 @@ Refactored from the original manga_service.py to fit the plugin architecture.
 
 from typing import Any
 
-import requests
+from scrapling.fetchers import Fetcher
 
 
 class MangaDex:
@@ -33,14 +33,13 @@ class MangaDex:
             List of manga results
         """
         try:
-            resp = requests.get(
-                f"{self.base_url}/manga",
-                params={"title": query, "limit": 100},
+            fetcher = Fetcher()
+            resp = fetcher.fetch(
+                f"{self.base_url}/manga?title={query}&limit=100",
                 timeout=10,
             )
-            resp.raise_for_status()
             data = resp.json()
-        except requests.RequestException:
+        except Exception:
             return []
 
         if not data.get("data"):
@@ -89,21 +88,16 @@ class MangaDex:
         try:
             chapters = []
             offset = 0
+            fetcher = Fetcher()
 
             while True:
-                resp = requests.get(
-                    f"{self.base_url}/manga/{manga_id}/feed",
-                    params={
-                        "limit": 500,
-                        "offset": offset,
-                        "translatedLanguage[]": self.preferred_languages,
-                        "order[chapter]": "asc",
-                        "includeEmptyPages": 0,
-                        "includeFuturePublishAt": 0,
-                    },
-                    timeout=10,
+                # Build query string with language parameters
+                lang_params = "&".join(
+                    [f"translatedLanguage[]={lang}" for lang in self.preferred_languages]
                 )
-                resp.raise_for_status()
+                url = f"{self.base_url}/manga/{manga_id}/feed?limit=500&offset={offset}&{lang_params}&order[chapter]=asc&includeEmptyPages=0&includeFuturePublishAt=0"
+
+                resp = fetcher.fetch(url, timeout=10)
                 data = resp.json()
 
                 if not data.get("data"):
@@ -142,7 +136,7 @@ class MangaDex:
 
             return chapters
 
-        except requests.RequestException:
+        except Exception:
             return []
 
     def get_chapter_pages(self, chapter_id: str, chapter_url: str) -> list[str]:
@@ -156,11 +150,11 @@ class MangaDex:
             List of image URLs
         """
         try:
-            resp = requests.get(
+            fetcher = Fetcher()
+            resp = fetcher.fetch(
                 f"{self.base_url}/at-home/server/{chapter_id}",
                 timeout=10,
             )
-            resp.raise_for_status()
             data = resp.json()
 
             base_url = data["baseUrl"]
@@ -169,7 +163,7 @@ class MangaDex:
 
             return [f"{base_url}/data/{hash_code}/{filename}" for filename in files]
 
-        except requests.RequestException:
+        except Exception:
             return []
 
     @staticmethod

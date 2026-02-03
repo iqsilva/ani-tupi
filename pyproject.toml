@@ -35,10 +35,12 @@ dependencies = [
     "python-mpv>=1.0.8",
     "loguru>=0.7.3",
     "httpx>=0.28.1",
-    "playwright>=1.57.0",
+    "scrapling[all]>=0.1.0",
     "pillow>=12.1.0",
     "yt-dlp>=2026.1.31",
     "pre-commit>=4.5.1",
+    "curl-cffi>=0.14.0",
+    "playwright>=1.58.0",
 ]
 
 [project.scripts]
