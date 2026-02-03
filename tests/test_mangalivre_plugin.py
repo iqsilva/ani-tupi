@@ -4,11 +4,26 @@ Tests search, chapter extraction, and page extraction functionality.
 Uses mocked HTTP responses for deterministic testing.
 """
 
-from unittest.mock import Mock, patch
+from unittest.mock import patch
 
 import pytest
 
 from manga_scrapers.plugins.mangalivre import MangaLivre, load
+
+
+def create_response_from_html(html_content: str):
+    """Helper to create a Scrapling Response object from HTML."""
+    from scrapling.engines.toolbelt.custom import Response
+
+    return Response(
+        url="https://example.com",
+        content=html_content,
+        status=200,
+        reason="OK",
+        cookies={},
+        headers={},
+        request_headers={},
+    )
 
 
 @pytest.fixture
@@ -110,11 +125,9 @@ class TestMangaLivreSearch:
 
     def test_search_manga_valid_query(self, mangalivre_scraper, mock_mangalivre_search_response):
         """Test search returns valid manga results."""
-        with patch("requests.Session.get") as mock_get:
-            mock_response = Mock()
-            mock_response.text = mock_mangalivre_search_response
-            mock_response.raise_for_status = Mock()
-            mock_get.return_value = mock_response
+        with patch.object(mangalivre_scraper.fetcher, "get") as mock_get:
+            response = create_response_from_html(mock_mangalivre_search_response)
+            mock_get.return_value = response
 
             results = mangalivre_scraper.search_manga("jujutsu")
 
@@ -128,11 +141,9 @@ class TestMangaLivreSearch:
         self, mangalivre_scraper, mock_mangalivre_empty_search_response
     ):
         """Test search handles no results gracefully."""
-        with patch("requests.Session.get") as mock_get:
-            mock_response = Mock()
-            mock_response.text = mock_mangalivre_empty_search_response
-            mock_response.raise_for_status = Mock()
-            mock_get.return_value = mock_response
+        with patch.object(mangalivre_scraper.fetcher, "get") as mock_get:
+            response = create_response_from_html(mock_mangalivre_empty_search_response)
+            mock_get.return_value = response
 
             results = mangalivre_scraper.search_manga("nonexistent")
 
@@ -140,7 +151,7 @@ class TestMangaLivreSearch:
 
     def test_search_manga_network_error(self, mangalivre_scraper):
         """Test search handles network errors gracefully."""
-        with patch("requests.Session.get") as mock_get:
+        with patch.object(mangalivre_scraper.fetcher, "get") as mock_get:
             mock_get.side_effect = Exception("Connection timeout")
 
             results = mangalivre_scraper.search_manga("jujutsu")
@@ -149,11 +160,9 @@ class TestMangaLivreSearch:
 
     def test_search_manga_empty_query(self, mangalivre_scraper, mock_mangalivre_search_response):
         """Test search handles empty query."""
-        with patch("requests.Session.get") as mock_get:
-            mock_response = Mock()
-            mock_response.text = mock_mangalivre_search_response
-            mock_response.raise_for_status = Mock()
-            mock_get.return_value = mock_response
+        with patch.object(mangalivre_scraper.fetcher, "get") as mock_get:
+            response = create_response_from_html(mock_mangalivre_search_response)
+            mock_get.return_value = response
 
             results = mangalivre_scraper.search_manga("")
 
@@ -163,11 +172,9 @@ class TestMangaLivreSearch:
         self, mangalivre_scraper, mock_mangalivre_search_response
     ):
         """Test search handles special characters."""
-        with patch("requests.Session.get") as mock_get:
-            mock_response = Mock()
-            mock_response.text = mock_mangalivre_search_response
-            mock_response.raise_for_status = Mock()
-            mock_get.return_value = mock_response
+        with patch.object(mangalivre_scraper.fetcher, "get") as mock_get:
+            response = create_response_from_html(mock_mangalivre_search_response)
+            mock_get.return_value = response
 
             results = mangalivre_scraper.search_manga("Jujutsu & Kaisen!")
 
@@ -175,11 +182,9 @@ class TestMangaLivreSearch:
 
     def test_search_result_structure(self, mangalivre_scraper, mock_mangalivre_search_response):
         """Test search results have required fields."""
-        with patch("requests.Session.get") as mock_get:
-            mock_response = Mock()
-            mock_response.text = mock_mangalivre_search_response
-            mock_response.raise_for_status = Mock()
-            mock_get.return_value = mock_response
+        with patch.object(mangalivre_scraper.fetcher, "get") as mock_get:
+            response = create_response_from_html(mock_mangalivre_search_response)
+            mock_get.return_value = response
 
             results = mangalivre_scraper.search_manga("jujutsu")
 
@@ -195,30 +200,11 @@ class TestMangaLivreSearch:
 class TestMangaLivreChapters:
     """Tests for get_chapters method."""
 
-    def _create_playwright_context(self, html_content):
-        """Helper to create properly mocked Playwright context."""
-        mock_page = Mock()
-        mock_page.content.return_value = html_content
-        mock_page.wait_for_selector = Mock()
-
-        mock_browser = Mock()
-        mock_browser.new_page.return_value = mock_page
-
-        mock_chromium = Mock()
-        mock_chromium.launch.return_value = mock_browser
-
-        mock_pw_instance = Mock()
-        mock_pw_instance.chromium = mock_chromium
-        mock_pw_instance.__enter__ = Mock(return_value=mock_pw_instance)
-        mock_pw_instance.__exit__ = Mock(return_value=False)
-
-        return mock_pw_instance
-
     def test_get_chapters_valid_url(self, mangalivre_scraper, mock_mangalivre_chapter_html):
         """Test chapter extraction from valid URL."""
-        with patch("manga_scrapers.plugins.mangalivre.sync_playwright") as mock_pw:
-            mock_context = self._create_playwright_context(mock_mangalivre_chapter_html)
-            mock_pw.return_value = mock_context
+        with patch("manga_scrapers.plugins.mangalivre.DynamicFetcher") as mock_df:
+            response = create_response_from_html(mock_mangalivre_chapter_html)
+            mock_df.return_value.fetch.return_value = response
 
             chapters = mangalivre_scraper.get_chapters(
                 "jujutsu-kaisen", "https://mangalivre.blog/manga/jujutsu-kaisen/"
@@ -231,9 +217,9 @@ class TestMangaLivreChapters:
 
     def test_get_chapters_chapter_numbering(self, mangalivre_scraper, mock_mangalivre_chapter_html):
         """Test chapter numbers are extracted correctly."""
-        with patch("manga_scrapers.plugins.mangalivre.sync_playwright") as mock_pw:
-            mock_context = self._create_playwright_context(mock_mangalivre_chapter_html)
-            mock_pw.return_value = mock_context
+        with patch("manga_scrapers.plugins.mangalivre.DynamicFetcher") as mock_df:
+            response = create_response_from_html(mock_mangalivre_chapter_html)
+            mock_df.return_value.fetch.return_value = response
 
             chapters = mangalivre_scraper.get_chapters(
                 "jujutsu-kaisen", "https://mangalivre.blog/manga/jujutsu-kaisen/"
@@ -244,9 +230,9 @@ class TestMangaLivreChapters:
 
     def test_get_chapters_sorting(self, mangalivre_scraper, mock_mangalivre_chapter_html):
         """Test chapters are sorted by number descending."""
-        with patch("manga_scrapers.plugins.mangalivre.sync_playwright") as mock_pw:
-            mock_context = self._create_playwright_context(mock_mangalivre_chapter_html)
-            mock_pw.return_value = mock_context
+        with patch("manga_scrapers.plugins.mangalivre.DynamicFetcher") as mock_df:
+            response = create_response_from_html(mock_mangalivre_chapter_html)
+            mock_df.return_value.fetch.return_value = response
 
             chapters = mangalivre_scraper.get_chapters(
                 "jujutsu-kaisen", "https://mangalivre.blog/manga/jujutsu-kaisen/"
@@ -260,22 +246,8 @@ class TestMangaLivreChapters:
 
     def test_get_chapters_invalid_url(self, mangalivre_scraper):
         """Test chapter extraction handles invalid URLs gracefully."""
-        with patch("manga_scrapers.plugins.mangalivre.sync_playwright") as mock_pw:
-            mock_page = Mock()
-            mock_page.goto.side_effect = Exception("Invalid URL")
-
-            mock_browser = Mock()
-            mock_browser.new_page.return_value = mock_page
-
-            mock_chromium = Mock()
-            mock_chromium.launch.return_value = mock_browser
-
-            mock_pw_instance = Mock()
-            mock_pw_instance.chromium = mock_chromium
-            mock_pw_instance.__enter__ = Mock(return_value=mock_pw_instance)
-            mock_pw_instance.__exit__ = Mock(return_value=False)
-
-            mock_pw.return_value = mock_pw_instance
+        with patch("manga_scrapers.plugins.mangalivre.DynamicFetcher") as mock_df:
+            mock_df.return_value.fetch.side_effect = Exception("Navigation failed")
 
             chapters = mangalivre_scraper.get_chapters(
                 "invalid", "https://invalid-url-that-does-not-exist.com"
@@ -285,9 +257,9 @@ class TestMangaLivreChapters:
 
     def test_get_chapters_result_structure(self, mangalivre_scraper, mock_mangalivre_chapter_html):
         """Test chapter results have required fields."""
-        with patch("manga_scrapers.plugins.mangalivre.sync_playwright") as mock_pw:
-            mock_context = self._create_playwright_context(mock_mangalivre_chapter_html)
-            mock_pw.return_value = mock_context
+        with patch("manga_scrapers.plugins.mangalivre.DynamicFetcher") as mock_df:
+            response = create_response_from_html(mock_mangalivre_chapter_html)
+            mock_df.return_value.fetch.return_value = response
 
             chapters = mangalivre_scraper.get_chapters(
                 "jujutsu-kaisen", "https://mangalivre.blog/manga/jujutsu-kaisen/"
@@ -304,34 +276,17 @@ class TestMangaLivreChapters:
 class TestMangaLivrePages:
     """Tests for get_chapter_pages method."""
 
-    def _create_playwright_context(self, html_content):
-        """Helper to create properly mocked Playwright context."""
-        mock_page = Mock()
-        mock_page.content.return_value = html_content
-
-        mock_browser = Mock()
-        mock_browser.new_page.return_value = mock_page
-
-        mock_chromium = Mock()
-        mock_chromium.launch.return_value = mock_browser
-
-        mock_pw_instance = Mock()
-        mock_pw_instance.chromium = mock_chromium
-        mock_pw_instance.__enter__ = Mock(return_value=mock_pw_instance)
-        mock_pw_instance.__exit__ = Mock(return_value=False)
-
-        return mock_pw_instance
-
     def test_get_chapter_pages_valid_url(
         self, mangalivre_scraper, mock_mangalivre_chapter_pages_html
     ):
         """Test page extraction from valid chapter URL."""
-        with patch("manga_scrapers.plugins.mangalivre.sync_playwright") as mock_pw:
-            mock_context = self._create_playwright_context(mock_mangalivre_chapter_pages_html)
-            mock_pw.return_value = mock_context
+        with patch("manga_scrapers.plugins.mangalivre.DynamicFetcher") as mock_df:
+            response = create_response_from_html(mock_mangalivre_chapter_pages_html)
+            mock_df.return_value.fetch.return_value = response
 
             pages = mangalivre_scraper.get_chapter_pages(
-                "capitulo-287", "https://mangalivre.blog/manga/jujutsu-kaisen/capitulo-287/"
+                "capitulo-287",
+                "https://mangalivre.blog/manga/jujutsu-kaisen/capitulo-287/",
             )
 
             # Should include manga pages but exclude ads, logos, gifs
@@ -343,12 +298,13 @@ class TestMangaLivrePages:
         self, mangalivre_scraper, mock_mangalivre_chapter_pages_html
     ):
         """Test that ads and logos are filtered out."""
-        with patch("manga_scrapers.plugins.mangalivre.sync_playwright") as mock_pw:
-            mock_context = self._create_playwright_context(mock_mangalivre_chapter_pages_html)
-            mock_pw.return_value = mock_context
+        with patch("manga_scrapers.plugins.mangalivre.DynamicFetcher") as mock_df:
+            response = create_response_from_html(mock_mangalivre_chapter_pages_html)
+            mock_df.return_value.fetch.return_value = response
 
             pages = mangalivre_scraper.get_chapter_pages(
-                "capitulo-287", "https://mangalivre.blog/manga/jujutsu-kaisen/capitulo-287/"
+                "capitulo-287",
+                "https://mangalivre.blog/manga/jujutsu-kaisen/capitulo-287/",
             )
 
             # Verify no logos, ads, or gifs are included
@@ -363,22 +319,8 @@ class TestMangaLivrePages:
 
     def test_get_chapter_pages_invalid_url(self, mangalivre_scraper):
         """Test page extraction handles invalid URLs gracefully."""
-        with patch("manga_scrapers.plugins.mangalivre.sync_playwright") as mock_pw:
-            mock_page = Mock()
-            mock_page.goto.side_effect = Exception("Navigation failed")
-
-            mock_browser = Mock()
-            mock_browser.new_page.return_value = mock_page
-
-            mock_chromium = Mock()
-            mock_chromium.launch.return_value = mock_browser
-
-            mock_pw_instance = Mock()
-            mock_pw_instance.chromium = mock_chromium
-            mock_pw_instance.__enter__ = Mock(return_value=mock_pw_instance)
-            mock_pw_instance.__exit__ = Mock(return_value=False)
-
-            mock_pw.return_value = mock_pw_instance
+        with patch("manga_scrapers.plugins.mangalivre.DynamicFetcher") as mock_df:
+            mock_df.return_value.fetch.side_effect = Exception("Navigation failed")
 
             pages = mangalivre_scraper.get_chapter_pages("invalid", "https://invalid-url.com")
 
@@ -388,9 +330,9 @@ class TestMangaLivrePages:
         """Test page extraction handles pages with no images."""
         html_no_images = "<html><body>No images here</body></html>"
 
-        with patch("manga_scrapers.plugins.mangalivre.sync_playwright") as mock_pw:
-            mock_context = self._create_playwright_context(html_no_images)
-            mock_pw.return_value = mock_context
+        with patch("manga_scrapers.plugins.mangalivre.DynamicFetcher") as mock_df:
+            response = create_response_from_html(html_no_images)
+            mock_df.return_value.fetch.return_value = response
 
             pages = mangalivre_scraper.get_chapter_pages(
                 "test", "https://mangalivre.blog/manga/test/capitulo-1/"

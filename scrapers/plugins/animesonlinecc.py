@@ -1,11 +1,7 @@
-from scrapling import Fetcher
-from selenium.webdriver.common.by import By
-from selenium.webdriver.support import expected_conditions as EC
-from selenium.webdriver.support.wait import WebDriverWait
+from scrapling import Fetcher, DynamicFetcher
 from multiprocessing.pool import ThreadPool
 from os import cpu_count
 
-from scrapers.core.browser_pool import get_browser_pool
 from services.repository import rep
 
 
@@ -69,24 +65,21 @@ class AnimesOnlineCC:
 
     def search_player_src(self, url: str, container: list, event) -> None:
         try:
-            with get_browser_pool().get_browser() as driver:
-                driver.get(url)
-                try:
-                    xpath = "/html/body/div[1]/div[2]/div[2]/div[2]/div[1]/div[1]/div[1]/iframe"
-                    params = (By.XPATH, xpath)
-                    WebDriverWait(driver, 7).until(EC.visibility_of_all_elements_located(params))
-                except Exception:
-                    msg = "iframe not found in animesonlinecc page."
-                    raise Exception(msg)
+            # Use DynamicFetcher to render page and extract iframe
+            # Use Firefox for better library compatibility
+            page = DynamicFetcher.fetch(url, timeout=15000, browser="firefox")
 
-                product = driver.find_element(params[0], params[1])
-                link = str(product.get_property("src"))
+            # Find iframe element
+            iframe = page.css_first("iframe")
+            if not iframe:
+                raise Exception("iframe not found in animesonlinecc page.")
+
+            link = iframe.attrib.get("src")
+            if not link:
+                raise Exception("iframe src attribute not found")
+
         except Exception as e:
-            if "Firefox" in str(e):
-                msg = "Firefox not installed or browser pool failed."
-                raise Exception(msg)
-            else:
-                raise
+            raise Exception(f"Could not extract video from AnimesonlineCC: {e}") from e
 
         if not event.is_set():
             container.append(link)

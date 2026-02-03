@@ -133,8 +133,8 @@ class MangaLivre:
         """
         try:
             # Use DynamicFetcher to render page and wait for AJAX-loaded chapters
-            df = DynamicFetcher()
-            tree = df.fetch(manga_url, timeout=15)
+            # Use Firefox for better library compatibility
+            tree = DynamicFetcher.fetch(manga_url, timeout=15000, browser="firefox")
 
             chapters = []
 
@@ -215,8 +215,8 @@ class MangaLivre:
         """
         try:
             # Use DynamicFetcher to render the page with JavaScript
-            df = DynamicFetcher()
-            tree = df.fetch(chapter_url, timeout=15)
+            # Use Firefox for better library compatibility
+            tree = DynamicFetcher.fetch(chapter_url, timeout=15000, browser="firefox")
 
             page_urls = []
 

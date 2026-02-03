@@ -5,10 +5,13 @@ but adapted for manga-specific operations (search, chapter listing, page extract
 """
 
 import importlib
+import logging
 import sys
 from os import listdir
 from os.path import abspath, dirname, isfile, join
 from typing import Protocol
+
+from scrapling import Fetcher
 
 
 class MangaScraperProtocol(Protocol):
@@ -98,6 +101,14 @@ def load_manga_plugins(languages: set[str]) -> dict[str, MangaScraperProtocol]:
     Returns:
         Dictionary mapping plugin names to plugin instances
     """
+    # Configure Fetcher globally once before loading any plugins
+    # This prevents deprecation warnings from Scrapling library v0.2.x
+    Fetcher.configure(adaptive=True, keep_comments=False, keep_cdata=False)
+
+    # Suppress the Scrapling deprecation warning about __init__ logic
+    # This warning is unavoidable in v0.2.x and will be removed in v0.3
+    logging.getLogger("scrapling").setLevel(logging.ERROR)
+
     path = get_resource_path("plugins/")
     system = {"__init__.py", "utils.py"}
 

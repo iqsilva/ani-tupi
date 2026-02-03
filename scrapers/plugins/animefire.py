@@ -1,10 +1,7 @@
-from scrapling import Fetcher
-from selenium.webdriver.common.by import By
-from selenium.webdriver.support import expected_conditions as EC
-from selenium.webdriver.support.wait import WebDriverWait
+import json
 
-from scrapers.core.browser_pool import get_browser_pool
-from scrapers.plugins.utils import head_with_retry
+from scrapling import Fetcher, DynamicFetcher
+
 from services.repository import rep
 
 
@@ -14,8 +11,7 @@ class AnimeFire:
 
     def search_anime(self, query: str) -> None:
         url = "https://animefire.plus/pesquisar/" + "-".join(query.split())
-        fetcher = Fetcher()
-        tree = fetcher.get(url)
+        tree = Fetcher.get(url)
         target_class = "col-6 col-sm-4 col-md-3 col-lg-2 mb-1 minWDanime divCardUltimosEps"
         titles_urls = []
         for div in tree.css(f"div.{target_class.replace(' ', '.')}"):
@@ -39,66 +35,84 @@ class AnimeFire:
 
     def search_player_src(self, url: str, container: list, event) -> None:
         try:
-            with get_browser_pool().get_browser() as driver:
-                driver.get(url)
-                try:
-                    params = (By.ID, "my-video_html5_api")
-                    WebDriverWait(driver, 7).until(EC.visibility_of_all_elements_located(params))
-                except:
+            # Use DynamicFetcher to render page and wait for video/iframe
+            # Use Firefox for better library compatibility
+            page = DynamicFetcher.fetch(url, timeout=15000)
+
+            # AnimeFire uses Video.js player with data-video-src attribute
+            # The attribute contains an API endpoint that returns JSON with video URLs
+            video = page.css_first("video")
+            if video:
+                api_url = video.attrib.get("data-video-src")
+                if api_url:
                     try:
-                        xpath = "/html/body/div[2]/div[2]/div/div[1]/div[1]/div/div/div[2]/div[4]/iframe"
-                        params = (By.XPATH, xpath)
-                        WebDriverWait(driver, 7).until(
-                            EC.visibility_of_all_elements_located(params)
+                        # Fetch the API endpoint to get video URLs
+                        api_response = Fetcher.get(api_url)
+                        # Parse JSON from response body
+                        body_str = (
+                            api_response.body.decode("utf-8")
+                            if isinstance(api_response.body, bytes)
+                            else api_response.body
                         )
-                    except:
-                        msg = "neither iframe nor video tags were found in animefire."
-                        raise Exception(msg)
+                        video_data = json.loads(body_str)
 
-                product = driver.find_element(params[0], params[1])
-                link = str(product.get_property("src"))
+                        if isinstance(video_data, dict) and "data" in video_data:
+                            videos = video_data["data"]
+                            if isinstance(videos, list) and len(videos) > 0:
+                                # Prefer highest quality: 1080p > 720p > 480p > 360p
+                                best_video = None
+                                for quality in ["1080p", "720p", "480p", "360p"]:
+                                    for v in videos:
+                                        if v.get("label", "").lower() == quality.lower():
+                                            best_video = v.get("src")
+                                            break
+                                    if best_video:
+                                        break
+
+                                # If no quality match, take the last one (usually highest quality)
+                                if not best_video and videos:
+                                    best_video = videos[-1].get("src")
+
+                                if best_video:
+                                    if not event.is_set():
+                                        container.append(best_video)
+                                        event.set()
+                                    return
+                    except Exception:
+                        # API fetch failed, try fallback methods
+                        pass
+
+                # Fallback: try standard src attribute
+                src = video.attrib.get("src")
+                if src:
+                    if not event.is_set():
+                        container.append(src)
+                        event.set()
+                    return
+
+            # Try to find source tag inside video
+            source = page.css_first("video source")
+            if source:
+                src = source.attrib.get("src")
+                if src:
+                    if not event.is_set():
+                        container.append(src)
+                        event.set()
+                    return
+
+            # Try to find iframe
+            iframe = page.css_first("iframe")
+            if iframe:
+                src = iframe.attrib.get("src")
+                if src:
+                    if not event.is_set():
+                        container.append(src)
+                        event.set()
+                    return
+
+            raise Exception("No video source found in AnimeFire episode page")
         except Exception as e:
-            if "Firefox" in str(e):
-                msg = "Firefox not installed or browser pool failed."
-                raise Exception(msg)
-            else:
-                raise
-
-        # Prefer HD quality for direct video URLs
-        # If URL contains /sd/, try to upgrade to /hd/
-        if "/sd/" in link:
-            hd_link = link.replace("/sd/", "/hd/")
-            try:
-                # Check if HD version exists by making a HEAD request
-                response = head_with_retry(hd_link)
-                if response.status_code == 200:
-                    link = hd_link
-            except Exception:
-                # If HD version doesn't exist or check fails, use original SD link
-                pass
-
-        # if url contains 480p, try to upgrade to 720p
-        elif "480p" in link:
-            hd_link = link.replace("/480p", "/720p")
-            try:
-                response = head_with_retry(hd_link)
-                if response.status_code == 200:
-                    link = hd_link
-            except Exception:
-                pass
-
-        # If the link is a Blogger URL, try to add quality parameters
-        # Blogger supports quality hints via URL parameters
-        if "blogger.com" in link:
-            # Add quality preference parameter if not already present
-            if "?" not in link:
-                link = link + "?quality=720p&preferredQuality=720"
-            elif "&quality=" not in link and "&preferredQuality=" not in link:
-                link = link + "&quality=720p&preferredQuality=720"
-
-        if not event.is_set():
-            container.append(link)
-            event.set()
+            raise Exception(f"Could not extract video from AnimeFire: {e}") from e
 
 
 def load(languages_dict) -> None:

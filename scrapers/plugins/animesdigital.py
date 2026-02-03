@@ -18,17 +18,29 @@ class AnimesDigital:
         Prioritizes subtitled versions over dubbed versions when both exist.
         """
         url = "https://animesdigital.org/search/" + "+".join(query.split())
-        fetcher = Fetcher()
-        tree = fetcher.get(url, timeout=REQUEST_TIMEOUT)
+        tree = Fetcher.get(url)
 
-        # Extract all anime links
-        anime_links = tree.css("a[href*='/anime/']")
+        # Extract all anime from itemA containers
+        anime_containers = tree.css("div.itemA")
         titles = []
         urls = []
 
-        for link in anime_links:
+        for container in anime_containers:
+            # Get the link from the container
+            link = container.css_first("a[href*='/anime/']")
+            if not link:
+                continue
+
             href = link.attrib.get("href")
-            title = str(link.text).strip()
+
+            # Get the title from the span element
+            span = container.css_first("span")
+            if span and span.text:
+                title = str(span.text).strip()
+            elif link.text:
+                title = str(link.text).strip()
+            else:
+                continue
 
             # Clean up title (remove extra whitespace and special chars)
             title = " ".join(title.split())
@@ -100,8 +112,8 @@ class AnimesDigital:
         Prioritizes api.anivideo.net iframes which are most reliable.
         """
         try:
-            df = DynamicFetcher()
-            page = df.fetch(url, timeout=10)
+            # Use Firefox for better library compatibility
+            page = DynamicFetcher.fetch(url, timeout=15000, browser="firefox")
 
             # Extract all iframes
             iframes = page.css("iframe")
