@@ -1,4 +1,11 @@
 from scrapling import Fetcher, DynamicFetcher
+from selenium import webdriver
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.chrome.options import Options
+from bs4 import BeautifulSoup
+import time
 
 from services.repository import rep
 
@@ -11,47 +18,112 @@ class AnimesDigital:
     languages = ["pt-br"]
     name = "animesdigital"
 
+    def _search_with_selenium(self, query: str, url: str) -> list[tuple[str, str]]:
+        """Search anime using Selenium with #termo_busca input.
+
+        Uses dynamic page interaction to search both dubbed and subtitled versions.
+        Returns list of (title, url) tuples.
+        """
+        chrome_options = Options()
+        chrome_options.add_argument("--headless=new")
+        chrome_options.add_argument("--no-sandbox")
+        chrome_options.add_argument("--disable-dev-shm-usage")
+        chrome_options.add_argument("--disable-gpu")
+        chrome_options.add_argument("--window-size=1920,1080")
+        chrome_options.add_argument(
+            "user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+        )
+
+        driver = None
+        results = []
+
+        try:
+            driver = webdriver.Chrome(options=chrome_options)
+            driver.get(url)
+
+            # Wait for page to load
+            WebDriverWait(driver, 10).until(
+                EC.presence_of_all_elements_located((By.TAG_NAME, "body"))
+            )
+
+            time.sleep(1)
+
+            # Find search input #termo_busca
+            try:
+                search_input = WebDriverWait(driver, 10).until(
+                    EC.presence_of_element_located((By.ID, "termo_busca"))
+                )
+            except Exception as e:
+                raise Exception(f"Could not find #termo_busca on {url}: {e}")
+
+            # Type query and trigger input/change events
+            search_input.clear()
+            search_input.send_keys(query)
+            driver.execute_script(
+                "arguments[0].dispatchEvent(new Event('input', { bubbles: true }));", search_input
+            )
+            driver.execute_script(
+                "arguments[0].dispatchEvent(new Event('change', { bubbles: true }));", search_input
+            )
+
+            # Wait for results to load
+            time.sleep(2)
+
+            # Parse page content
+            soup = BeautifulSoup(driver.page_source, "html.parser")
+
+            # Extract anime from div[class*='item'] containers
+            anime_items = soup.select("div[class*='item']")
+
+            for item in anime_items:
+                link = item.find("a", href=True)
+                if not link:
+                    continue
+
+                href = link.get("href")
+                title = link.get_text(strip=True)
+
+                if href and title and "/anime/" in href:
+                    # Avoid duplicates
+                    if not any(t[0] == title for t in results):
+                        results.append((title, href))
+
+        except Exception as e:
+            import sys
+
+            print(f"Warning: Selenium search on {url} for '{query}': {e}", file=sys.stderr)
+
+        finally:
+            if driver:
+                try:
+                    driver.quit()
+                except:
+                    pass
+
+        return results
+
     def search_anime(self, query) -> None:
         """Search for anime on AnimesDigital.
 
-        Constructs search URL and extracts anime titles and links.
-        Prioritizes subtitled versions over dubbed versions when both exist.
+        Searches both dubbed (dublado) and subtitled (legendado) versions.
+        Uses dynamic Selenium-based search with #termo_busca input.
+        Returns all versions found (legendado and dublado are different links).
         """
-        url = "https://animesdigital.org/search/" + "+".join(query.split())
-        tree = Fetcher.get(url)
+        search_urls = [
+            "https://animesdigital.org/animes-legendados-online",
+            "https://animesdigital.org/animes-dublado/",
+        ]
 
-        # Extract all anime from itemA containers
-        anime_containers = tree.css("div.itemA")
-        titles = []
-        urls = []
+        titled_urls = []
 
-        for container in anime_containers:
-            # Get the link from the container
-            link = container.css_first("a[href*='/anime/']")
-            if not link:
-                continue
+        for search_url in search_urls:
+            results = self._search_with_selenium(query, search_url)
 
-            href = link.attrib.get("href")
+            for title, url in results:
+                # Add all versions (legendado and dublado are different URLs)
+                titled_urls.append((title, url))
 
-            # Get the title from the span element
-            span = container.css_first("span")
-            if span and span.text:
-                title = str(span.text).strip()
-            elif link.text:
-                title = str(link.text).strip()
-            else:
-                continue
-
-            # Clean up title (remove extra whitespace and special chars)
-            title = " ".join(title.split())
-
-            if href and title:
-                urls.append(href)
-                titles.append(title)
-
-        titled_urls = list(zip(titles, urls))
-
-        # Add anime to repository in priority order
+        # Add anime to repository
         for title, url in titled_urls:
             rep.add_anime(title, url, AnimesDigital.name)
 
