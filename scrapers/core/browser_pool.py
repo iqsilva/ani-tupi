@@ -274,6 +274,7 @@ class BrowserPool:
         """Verify browser is responsive and healthy.
 
         Attempts a simple JavaScript execution to confirm browser is alive.
+        Uses a short timeout to prevent health checks from hanging on stale/crashed browsers.
 
         Args:
             driver: WebDriver instance to check
@@ -282,6 +283,8 @@ class BrowserPool:
             bool: True if browser is responsive, False otherwise
         """
         try:
+            # Set a short timeout for health check (don't wait indefinitely)
+            driver.set_script_timeout(2)
             driver.execute_script("return true;")
             return True
         except Exception as e:

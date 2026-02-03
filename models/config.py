@@ -199,10 +199,10 @@ class PerformanceSettings(BaseModel):
 
     # Browser Pool Settings
     browser_pool_size: int = Field(
-        3,
+        5,
         ge=1,
-        le=5,
-        description="Maximum number of Firefox instances in browser pool for parallel scraping",
+        le=8,
+        description="Maximum number of Chrome instances in browser pool for parallel scraping",
     )
     browser_max_age: int = Field(
         300,
@@ -225,9 +225,9 @@ class PerformanceSettings(BaseModel):
         description="Maximum number of scrapers running concurrently",
     )
     concurrent_timeout: int = Field(
-        50,
+        60,
         ge=15,
-        le=120,
+        le=180,
         description="Timeout for concurrent scraper operations (seconds). Browser-based scrapers need extra time for startup.",
     )
 

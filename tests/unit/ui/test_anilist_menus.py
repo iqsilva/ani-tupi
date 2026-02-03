@@ -753,3 +753,168 @@ class TestStatusMapping:
 
             # Verify the correct status was used
             mock_anilist_client.add_to_list.assert_called_once_with(123, expected_status)
+
+
+# ============================================================================
+# UNIT TESTS: _get_episode_count
+# ============================================================================
+
+
+class TestGetEpisodeCount:
+    """Tests for _get_episode_count function."""
+
+    @pytest.fixture
+    def mock_cache(self):
+        """Mock cache system."""
+        with patch("ui.anilist_menus.get_cache") as mock_cache_func:
+            cache_mock = Mock()
+            mock_cache_func.return_value = cache_mock
+            yield cache_mock
+
+    def test_returns_existing_episodes_when_not_null(
+        self, mock_anilist_client, mock_cache
+    ):
+        """When media.episodes is not None, should return it directly."""
+        from ui.anilist_menus import _get_episode_count
+
+        # Execute
+        result = _get_episode_count(123, 12)
+
+        # Verify
+        assert result == 12
+        # Should not check cache or make API calls
+        mock_cache.get.assert_not_called()
+        mock_anilist_client.get_anime_by_id.assert_not_called()
+
+    def test_returns_cached_episodes_when_media_episodes_is_null(
+        self, mock_anilist_client, mock_cache
+    ):
+        """When media.episodes is None but cache has value, should return cached value."""
+        from ui.anilist_menus import _get_episode_count
+
+        # Setup: Cache has episode count
+        mock_cache.get.return_value = 24
+
+        # Execute
+        result = _get_episode_count(123, None)
+
+        # Verify
+        assert result == 24
+        mock_cache.get.assert_called_once_with("anilist_episodes:123")
+        # Should not make API call
+        mock_anilist_client.get_anime_by_id.assert_not_called()
+
+    def test_fetches_from_api_when_cache_miss_and_media_episodes_is_null(
+        self, mock_anilist_client, mock_cache, sample_anime
+    ):
+        """When media.episodes is None and cache miss, should fetch from API."""
+        from ui.anilist_menus import _get_episode_count
+
+        # Setup: Cache miss, API has episode count
+        mock_cache.get.return_value = None
+        mock_anilist_client.get_anime_by_id.return_value = sample_anime
+
+        # Execute
+        result = _get_episode_count(123, None)
+
+        # Verify
+        assert result == 12
+        mock_cache.get.assert_called_once_with("anilist_episodes:123")
+        mock_anilist_client.get_anime_by_id.assert_called_once_with(123)
+        # Should cache the result
+        mock_cache.set.assert_called_once_with("anilist_episodes:123", 12, ttl=604800)
+
+    def test_returns_none_when_api_returns_none(
+        self, mock_anilist_client, mock_cache
+    ):
+        """When API returns None, should return None and not cache."""
+        from ui.anilist_menus import _get_episode_count
+
+        # Setup: Cache miss, API returns None
+        mock_cache.get.return_value = None
+        mock_anilist_client.get_anime_by_id.return_value = None
+
+        # Execute
+        result = _get_episode_count(123, None)
+
+        # Verify
+        assert result is None
+        mock_cache.get.assert_called_once_with("anilist_episodes:123")
+        mock_anilist_client.get_anime_by_id.assert_called_once_with(123)
+        # Should not cache None result
+        mock_cache.set.assert_not_called()
+
+    def test_returns_none_when_api_returns_anime_with_null_episodes(
+        self, mock_anilist_client, mock_cache
+    ):
+        """When API returns anime with episodes=None, should return None and not cache."""
+        from ui.anilist_menus import _get_episode_count
+
+        # Setup: API returns anime with null episodes
+        anime_with_null_episodes = AniListAnime(
+            id=123,
+            title=AniListTitle(romaji="Test Anime"),
+            episodes=None,  # Null episodes
+        )
+        mock_cache.get.return_value = None
+        mock_anilist_client.get_anime_by_id.return_value = anime_with_null_episodes
+
+        # Execute
+        result = _get_episode_count(123, None)
+
+        # Verify
+        assert result is None
+        mock_cache.get.assert_called_once_with("anilist_episodes:123")
+        mock_anilist_client.get_anime_by_id.assert_called_once_with(123)
+        # Should not cache None result
+        mock_cache.set.assert_not_called()
+
+    def test_handles_api_exception_gracefully(
+        self, mock_anilist_client, mock_cache
+    ):
+        """When API call fails with exception, should return None."""
+        from ui.anilist_menus import _get_episode_count
+
+        # Setup: Cache miss, API raises exception
+        mock_cache.get.return_value = None
+        mock_anilist_client.get_anime_by_id.side_effect = Exception("API Error")
+
+        # Execute
+        result = _get_episode_count(123, None)
+
+        # Verify
+        assert result is None
+        mock_cache.get.assert_called_once_with("anilist_episodes:123")
+        mock_anilist_client.get_anime_by_id.assert_called_once_with(123)
+        # Should not cache on error
+        mock_cache.set.assert_not_called()
+
+    def test_cache_key_format_is_correct(self, mock_anilist_client, mock_cache):
+        """Cache key should use format 'anilist_episodes:{anime_id}'."""
+        from ui.anilist_menus import _get_episode_count
+
+        # Execute with different anime IDs
+        _get_episode_count(456, None)
+        _get_episode_count(789, None)
+
+        # Verify cache keys
+        expected_calls = [
+            ("anilist_episodes:456",),
+            ("anilist_episodes:789",),
+        ]
+        actual_calls = [call[0] for call in mock_cache.get.call_args_list]
+        assert actual_calls == expected_calls
+
+    def test_cache_ttl_is_7_days(self, mock_anilist_client, mock_cache, sample_anime):
+        """Cache TTL should be 7 days (604800 seconds)."""
+        from ui.anilist_menus import _get_episode_count
+
+        # Setup: Cache miss, API returns anime
+        mock_cache.get.return_value = None
+        mock_anilist_client.get_anime_by_id.return_value = sample_anime
+
+        # Execute
+        _get_episode_count(123, None)
+
+        # Verify TTL
+        mock_cache.set.assert_called_once_with("anilist_episodes:123", 12, ttl=604800)

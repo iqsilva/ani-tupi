@@ -12,6 +12,7 @@ from services.anime_service import anilist_anime_flow
 from models.config import get_data_path, settings
 from ui.components import loading, menu_navigate
 from models.models import AniListTitle
+from utils.cache import get_cache
 
 # History file path (centralized from config)
 HISTORY_PATH = get_data_path()
@@ -30,6 +31,42 @@ def get_search_title(title: AniListTitle, display_title: str = "") -> str:
     if settings.anilist.prefer_english_title:
         return title.english or title.romaji or display_title
     return title.romaji or title.english or display_title
+
+
+def _get_episode_count(anime_id: int, media_episodes: int | None) -> int | None:
+    """Get episode count for an anime with caching fallback.
+    
+    Args:
+        anime_id: AniList anime ID
+        media_episodes: Episode count from media list response (can be None)
+        
+    Returns:
+        Episode count as int, or None if truly unknown
+    """
+    # If we already have episode count, return it
+    if media_episodes is not None:
+        return media_episodes
+    
+    # Check cache first
+    cache = get_cache()
+    cache_key = f"anilist_episodes:{anime_id}"
+    cached_episodes = cache.get(cache_key)
+    if cached_episodes is not None:
+        return cached_episodes
+    
+    # Cache miss - fetch full anime details
+    try:
+        anime_details = anilist_client.get_anime_by_id(anime_id)
+        if anime_details and anime_details.episodes is not None:
+            # Cache the result (7 days TTL = 604800 seconds)
+            cache.set(cache_key, anime_details.episodes, ttl=604800)
+            return anime_details.episodes
+    except Exception:
+        # If API call fails, we'll return None and keep "?" fallback
+        pass
+    
+    # Truly unknown episode count
+    return None
 
 
 def _start_watching_anime(search_title: str, anime_id: int, display_title: str) -> None:
@@ -362,7 +399,7 @@ def _show_anime_list(list_type: str) -> tuple[str, int] | None:
             search_title = get_search_title(media.title, display_title)
 
             anime_id = media.id
-            episodes = media.episodes or "?"
+            episodes = _get_episode_count(anime_id, media.episodes) or "?"
 
             # Build display string
             if progress > 0:
