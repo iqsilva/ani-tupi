@@ -1,15 +1,13 @@
 """MangaLivre.blog manga scraper.
 
 Scrapes manga from https://mangalivre.blog/ (Brazilian Portuguese site).
-Uses requests + selectolax (fast) for search and Playwright for AJAX-loaded chapters.
+Uses Scrapling.Fetcher for search and DynamicFetcher for AJAX-loaded chapters.
 """
 
 import re
 from typing import Any
 
-import requests
-from playwright.sync_api import sync_playwright
-from selectolax.parser import HTMLParser
+from scrapling import Fetcher, DynamicFetcher
 
 
 class MangaLivre:
@@ -20,11 +18,8 @@ class MangaLivre:
     base_url = "https://mangalivre.blog"
 
     def __init__(self):
-        """Initialize scraper with requests session."""
-        self.session = requests.Session()
-        self.session.headers.update(
-            {"User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36"}
-        )
+        """Initialize scraper with Scrapling Fetcher."""
+        self.fetcher = Fetcher()
 
     def search_manga(self, query: str) -> list[dict[str, Any]]:
         """Search for manga by title.
@@ -49,12 +44,8 @@ class MangaLivre:
             # Use WordPress search endpoint
             search_url = f"{self.base_url}/?s={query.replace(' ', '+')}&post_type=wp-manga"
 
-            # Fetch with requests
-            resp = self.session.get(search_url, timeout=10)
-            resp.raise_for_status()
-
-            # Parse HTML
-            tree = HTMLParser(resp.text)
+            # Fetch with Scrapling Fetcher
+            tree = self.fetcher.get(search_url, timeout=10)
 
             results = []
 
@@ -69,7 +60,7 @@ class MangaLivre:
                     if not link:
                         continue
 
-                    url = link.attributes.get("href", "")
+                    url = link.attrib.get("href", "")
                     if not url:
                         continue
 
@@ -82,18 +73,19 @@ class MangaLivre:
                         or card.css_first("span[class*='title']")
                         or card.css_first(".title")
                     )
-                    title = title_elem.text(strip=True) if title_elem else link.text(strip=True)
+                    title = str(title_elem.text) if title_elem else str(link.text)
+                    title = title.strip()
 
                     if not title or title.isspace():
                         continue
 
                     # Extract description if available
                     desc_elem = card.css_first("p")
-                    description = desc_elem.text(strip=True) if desc_elem else None
+                    description = str(desc_elem.text).strip() if desc_elem else None
 
                     # Extract status if available
                     status_elem = card.css_first("span")
-                    status = status_elem.text(strip=True).lower() if status_elem else "ongoing"
+                    status = str(status_elem.text).strip().lower() if status_elem else "ongoing"
 
                     # Extract manga ID from URL (slug)
                     manga_id = url.rstrip("/").split("/")[-1]
@@ -140,32 +132,10 @@ class MangaLivre:
             ]
         """
         try:
-            # Use Playwright to render the page and wait for AJAX-loaded chapters
-            with sync_playwright() as p:
-                browser = p.chromium.launch(headless=True)
-                page = browser.new_page()
+            # Use DynamicFetcher to render page and wait for AJAX-loaded chapters
+            df = DynamicFetcher()
+            tree = df.fetch(manga_url, timeout=15)
 
-                # Navigate to manga page
-                try:
-                    page.goto(manga_url, wait_until="domcontentloaded", timeout=30000)
-                except Exception as e:
-                    browser.close()
-                    print(f"⚠️  Erro ao carregar página: {e}")
-                    return []
-
-                # Wait for chapter list to load (WordPress Madara theme loads via AJAX)
-                try:
-                    page.wait_for_selector("li.wp-manga-chapter", timeout=15000)
-                except Exception:
-                    # If chapters don't load within timeout, continue anyway
-                    pass
-
-                # Get page HTML after JavaScript execution
-                html = page.content()
-                browser.close()
-
-            # Parse rendered HTML
-            tree = HTMLParser(html)
             chapters = []
 
             # Extract chapter list - MangaLivre uses li.chapter-item
@@ -177,8 +147,8 @@ class MangaLivre:
                     if not link:
                         continue
 
-                    chapter_url = link.attributes.get("href", "")
-                    chapter_title = link.text(strip=True)
+                    chapter_url = link.attrib.get("href", "")
+                    chapter_title = str(link.text).strip()
 
                     if not chapter_url:
                         continue
@@ -244,25 +214,9 @@ class MangaLivre:
             List of image URLs (absolute URLs)
         """
         try:
-            # Use Playwright to render the page with JavaScript
-            with sync_playwright() as p:
-                browser = p.chromium.launch(headless=True)
-                page = browser.new_page()
-
-                # Navigate to chapter page
-                try:
-                    page.goto(chapter_url, wait_until="domcontentloaded", timeout=30000)
-                except Exception as e:
-                    browser.close()
-                    print(f"⚠️  Erro ao carregar capítulo: {e}")
-                    return []
-
-                # Get page HTML after JavaScript execution
-                html = page.content()
-                browser.close()
-
-            # Parse rendered HTML
-            tree = HTMLParser(html)
+            # Use DynamicFetcher to render the page with JavaScript
+            df = DynamicFetcher()
+            tree = df.fetch(chapter_url, timeout=15)
 
             page_urls = []
 
@@ -273,10 +227,10 @@ class MangaLivre:
                 # Try multiple attributes where image URL might be
                 # WordPress lazy-loading uses data-src or data-lazy-src
                 img_url = (
-                    img.attributes.get("data-src")
-                    or img.attributes.get("data-lazy-src")
-                    or img.attributes.get("src")
-                    or img.attributes.get("data-original")
+                    img.attrib.get("data-src")
+                    or img.attrib.get("data-lazy-src")
+                    or img.attrib.get("src")
+                    or img.attrib.get("data-original")
                 )
 
                 # Skip if no URL
