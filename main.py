@@ -3,14 +3,12 @@ import sys
 
 from scrapers import loader
 from services.repository import rep
-from services.local_anime_service import LocalAnimeService
-from ui.components import menu, menu_navigate
+from ui.components import menu
 from commands import anime as anime_cmd
 from commands import anilist_menu as anilist_menu_cmd
 from commands import anilist_auth as anilist_auth_cmd
 from commands import manga as manga_cmd
 from commands import manage_sources as manage_sources_cmd
-from utils.video_player import VideoPlayer
 
 
 def handle_local_library(args) -> None:

@@ -35,7 +35,6 @@ dependencies = [
     "scrapling[all]>=0.3.14",
     "pillow>=12.1.0",
     "yt-dlp>=2026.1.31",
-    "pre-commit>=4.5.1",
     "selenium>=4.40.0",
 ]
 
@@ -91,7 +90,6 @@ ignore = [
     "PLR0911",   # Too many return statements
     "PLR0912",   # Too many branches
     "PLR0915",   # Too many statements
-    "PLR2004",   # Magic value in comparison
     "C901",      # Function too complex
     "FBT001",    # Boolean positional arg
     "FBT002",    # Boolean default arg
@@ -105,12 +103,6 @@ ignore = [
     "ARG001",    # Unused function argument
     "ARG002",    # Unused method argument
     "ARG004",    # Unused static method argument
-    "PTH100",    # os.path.abspath - pathlib preferred but not critical
-    "PTH113",    # os.path.isfile - pathlib preferred but not critical
-    "PTH118",    # os.path.join - pathlib preferred but not critical
-    "PTH120",    # os.path.dirname - pathlib preferred but not critical
-    "PTH123",    # open() - using Path.open() where practical
-    "PTH208",    # os.listdir - pathlib preferred but not critical
     "RUF001",    # Ambiguous unicode character
     "RUF012",    # Mutable class attributes
     "RUF059",    # Unpacked variable never used

@@ -7,11 +7,6 @@ Tests the offline sync queue functionality:
 - File cleanup after successful sync
 """
 
-import json
-import pytest
-from pathlib import Path
-from datetime import datetime
-
 from models.models import OfflineSyncQueueEntry, OfflineSyncQueue
 from models.config import settings
 from services.anime.offline_sync_service import (
