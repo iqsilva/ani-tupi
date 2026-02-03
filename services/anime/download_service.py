@@ -2,7 +2,7 @@
 
 This service orchestrates:
 - Episode downloading with parallel queue management
-- Download validation and retry logic
+- Download validation and intelligent retry logic
 - Download history persistence
 - Storage organization
 
@@ -11,9 +11,13 @@ All operations maintain immutability - no state mutation.
 
 import json
 import logging
-from concurrent.futures import ThreadPoolExecutor, as_completed
+import threading
+from collections import deque
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable, Optional
+
+from tqdm import tqdm
 
 from models.config import settings
 from models.models import (
@@ -25,6 +29,23 @@ from models.models import (
 from utils.episode_range_parser import parse_episode_range, RangeParseError
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass
+class DownloadTask:
+    """Represents a download task with retry tracking."""
+
+    episode_number: int
+    attempts: int = 0
+    max_attempts: int = 3
+
+    def can_retry(self) -> bool:
+        """Check if task can be retried."""
+        return self.attempts < self.max_attempts
+
+    def increment_attempt(self) -> None:
+        """Increment attempt counter."""
+        self.attempts += 1
 
 
 class AnimeDownloadService:
@@ -102,8 +123,11 @@ class AnimeDownloadService:
 
         if to_download:
             logger.info(f"Downloading {len(to_download)} episodes for {anime_title}")
+            # Pre-fetch all episode URLs serially to avoid browser pool exhaustion
+            episode_urls = self._prefetch_episode_urls(anime_title, to_download, get_episode_url)
+            # Then download files in parallel
             successful, failed, corrupted = self._download_parallel(
-                anime_title, anime_dir, to_download, get_episode_url
+                anime_title, anime_dir, to_download, episode_urls
             )
 
         # Update history
@@ -146,80 +170,164 @@ class AnimeDownloadService:
             summary=summary,
         )
 
+    def _prefetch_episode_urls(
+        self,
+        anime_title: str,
+        episodes: list[int],
+        get_episode_url: Callable[[int], Optional[tuple[str, str]]],
+    ) -> dict[int, Optional[tuple[str, str]]]:
+        """Pre-fetch all episode URLs serially to avoid browser pool exhaustion.
+
+        Args:
+            anime_title: Anime title for logging
+            episodes: List of episode numbers to fetch
+            get_episode_url: Function to get URL for episode
+
+        Returns:
+            Dict mapping episode number to (url, source) or None
+        """
+        logger.debug(f"Pre-fetching URLs for {len(episodes)} episodes")
+        episode_urls = {}
+
+        for ep_num in episodes:
+            try:
+                url_info = get_episode_url(ep_num)
+                episode_urls[ep_num] = url_info
+                if url_info:
+                    logger.debug(f"Fetched URL for episode {ep_num}")
+                else:
+                    logger.warning(f"No URL found for {anime_title} episode {ep_num}")
+            except Exception as e:
+                logger.warning(f"Error fetching URL for episode {ep_num}: {e}")
+                episode_urls[ep_num] = None
+
+        return episode_urls
+
     def _download_parallel(
         self,
         anime_title: str,
         anime_dir: Path,
         episodes: list[int],
-        get_episode_url: Callable[[int], Optional[tuple[str, str]]],
+        episode_urls: dict[int, Optional[tuple[str, str]]],
     ) -> tuple[int, list[int], list[int]]:
-        """Download episodes in parallel batches.
+        """Download episodes with intelligent retry queue and TQDM progress.
 
         Args:
             anime_title: Anime title for logging
             anime_dir: Directory to save episodes
             episodes: List of episode numbers to download
-            get_episode_url: Function to get URL for episode
+            episode_urls: Pre-fetched URLs for episodes
 
         Returns:
             Tuple of (successful_count, failed_list, corrupted_list)
         """
+        # Initialize download queue
+        download_queue = deque([DownloadTask(ep_num) for ep_num in episodes])
+        queue_lock = threading.Lock()
+
         successful = 0
         failed = []
         corrupted = []
+        results_lock = threading.Lock()
 
-        # Use ThreadPoolExecutor for parallel downloads
-        with ThreadPoolExecutor(max_workers=self.max_parallel) as executor:
-            futures = {
-                executor.submit(
-                    self._download_single_episode,
-                    anime_title,
-                    anime_dir,
-                    ep_num,
-                    get_episode_url,
-                ): ep_num
-                for ep_num in episodes
-            }
+        # Progress bar
+        pbar = tqdm(
+            total=len(episodes),
+            desc=f"📥 {anime_title}",
+            unit="ep",
+            bar_format="{l_bar}{bar}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}]",
+        )
 
-            for future in as_completed(futures):
-                ep_num = futures[future]
-                try:
-                    success, is_valid = future.result()
-                    if success:
-                        if is_valid:
-                            successful += 1
-                        else:
-                            corrupted.append(ep_num)
+        def worker():
+            """Worker thread that processes download queue."""
+            nonlocal successful
+
+            while True:
+                # Get next task from queue
+                with queue_lock:
+                    if not download_queue:
+                        break
+                    task = download_queue.popleft()
+
+                # Increment attempt counter
+                task.increment_attempt()
+
+                # Download episode
+                ep_num = task.episode_number
+                url_info = episode_urls.get(ep_num)
+                success, is_valid = self._download_single_episode_with_url(
+                    anime_title, anime_dir, ep_num, url_info
+                )
+
+                # Process result
+                with results_lock:
+                    if success and is_valid:
+                        successful += 1
+                        pbar.update(1)
+                        pbar.set_postfix({"✓": successful, "❌": len(failed)})
+
+                    elif success and not is_valid:
+                        # File corrupted - don't retry
+                        corrupted.append(ep_num)
+                        pbar.update(1)
+                        pbar.set_postfix({"✓": successful, "⚠️": len(corrupted)})
+
                     else:
-                        failed.append(ep_num)
-                except Exception as e:
-                    logger.error(f"Download error for episode {ep_num}: {e}")
-                    failed.append(ep_num)
+                        # Download failed
+                        if task.can_retry():
+                            # Re-add to end of queue for retry
+                            with queue_lock:
+                                download_queue.append(task)
+                            logger.debug(
+                                f"Episode {ep_num} re-added to queue "
+                                f"(attempt {task.attempts}/{task.max_attempts})"
+                            )
+                        else:
+                            # Max retries exceeded
+                            failed.append(ep_num)
+                            pbar.update(1)
+                            pbar.set_postfix({"✓": successful, "❌": len(failed)})
+                            logger.error(
+                                f"Episode {ep_num} failed after {task.max_attempts} attempts"
+                            )
 
+        # Launch worker threads
+        threads = []
+        for _ in range(self.max_parallel):
+            thread = threading.Thread(target=worker, daemon=False)
+            thread.start()
+            threads.append(thread)
+
+        # Wait for all threads to complete
+        for thread in threads:
+            thread.join()
+
+        pbar.close()
         return successful, failed, corrupted
 
-    def _download_single_episode(
+    def _download_single_episode_with_url(
         self,
         anime_title: str,
         anime_dir: Path,
         episode_num: int,
-        get_episode_url: Callable[[int], Optional[tuple[str, str]]],
+        url_info: Optional[tuple[str, str]],
     ) -> tuple[bool, bool]:
-        """Download a single episode with retry logic.
+        """Download a single episode with pre-fetched URL (single attempt).
+
+        Retry logic is handled by the queue system in _download_parallel().
 
         Args:
             anime_title: Anime title
             anime_dir: Directory to save episode
             episode_num: Episode number
-            get_episode_url: Function to get URL
+            url_info: Pre-fetched (url, source) or None
 
         Returns:
             Tuple of (success, is_valid)
             - success: File was created
             - is_valid: File size > 1MB (not HTML error page)
         """
-        # Get episode URL
-        url_info = get_episode_url(episode_num)
+        # Check if URL is available
         if not url_info:
             logger.warning(f"No URL found for {anime_title} episode {episode_num}")
             return False, False
@@ -227,35 +335,25 @@ class AnimeDownloadService:
         url, source = url_info
         file_path = anime_dir / f"{episode_num}.{settings.anime_download.video_format}"
 
-        # Download with retry
-        max_retries = 3
+        # Single download attempt
+        try:
+            success = self._download_file(url, file_path)
+            if success:
+                # Validate file
+                is_valid = self._validate_file(file_path)
+                if is_valid:
+                    logger.debug(f"✓ Episode {episode_num}: Downloaded successfully")
+                    return True, True
 
-        for attempt in range(max_retries):
-            try:
-                success = self._download_file(url, file_path)
-                if success:
-                    # Validate file
-                    is_valid = self._validate_file(file_path)
-                    if is_valid:
-                        logger.info(f"✓ Episode {episode_num}: Downloaded successfully")
-                        return True, True
-                    else:
-                        logger.warning(f"⚠️  Episode {episode_num}: File invalid (too small)")
-                        if file_path.exists():
-                            file_path.unlink()
-                        return False, False
-            except Exception as e:
-                if attempt < max_retries - 1:
-                    logger.debug(
-                        f"Retry {attempt + 1}/{max_retries} for episode {episode_num}: {e}"
-                    )
-                else:
-                    logger.error(
-                        f"❌ Episode {episode_num}: Download failed after {max_retries} attempts"
-                    )
-                    return False, False
+                logger.debug(f"⚠️  Episode {episode_num}: File invalid (too small)")
+                if file_path.exists():
+                    file_path.unlink()
+                return False, False
 
-        return False, False
+            return False, False
+        except Exception as e:
+            logger.debug(f"Episode {episode_num} download error: {e}")
+            return False, False
 
     def _download_file(self, url: str, file_path: Path) -> bool:
         """Download a file from URL using yt-dlp for HLS/wrapper URL support.
