@@ -5,7 +5,7 @@ Refactored from the original manga_service.py to fit the plugin architecture.
 
 from typing import Any
 
-from scrapling.fetchers import Fetcher
+from scrapling import Fetcher
 
 
 class MangaDex:
@@ -34,7 +34,7 @@ class MangaDex:
         """
         try:
             fetcher = Fetcher()
-            resp = fetcher.fetch(
+            resp = fetcher.get(
                 f"{self.base_url}/manga?title={query}&limit=100",
                 timeout=10,
             )
@@ -97,7 +97,7 @@ class MangaDex:
                 )
                 url = f"{self.base_url}/manga/{manga_id}/feed?limit=500&offset={offset}&{lang_params}&order[chapter]=asc&includeEmptyPages=0&includeFuturePublishAt=0"
 
-                resp = fetcher.fetch(url, timeout=10)
+                resp = fetcher.get(url, timeout=10)
                 data = resp.json()
 
                 if not data.get("data"):
@@ -151,7 +151,7 @@ class MangaDex:
         """
         try:
             fetcher = Fetcher()
-            resp = fetcher.fetch(
+            resp = fetcher.get(
                 f"{self.base_url}/at-home/server/{chapter_id}",
                 timeout=10,
             )

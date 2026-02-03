@@ -1,5 +1,4 @@
-from selectolax.parser import HTMLParser
-from scrapling.fetchers import Fetcher
+from scrapling import Fetcher
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.wait import WebDriverWait
@@ -16,28 +15,26 @@ class AnimeFire:
     def search_anime(self, query: str) -> None:
         url = "https://animefire.plus/pesquisar/" + "-".join(query.split())
         fetcher = Fetcher()
-        response = fetcher.fetch(url)
-        tree = HTMLParser(response.html)
+        tree = fetcher.get(url)
         target_class = "col-6 col-sm-4 col-md-3 col-lg-2 mb-1 minWDanime divCardUltimosEps"
         titles_urls = []
         for div in tree.css(f"div.{target_class.replace(' ', '.')}"):
             article = div.css_first("article a")
             if article is not None:
-                href = article.attributes.get("href")
+                href = article.attrib.get("href")
                 if href:
                     titles_urls.append(href)
-        titles = [h3.text() for h3 in tree.css("h3.animeTitle")]
+        titles = [str(h3.text) for h3 in tree.css("h3.animeTitle")]
         for title, url in zip(titles, titles_urls, strict=False):
             if url:  # Only add if url is not None
                 rep.add_anime(title, url, self.name)
 
     def search_episodes(self, anime: str, url: str, params: dict | None) -> None:
         fetcher = Fetcher()
-        response = fetcher.fetch(url)
-        tree = HTMLParser(response.html)
+        tree = fetcher.get(url)
         links = tree.css("a.lEp.epT.divNumEp.smallbox.px-2.mx-1.text-left.d-flex")
-        episode_links = [href for a in links if (href := a.attributes.get("href")) is not None]
-        opts = [a.text() for a in links]
+        episode_links = [href for a in links if (href := a.attrib.get("href")) is not None]
+        opts = [str(a.text) for a in links]
         rep.add_episode_list(anime, opts, episode_links, self.name)
 
     def search_player_src(self, url: str, container: list, event) -> None:

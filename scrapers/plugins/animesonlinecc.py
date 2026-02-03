@@ -1,5 +1,4 @@
-from selectolax.parser import HTMLParser
-from scrapling.fetchers import Fetcher
+from scrapling import Fetcher
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.wait import WebDriverWait
@@ -17,8 +16,7 @@ class AnimesOnlineCC:
     def search_anime(self, query: str) -> None:
         url = "https://animesonlinecc.to/search/" + "+".join(query.split())
         fetcher = Fetcher()
-        response = fetcher.fetch(url)
-        tree = HTMLParser(response.html)
+        tree = fetcher.get(url)
 
         divs = tree.css("div.data")
         titles_urls = []
@@ -27,8 +25,8 @@ class AnimesOnlineCC:
             n = div.css_first("h3 a")
             if not n:
                 continue
-            url = n.attributes.get("href")
-            title = n.text()
+            url = n.attrib.get("href")
+            title = str(n.text)
             if not url or not title:
                 continue
             titles_urls.append(url)
@@ -38,8 +36,7 @@ class AnimesOnlineCC:
             rep.add_anime(title, url, AnimesOnlineCC.name)
 
         def parse_seasons(title, url):
-            response = fetcher.fetch(url)
-            tree = HTMLParser(response.html)
+            tree = fetcher.get(url)
             num_seasons = len(tree.css("div.se-c"))
             if num_seasons > 1:
                 for n in range(2, num_seasons + 1):
@@ -53,8 +50,7 @@ class AnimesOnlineCC:
 
     def search_episodes(self, anime: str, url: str, params: dict | None) -> None:
         fetcher = Fetcher()
-        response = fetcher.fetch(url)
-        tree = HTMLParser(response.html)
+        tree = fetcher.get(url)
 
         seasons = tree.css("ul.episodios")
         # Extract season number from params (backwards compatible with int)
@@ -66,8 +62,8 @@ class AnimesOnlineCC:
         for div in season_ul.css("div.episodiotitle"):
             anchor = div.css_first("a")
             if anchor:
-                urls.append(anchor.attributes.get("href"))
-                titles.append(anchor.text())
+                urls.append(anchor.attrib.get("href"))
+                titles.append(str(anchor.text))
 
         rep.add_episode_list(anime, titles, urls, AnimesOnlineCC.name)
 
