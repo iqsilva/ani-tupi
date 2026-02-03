@@ -59,6 +59,9 @@ class ConcurrentExecutor:
     ) -> List[Tuple[str, Union[Any, Exception]]]:
         """Execute multiple scrapers concurrently.
 
+        Applies smart timeout calculation: browser-based scrapers get extra buffer
+        for pool allocation overhead, HTTP scrapers use standard timeout.
+
         Args:
             scrapers: List of (name, scraper_function) tuples
             query: Search query to pass to each scraper
@@ -67,17 +70,23 @@ class ConcurrentExecutor:
         Returns:
             List of (name, result_or_exception) tuples
         """
-        timeout = timeout or settings.performance.concurrent_timeout
+        base_timeout = timeout or settings.performance.concurrent_timeout
+
+        # Browser-based scrapers need buffer for pool allocation
+        browser_scrapers = {"animesdigital", "animefire"}
 
         async def run_single_scraper(
             name: str, scraper_func: Callable
         ) -> Tuple[str, Union[Any, Exception]]:
             """Run a single scraper with error handling."""
+            # Add buffer if browser-based (startup + page load time)
+            scraper_timeout = base_timeout + 15 if name in browser_scrapers else base_timeout
+
             start_time = time.time()
             try:
                 # Run the scraper with timeout
                 result = await asyncio.wait_for(
-                    self._run_sync(scraper_func, query), timeout=timeout
+                    self._run_sync(scraper_func, query), timeout=scraper_timeout
                 )
                 elapsed = time.time() - start_time
                 return (name, result)
@@ -204,10 +213,17 @@ class ConcurrentExecutor:
     async def _run_single_with_timeout(
         self, name: str, scraper: Callable, query: str, timeout: int
     ) -> Tuple[str, Union[Any, Exception]]:
-        """Run a single scraper with timeout and error handling."""
+        """Run a single scraper with timeout and error handling.
+
+        Applies smart timeout: browser-based scrapers get extra buffer.
+        """
+        # Browser-based scrapers need buffer for pool allocation
+        browser_scrapers = {"animesdigital", "animefire"}
+        scraper_timeout = timeout + 3 if name in browser_scrapers else timeout
+
         start_time = time.time()
         try:
-            result = await asyncio.wait_for(self._run_sync(scraper, query), timeout=timeout)
+            result = await asyncio.wait_for(self._run_sync(scraper, query), timeout=scraper_timeout)
             elapsed = time.time() - start_time
             return (name, result)
         except asyncio.TimeoutError:

@@ -225,10 +225,10 @@ class PerformanceSettings(BaseModel):
         description="Maximum number of scrapers running concurrently",
     )
     concurrent_timeout: int = Field(
-        30,
+        50,
         ge=15,
         le=120,
-        description="Timeout for concurrent scraper operations (seconds)",
+        description="Timeout for concurrent scraper operations (seconds). Browser-based scrapers need extra time for startup.",
     )
 
     # Cache Settings (additional to existing cache settings)

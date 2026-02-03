@@ -1,16 +1,18 @@
-from scrapling import Fetcher, DynamicFetcher
-from selenium import webdriver
-from selenium.webdriver.common.by import By
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
-from selenium.webdriver.chrome.options import Options
-from bs4 import BeautifulSoup
+import logging
 import time
 
+from bs4 import BeautifulSoup
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.support.ui import WebDriverWait
+from scrapling import DynamicFetcher, Fetcher
+
+from scrapers.core.browser_pool import browser_pool, BrowserPoolExhausted
 from services.repository import rep
 
+logger = logging.getLogger(__name__)
+
 # Request timeout for all AnimesDigital API calls (seconds)
-# Increased to 30s to handle slow network conditions
 REQUEST_TIMEOUT = 30
 
 
@@ -22,83 +24,76 @@ class AnimesDigital:
         """Search anime using Selenium with #termo_busca input.
 
         Uses dynamic page interaction to search both dubbed and subtitled versions.
+        Allocates Chrome from browser pool for efficient resource reuse.
         Returns list of (title, url) tuples.
         """
-        chrome_options = Options()
-        chrome_options.add_argument("--headless=new")
-        chrome_options.add_argument("--no-sandbox")
-        chrome_options.add_argument("--disable-dev-shm-usage")
-        chrome_options.add_argument("--disable-gpu")
-        chrome_options.add_argument("--window-size=1920,1080")
-        chrome_options.add_argument(
-            "user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
-        )
-
-        driver = None
         results = []
 
         try:
-            driver = webdriver.Chrome(options=chrome_options)
-            driver.get(url)
+            # Allocate Chrome from pool (auto-cleanup on context exit)
+            with browser_pool.get_chrome(timeout=10) as driver:
+                driver.get(url)
 
-            # Wait for page to load
-            WebDriverWait(driver, 10).until(
-                EC.presence_of_all_elements_located((By.TAG_NAME, "body"))
-            )
-
-            time.sleep(1)
-
-            # Find search input #termo_busca
-            try:
-                search_input = WebDriverWait(driver, 10).until(
-                    EC.presence_of_element_located((By.ID, "termo_busca"))
+                # Wait for page to load
+                WebDriverWait(driver, 10).until(
+                    EC.presence_of_all_elements_located((By.TAG_NAME, "body"))
                 )
-            except Exception as e:
-                raise Exception(f"Could not find #termo_busca on {url}: {e}")
 
-            # Type query and trigger input/change events
-            search_input.clear()
-            search_input.send_keys(query)
-            driver.execute_script(
-                "arguments[0].dispatchEvent(new Event('input', { bubbles: true }));", search_input
-            )
-            driver.execute_script(
-                "arguments[0].dispatchEvent(new Event('change', { bubbles: true }));", search_input
-            )
+                time.sleep(1)
 
-            # Wait for results to load
-            time.sleep(2)
-
-            # Parse page content
-            soup = BeautifulSoup(driver.page_source, "html.parser")
-
-            # Extract anime from div[class*='item'] containers
-            anime_items = soup.select("div[class*='item']")
-
-            for item in anime_items:
-                link = item.find("a", href=True)
-                if not link:
-                    continue
-
-                href = link.get("href")
-                title = link.get_text(strip=True)
-
-                if href and title and "/anime/" in href:
-                    # Avoid duplicates
-                    if not any(t[0] == title for t in results):
-                        results.append((title, href))
-
-        except Exception as e:
-            import sys
-
-            print(f"Warning: Selenium search on {url} for '{query}': {e}", file=sys.stderr)
-
-        finally:
-            if driver:
+                # Find search input #termo_busca
                 try:
-                    driver.quit()
-                except:
+                    search_input = WebDriverWait(driver, 10).until(
+                        EC.presence_of_element_located((By.ID, "termo_busca"))
+                    )
+                except Exception as e:
+                    raise Exception(f"Could not find #termo_busca on {url}: {e}")
+
+                # Type query and trigger input/change events
+                search_input.clear()
+                search_input.send_keys(query)
+                driver.execute_script(
+                    "arguments[0].dispatchEvent(new Event('input', { bubbles: true }));",
+                    search_input,
+                )
+                driver.execute_script(
+                    "arguments[0].dispatchEvent(new Event('change', { bubbles: true }));",
+                    search_input,
+                )
+
+                # Wait for results to load (dynamic wait instead of hardcoded sleep)
+                try:
+                    WebDriverWait(driver, 5).until(
+                        lambda d: len(d.find_elements(By.CSS_SELECTOR, "div[class*='item']")) > 0
+                    )
+                except Exception:
+                    # Results didn't load, proceed with parse anyway
+                    # (search might legitimately have no results)
                     pass
+
+                # Parse page content
+                soup = BeautifulSoup(driver.page_source, "html.parser")
+
+                # Extract anime from div[class*='item'] containers
+                anime_items = soup.select("div[class*='item']")
+
+                for item in anime_items:
+                    link = item.find("a", href=True)
+                    if not link:
+                        continue
+
+                    href = link.get("href")
+                    title = link.get_text(strip=True)
+
+                    if href and title and "/anime/" in href:
+                        # Avoid duplicates
+                        if not any(t[0] == title for t in results):
+                            results.append((title, href))
+
+        except BrowserPoolExhausted as e:
+            logger.warning(f"Browser pool exhausted for '{query}': {e}, skipping AnimesDigital")
+        except Exception as e:
+            logger.warning(f"Selenium search on {url} for '{query}': {e}")
 
         return results
 
