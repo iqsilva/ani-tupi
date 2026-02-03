@@ -1,8 +1,5 @@
-from selectolax.parser import HTMLParser
+from scrapling import Fetcher, DynamicFetcher
 
-from scrapers.core.browser_pool import get_browser_pool
-
-from scrapers.plugins.utils import get_with_retry
 from services.repository import rep
 
 # Request timeout for all AnimesDigital API calls (seconds)
@@ -21,8 +18,8 @@ class AnimesDigital:
         Prioritizes subtitled versions over dubbed versions when both exist.
         """
         url = "https://animesdigital.org/search/" + "+".join(query.split())
-        response = get_with_retry(url, timeout=REQUEST_TIMEOUT)
-        tree = HTMLParser(response.text)
+        fetcher = Fetcher()
+        tree = fetcher.get(url, timeout=REQUEST_TIMEOUT)
 
         # Extract all anime links
         anime_links = tree.css("a[href*='/anime/']")
@@ -30,8 +27,8 @@ class AnimesDigital:
         urls = []
 
         for link in anime_links:
-            href = link.attributes.get("href")
-            title = link.text().strip()
+            href = link.attrib.get("href")
+            title = str(link.text).strip()
 
             # Clean up title (remove extra whitespace and special chars)
             title = " ".join(title.split())
@@ -62,8 +59,8 @@ class AnimesDigital:
         else:
             url = url + "?odr=1"
 
-        response = get_with_retry(url, timeout=REQUEST_TIMEOUT)
-        tree = HTMLParser(response.text)
+        fetcher = Fetcher()
+        tree = fetcher.get(url, timeout=REQUEST_TIMEOUT)
 
         # Find all episode containers
         episode_divs = tree.css("div.item_ep")
@@ -76,12 +73,12 @@ class AnimesDigital:
             link = ep_div.css_first("a")
             href = None
             if link:
-                href = link.attributes.get("href")
+                href = link.attrib.get("href")
 
             # Get episode title from .title_anime class (avoids metadata like "9 meses atrás")
             title_elem = ep_div.css_first(".title_anime")
             if title_elem and href:
-                title = title_elem.text().strip()
+                title = str(title_elem.text).strip()
                 # Clean up extra whitespace
                 title = " ".join(title.split())
                 if title:
@@ -99,99 +96,46 @@ class AnimesDigital:
         """Extract video URL from episode player.
 
         AnimesDigital loads iframes dynamically via JavaScript.
-        Uses Playwright to render the page and extract iframe sources.
-        Falls back to browser_pool (Selenium) if Playwright fails.
+        Uses DynamicFetcher to render the page and extract iframe sources.
         Prioritizes api.anivideo.net iframes which are most reliable.
         """
-        # Try Playwright first (preferred for this plugin)
         try:
-            from playwright.sync_api import sync_playwright
+            df = DynamicFetcher()
+            page = df.fetch(url, timeout=10)
 
-            with sync_playwright() as p:
-                browser = p.chromium.launch(headless=True)
-                page = browser.new_page()
+            # Extract all iframes
+            iframes = page.css("iframe")
 
-                # Navigate to episode page with timeout
-                page.goto(url, wait_until="networkidle", timeout=REQUEST_TIMEOUT * 1000)
+            if not iframes:
+                raise Exception("No iframe found in AnimesDigital episode page.")
 
-                # Extract all iframe sources
-                iframes = page.query_selector_all("iframe[src]")
-
-                if not iframes:
-                    browser.close()
-                    raise Exception("No iframe found in AnimesDigital episode page.")
-
-                # Priority 1: Look for api.anivideo.net iframes (most reliable)
-                for iframe in iframes:
-                    src = iframe.get_attribute("src")
-                    if src and "api.anivideo.net" in src:
-                        if not event.is_set():
-                            container.append(src)
-                            event.set()
-                        browser.close()
-                        return
-
-                # Priority 2: Look for m3u8 or mp4 iframes
-                for iframe in iframes:
-                    src = iframe.get_attribute("src")
-                    if src and ("m3u8" in src or "mp4" in src):
-                        if not event.is_set():
-                            container.append(src)
-                            event.set()
-                        browser.close()
-                        return
-
-                # Priority 3: Use the first iframe as fallback
-                src = iframes[0].get_attribute("src")
-                if src and not event.is_set():
-                    container.append(src)
-                    event.set()
-
-                browser.close()
-                return
-
-        except Exception as e:
-            # Fall back to browser_pool if Playwright fails
-            try:
-                from selenium.webdriver.common.by import By
-                from selenium.webdriver.support import expected_conditions as EC
-                from selenium.webdriver.support.wait import WebDriverWait
-
-                with get_browser_pool().get_browser() as driver:
-                    driver.get(url)
-
-                    # Wait for iframes to load
-                    WebDriverWait(driver, 10).until(
-                        EC.presence_of_element_located((By.TAG_NAME, "iframe"))
-                    )
-
-                    iframes = driver.find_elements(By.TAG_NAME, "iframe")
-
-                    if not iframes:
-                        raise Exception("No iframe found in AnimesDigital episode page.")
-
-                    # Try to find the same priority iframes
-                    for iframe in iframes:
-                        src = iframe.get_attribute("src")
-                        if src and "api.anivideo.net" in src:
-                            if not event.is_set():
-                                container.append(src)
-                                event.set()
-                            return
-
-                    # Fallback to first iframe
-                    src = iframes[0].get_attribute("src")
-                    if src and not event.is_set():
+            # Priority 1: Look for api.anivideo.net iframes (most reliable)
+            for iframe in iframes:
+                src = iframe.attrib.get("src")
+                if src and "api.anivideo.net" in src:
+                    if not event.is_set():
                         container.append(src)
                         event.set()
+                    return
 
-            except Exception as fallback_e:
-                if "Firefox" in str(fallback_e):
-                    msg = "Firefox not installed or browser pool failed."
-                    raise Exception(msg) from fallback_e
-                else:
-                    msg = f"Could not extract video from AnimesDigital: {e}"
-                    raise Exception(msg) from e
+            # Priority 2: Look for m3u8 or mp4 iframes
+            for iframe in iframes:
+                src = iframe.attrib.get("src")
+                if src and ("m3u8" in src or "mp4" in src):
+                    if not event.is_set():
+                        container.append(src)
+                        event.set()
+                    return
+
+            # Priority 3: Use the first iframe as fallback
+            src = iframes[0].attrib.get("src")
+            if src and not event.is_set():
+                container.append(src)
+                event.set()
+
+        except Exception as e:
+            msg = f"Could not extract video from AnimesDigital: {e}"
+            raise Exception(msg) from e
 
 
 def load(languages_dict) -> None:
