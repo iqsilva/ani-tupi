@@ -1,7 +1,7 @@
 """AnimePlyer scraper for animeplayer.com.br
 
 Scrapes anime metadata, episodes, and video URLs from animeplayer.com.br.
-Uses StealthyFetcher to bypass Cloudflare protection.
+Uses Scrapling.StealthySession to bypass Cloudflare protection.
 
 Note: AnimePlyer uses proxy URLs with ?link= parameter containing the real video URL.
 Example: https://traffic.thatwebsite.com.br/jax/?link=<real_video_url>
@@ -9,20 +9,14 @@ Example: https://traffic.thatwebsite.com.br/jax/?link=<real_video_url>
 
 import re
 from urllib.parse import urlparse, parse_qs
-from selectolax.parser import HTMLParser
+
+from scrapling.fetchers import StealthySession
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.wait import WebDriverWait
 
-try:
-    from scrapling.fetchers import StealthySession  # type: ignore[import-not-found]
-
-    HAS_SCRAPLING = True
-except ImportError:
-    HAS_SCRAPLING = False
-
 from scrapers.core.browser_pool import get_browser_pool
-from scrapers.plugins.utils import get_with_retry, head_with_retry
+from scrapers.plugins.utils import head_with_retry
 from services.repository import rep
 
 
@@ -64,7 +58,7 @@ class AnimePlyer:
     def search_anime(self, query: str) -> None:
         """Search for anime on AnimePlyer.
 
-        Uses StealthyFetcher to bypass Cloudflare protection.
+        Uses StealthySession to bypass Cloudflare protection.
         Extracts anime titles and links from search results.
         """
         import sys
@@ -74,24 +68,15 @@ class AnimePlyer:
         debug = os.getenv("ANI_TUPI_DEBUG_ANIMEPLAYER", "").lower() == "true"
 
         try:
-            # Use StealthyFetcher to bypass Cloudflare
-            if HAS_SCRAPLING:
-                if debug:
-                    print(f"[AnimePlyer] Using StealthyFetcher for: {search_url}", file=sys.stderr)
-                with StealthySession() as session:
-                    response = session.fetch(search_url)
-                    content = response.content
-            else:
-                # Fallback to regular requests if scrapling not available
-                if debug:
-                    print(f"[AnimePlyer] Using get_with_retry for: {search_url}", file=sys.stderr)
-                response = get_with_retry(search_url, timeout=15)
-                content = response.text
+            # Use StealthySession to bypass Cloudflare
+            if debug:
+                print(f"[AnimePlyer] Using StealthySession for: {search_url}", file=sys.stderr)
+            with StealthySession() as session:
+                response = session.fetch(search_url)
+                tree = response  # StealthySession returns Selector directly
 
             if debug:
-                print(f"[AnimePlyer] Got content, length: {len(content)}", file=sys.stderr)
-
-            tree = HTMLParser(content)
+                print(f"[AnimePlyer] Got content, length: {len(response.html)}", file=sys.stderr)
 
             # Look for anime result containers
             # AnimePlyer typically uses article tags or divs with specific classes
@@ -110,8 +95,8 @@ class AnimePlyer:
                 link = container.css_first("a[href*='episodios']") or container.css_first("a")
 
                 if link:
-                    href = link.attributes.get("href", "")
-                    title = link.text().strip()
+                    href = link.attrib.get("href", "")
+                    title = str(link.text).strip()
 
                     # Clean title
                     title = " ".join(title.split())
@@ -141,32 +126,14 @@ class AnimePlyer:
     def search_episodes(self, anime: str, url: str, params: dict | None) -> None:
         """Fetch episode list from anime page.
 
-        Uses StealthyFetcher to bypass Cloudflare.
+        Uses StealthySession to bypass Cloudflare.
         Extracts episode links from the anime detail page.
         Episodes are typically in a list or carousel format.
         """
         try:
-            # Try StealthyFetcher first for Cloudflare bypass
-            if HAS_SCRAPLING:
-                with StealthySession() as session:
-                    response = session.fetch(url)
-                    content = response.content
-            else:
-                # Fallback to browser automation
-                with get_browser_pool().get_browser() as driver:
-                    driver.get(url)
-
-                    # Wait for page to load
-                    try:
-                        WebDriverWait(driver, 10).until(
-                            EC.presence_of_all_elements_located((By.TAG_NAME, "body"))
-                        )
-                    except:
-                        pass
-
-                    content = driver.page_source
-
-            tree = HTMLParser(content)
+            # Use StealthySession to bypass Cloudflare
+            with StealthySession() as session:
+                tree = session.fetch(url)
 
             # Look for episode links
             # Common patterns: a[href*='episodios'], a[href*='ep-'], li a
@@ -184,8 +151,8 @@ class AnimePlyer:
             episode_urls = []
 
             for link in episode_links:
-                href = link.attributes.get("href", "")
-                title = link.text().strip()
+                href = link.attrib.get("href", "")
+                title = str(link.text).strip()
 
                 # Clean title
                 title = " ".join(title.split())
