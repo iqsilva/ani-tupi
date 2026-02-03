@@ -21,8 +21,6 @@ classifiers = [
 ]
 
 dependencies = [
-    "requests>=2.32.3",
-    "selenium>=4.26.1",
     "tqdm>=4.67.0",
     "rich>=14.2.0",
     "inquirerpy>=0.3.4",
@@ -35,7 +33,7 @@ dependencies = [
     "python-mpv>=1.0.8",
     "loguru>=0.7.3",
     "httpx>=0.28.1",
-    "scrapling[all]>=0.1.0",
+    "scrapling[all]>=0.3.14",
     "pillow>=12.1.0",
     "yt-dlp>=2026.1.31",
     "pre-commit>=4.5.1",
