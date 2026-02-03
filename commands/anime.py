@@ -9,6 +9,8 @@ This module handles:
 This is a thin coordinator that delegates all business logic to services.
 """
 
+from pathlib import Path
+
 from services import anime_service
 from services.history_service import save_history
 from services.anime.playback_service import (
@@ -94,6 +96,84 @@ def handle_anime_download(ctx: "PlaybackContext", args) -> None:
             print(f"   Localização: {service.download_dir / ctx.anime_title}")
     except Exception as e:
         print(f"❌ Erro ao baixar: {e}")
+
+
+def handle_post_playback_confirmation(
+    anime_title: str,
+    episode_number: int,
+    num_episodes: int,
+    anilist_id: int | None,
+    source: str | None,
+    is_local: bool = False,
+    file_path: "Path | None" = None,
+) -> bool:
+    """Handle post-playback confirmation and syncing.
+
+    After episode playback, ask if user watched until the end.
+    If confirmed, save history and sync to AniList.
+    If AniList sync fails and configured, queue for offline retry.
+
+    Args:
+        anime_title: Title of anime just watched
+        episode_number: Episode number (1-indexed)
+        num_episodes: Total episodes in series
+        anilist_id: AniList ID if discovered (None = no sync)
+        source: Video source name
+        is_local: Whether episode came from local library
+        file_path: Path to local episode file (for cleanup after sync)
+
+    Returns:
+        True if user confirmed watching until end, False otherwise
+    """
+    # Ask if watched until the end
+    confirm_options = ["✅ Sim, assisti até o final", "❌ Não, parei antes."]
+    confirm = menu_navigate(
+        confirm_options, msg=f"Você assistiu o episódio {episode_number} até o final?"
+    )
+
+    confirmed = confirm == "✅ Sim, assisti até o final"
+
+    if confirmed:
+        # Save history (not for local, handled separately)
+        if not is_local:
+            save_history(anime_title, episode_number - 1, anilist_id, source)
+
+        # AniList sync
+        if anilist_id:
+            success = sync_progress_to_anilist(anilist_id, episode_number, num_episodes)
+            if success:
+                print("✅ Progresso salvo no AniList!")
+
+                # Delete local file after successful sync (if configured)
+                if is_local and file_path:
+                    from models.config import settings
+                    from services.local_anime_service import LocalAnimeService
+
+                    if settings.offline_sync.enable_file_cleanup:
+                        try:
+                            service = LocalAnimeService()
+                            deleted = service.delete_episode(anime_title, episode_number)
+                            if deleted:
+                                print(f"🗑️  Arquivo local deletado (episódio {episode_number})")
+                        except Exception as e:
+                            print(f"⚠️  Erro ao deletar arquivo: {e}")
+            else:
+                print("⚠️  Não foi possível salvar no AniList")
+                print("   Será sincronizado quando estiver online.")
+
+                # Queue for offline sync
+                from services.anime.offline_sync_service import add_to_queue
+
+                add_to_queue(
+                    anime_title=anime_title,
+                    episode_number=episode_number,
+                    anilist_id=anilist_id,
+                    error=None,
+                    is_local=is_local,
+                    file_path=file_path,
+                )
+
+    return confirmed
 
 
 def anime(args) -> None:
@@ -241,30 +321,20 @@ def anime(args) -> None:
             episode_list=ctx.episode_list,
         )
 
-        # Ask if watched until the end
-        confirm_options = ["✅ Sim, assisti até o final", "❌ Não, parei antes."]
-        confirm = menu_navigate(
-            confirm_options, msg=f"Você assistiu o episódio {final_episode} até o final?"
+        # Handle post-playback confirmation (includes history, AniList sync, offline queue)
+        confirmed = handle_post_playback_confirmation(
+            anime_title=ctx.anime_title,
+            episode_number=final_episode,
+            num_episodes=ctx.num_episodes,
+            anilist_id=ctx.anilist_id,
+            source=source,
+            is_local=False,
         )
 
-        # Only save history and sync if user watched until the end
-        if confirm == "✅ Sim, assisti até o final":
-            save_history(ctx.anime_title, ctx.episode_idx, ctx.anilist_id, source)
-
-            # AniList sync
-            if ctx.anilist_id:
-                success = sync_progress_to_anilist(ctx.anilist_id, final_episode, ctx.num_episodes)
-                if success:
-                    print("✅ Progresso salvo no AniList!")
-                else:
-                    print("⚠️  Não foi possível salvar no AniList (continuando...)")
-
-                # Check for sequels when last episode is watched
-                if final_episode == ctx.num_episodes:
-                    if anime_service.offer_sequel_and_continue(ctx.anilist_id, args):
-                        return  # Sequel started, exit this flow
-        # If user didn't finish, context is still updated but history is NOT saved
-        # Navigation menu will show for both confirmation outcomes
+        # Check for sequels when last episode is watched and confirmed
+        if confirmed and ctx.anilist_id and final_episode == ctx.num_episodes:
+            if anime_service.offer_sequel_and_continue(ctx.anilist_id, args):
+                return  # Sequel started, exit this flow
 
         # Episode navigation menu
         opts = []

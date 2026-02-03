@@ -162,10 +162,10 @@ class PerformanceSettings(BaseModel):
 
     # Browser Pool Settings
     browser_pool_size: int = Field(
-        1,
+        3,
         ge=1,
         le=5,
-        description="Maximum number of Firefox instances in browser pool (1 for minimal memory usage)",
+        description="Maximum number of Firefox instances in browser pool for parallel scraping",
     )
     browser_max_age: int = Field(
         300,
@@ -265,6 +265,25 @@ class AnimeDownloadSettings(BaseModel):
     skip_already_downloaded: bool = Field(
         True,
         description="Skip already-downloaded episodes in batch operations",
+    )
+
+
+class OfflineSyncConfig(BaseModel):
+    """Configuration for offline AniList sync queue."""
+
+    max_retry_count: int = Field(
+        default=3,
+        ge=1,
+        le=10,
+        description="Maximum retries before giving up on failed sync",
+    )
+    enable_auto_retry: bool = Field(
+        default=True,
+        description="Automatically retry offline syncs on app startup",
+    )
+    enable_file_cleanup: bool = Field(
+        default=True,
+        description="Automatically delete local episode files after successful sync",
     )
 
 
@@ -374,6 +393,7 @@ class AppSettings(BaseSettings):
     search: SearchSettings = SearchSettings()  # type: ignore[call-arg]
     plugins: PluginSettings = PluginSettings()  # type: ignore[call-arg]
     anime_download: AnimeDownloadSettings = AnimeDownloadSettings()  # type: ignore[call-arg]
+    offline_sync: OfflineSyncConfig = OfflineSyncConfig()  # type: ignore[call-arg]
     manga: MangaSettings = MangaSettings()  # type: ignore[call-arg]
     performance: PerformanceSettings = PerformanceSettings()  # type: ignore[call-arg]
 

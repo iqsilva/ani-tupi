@@ -745,3 +745,49 @@ class AnimeDownloadDatabase(BaseModel):
     last_updated: datetime = Field(
         default_factory=datetime.now, description="Last update timestamp"
     )
+
+
+class OfflineSyncQueueEntry(BaseModel):
+    """Pending AniList progress update for retry.
+
+    Stores failed sync attempts to retry when network becomes available.
+
+    Attributes:
+        anime_title: Anime title for reference
+        episode_number: Episode watched (1-indexed)
+        anilist_id: AniList media ID for sync
+        timestamp: When sync was attempted
+        retry_count: Number of retry attempts
+        last_error: Most recent error message
+        is_local: Whether episode came from local library (enables file cleanup)
+        file_path: Path to local episode file (for cleanup after successful sync)
+    """
+
+    anime_title: str = Field(..., min_length=1, description="Anime title")
+    episode_number: int = Field(..., ge=1, description="Episode number watched")
+    anilist_id: int = Field(..., gt=0, description="AniList media ID")
+    timestamp: datetime = Field(default_factory=datetime.now, description="When sync was attempted")
+    retry_count: int = Field(default=0, ge=0, description="Number of retry attempts")
+    last_error: str | None = Field(None, description="Most recent error message")
+    is_local: bool = Field(default=False, description="From local library (enables file cleanup)")
+    file_path: str | None = Field(None, description="Path to local episode file")
+
+
+class OfflineSyncQueue(BaseModel):
+    """Database of pending offline sync operations.
+
+    Persisted to JSON for retry on app startup.
+
+    Attributes:
+        version: Schema version for migrations
+        entries: List of pending sync operations
+        last_updated: When queue was last updated
+    """
+
+    version: int = Field(default=1, description="Schema version for migrations")
+    entries: list[OfflineSyncQueueEntry] = Field(
+        default_factory=list, description="Pending sync operations"
+    )
+    last_updated: datetime = Field(
+        default_factory=datetime.now, description="Last update timestamp"
+    )

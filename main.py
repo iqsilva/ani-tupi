@@ -18,83 +18,9 @@ def handle_local_library(args) -> None:
 
     Shows downloaded anime and allows playback of offline episodes.
     """
-    service = LocalAnimeService()
+    from commands.local_anime import handle_local_library_playback
 
-    # Get list of downloaded anime
-    anime_list = service.get_downloaded_anime_list()
-
-    if not anime_list:
-        print("\n📂 Biblioteca Local")
-        print("❌ Nenhum anime baixado ainda")
-        print("   💡 Use '📥 Baixar para assistir depois' no menu de reprodução")
-        return
-
-    # Let user select anime
-    anime_list_with_counts = []
-    for title in anime_list:
-        info = service.get_anime_info(title)
-        count = info["total_episodes"]
-        anime_list_with_counts.append(f"{title} ({count} eps)")
-
-    selected = menu_navigate(anime_list_with_counts, msg="📂 Biblioteca Local - Selecione um anime")
-
-    if not selected:
-        return
-
-    # Extract title (remove episode count)
-    selected_title = selected.split(" (")[0]
-
-    # Get episodes
-    try:
-        episodes = service.get_downloaded_episodes(selected_title)
-    except FileNotFoundError:
-        print(f"❌ Anime não encontrado: {selected_title}")
-        return
-
-    if not episodes:
-        print("❌ Nenhum episódio encontrado")
-        return
-
-    # Show episodes for selection
-    episode_options = [f"Episódio {ep_num}" for ep_num, _ in episodes]
-    selected_ep_str = menu_navigate(
-        episode_options, msg=f"📂 {selected_title} - Selecione um episódio"
-    )
-
-    if not selected_ep_str:
-        return
-
-    # Extract episode number
-    selected_ep_num = int(selected_ep_str.split()[1])
-
-    # Find the file path
-    ep_path = None
-    for ep_num, file_path in episodes:
-        if ep_num == selected_ep_num:
-            ep_path = file_path
-            break
-
-    if not ep_path:
-        print("❌ Episódio não encontrado")
-        return
-
-    # Play the episode
-    player = VideoPlayer()
-
-    # Convert path to file:// URL
-    file_url = f"file://{ep_path.resolve()}"
-
-    print(f"\n▶️  Reproduzindo: {selected_title} - Episódio {selected_ep_num}")
-    print(f"   Arquivo: {ep_path}")
-
-    player.play_episode(
-        url=file_url,
-        anime_title=selected_title,
-        episode_number=selected_ep_num,
-        total_episodes=len(episodes),
-        source="local",
-        use_ipc=True,
-    )
+    handle_local_library_playback(args)
 
 
 def show_main_menu():
@@ -175,6 +101,19 @@ def cli() -> None:
 
     # Load plugins once at startup
     loader.load_plugins({"pt-br"})  # type: ignore
+
+    # Retry offline AniList syncs on startup
+    from models.config import settings
+
+    if settings.offline_sync.enable_auto_retry:
+        from services.anime.offline_sync_service import retry_offline_syncs
+
+        result = retry_offline_syncs()
+        if result["successful"] > 0 or result["failed"] > 0:
+            print(
+                f"📡 Sincronização offline: {result['successful']} ok, "
+                f"{result['failed']} falha(s) pendente(s)"
+            )
 
     # Show active sources
     active_sources = rep.get_active_sources()
