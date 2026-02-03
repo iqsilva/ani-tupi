@@ -69,7 +69,7 @@ class AniListSettings(BaseModel):
 
 
 class CacheSettings(BaseModel):
-    """Unified cache configuration."""
+    """Unified cache configuration with TTL and refresh options."""
 
     cache_dir: Path = Field(
         default_factory=lambda: get_data_path() / "cache",
@@ -89,6 +89,43 @@ class CacheSettings(BaseModel):
         ge=70,
         le=100,
         description="Minimum fuzzy match score (0-100) for AniList ID auto-discovery",
+    )
+    # TTL Configuration
+    search_cache_ttl_seconds: int = Field(
+        3600,
+        ge=60,
+        description="Time-to-live for search results cache in seconds (default: 1 hour)",
+    )
+    episodes_cache_ttl_seconds: int = Field(
+        1800,
+        ge=60,
+        description="Time-to-live for episode lists cache in seconds (default: 30 minutes)",
+    )
+    video_url_cache_ttl_seconds: int = Field(
+        7200,
+        ge=60,
+        description="Time-to-live for video URLs cache in seconds (default: 2 hours)",
+    )
+    cache_max_size_bytes: int = Field(
+        52_428_800,  # 50 MB
+        ge=1_000_000,
+        description="Maximum cache size in bytes before LRU eviction (default: 50 MB)",
+    )
+    # Background refresh configuration
+    background_refresh_enabled: bool = Field(
+        False,
+        description="Enable background refresh of stale cache entries (default: disabled for conservative behavior)",
+    )
+    background_refresh_threshold_seconds: int = Field(
+        2700,  # 45 minutes
+        ge=60,
+        description="Threshold for background refresh: refresh cache older than this (seconds)",
+    )
+    background_refresh_max_workers: int = Field(
+        2,
+        ge=1,
+        le=16,
+        description="Maximum parallel background refresh workers",
     )
 
 

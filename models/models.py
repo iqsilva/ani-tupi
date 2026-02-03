@@ -448,7 +448,13 @@ class SearchMetadata(BaseModel):
         variant_tested: Title variation that was tested
         variant_index: Index of the variation tested
         total_variants: Total number of variations available
-        source: Source of the search (cache or scraper)
+        source: Source of the search (cache, scraper, or mixed)
+        cache_hit: Whether results came from cache
+        cache_age_seconds: Age of cached result in seconds (None if not from cache)
+        scraper_sources: List of scraper names that provided results
+        cache_check_time_ms: Time taken to check cache (milliseconds)
+        scraper_execution_time_ms: Time taken to execute scrapers (milliseconds)
+        total_execution_time_ms: Total time for the search (milliseconds)
     """
 
     original_query: str | None = None
@@ -460,6 +466,20 @@ class SearchMetadata(BaseModel):
     variant_index: int | None = None
     total_variants: int | None = None
     source: str | None = None
+    cache_hit: bool | None = None
+    cache_age_seconds: int | None = None
+    scraper_sources: list[str] = Field(
+        default_factory=list, description="List of scrapers that provided results"
+    )
+    cache_check_time_ms: int = Field(
+        default=0, ge=0, description="Cache check time in milliseconds"
+    )
+    scraper_execution_time_ms: int = Field(
+        default=0, ge=0, description="Scraper execution time in milliseconds"
+    )
+    total_execution_time_ms: int = Field(
+        default=0, ge=0, description="Total execution time in milliseconds"
+    )
 
 
 # Cache Models

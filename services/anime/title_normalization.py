@@ -5,6 +5,7 @@ for improved search results across different anime sources.
 """
 
 import re
+import unicodedata
 
 
 def normalize_anime_title(title: str, is_english: bool = False):
@@ -113,3 +114,87 @@ def normalize_anime_title(title: str, is_english: bool = False):
             result.append(v)
 
     return result
+
+
+def normalize_search_cache_key(query: str, language: str = "pt-br") -> str:
+    """Normalize query into a consistent cache key.
+
+    Ensures that different variations of the same query produce identical cache keys.
+    This enables:
+    - "jigokuraku 2" == "Jigokuraku 2nd Season" == "JIGOKURAKU 2"
+    - Multi-language support with separate cache entries
+    - Consistent cache hits across different search attempts
+
+    Args:
+        query: Raw search query from user
+        language: Language code (default: "pt-br")
+
+    Returns:
+        Normalized cache key in format: "search:{normalized}:{language}"
+
+    Examples:
+        >>> normalize_search_cache_key("jigokuraku 2")
+        "search:jigokuraku-pt-br"
+        >>> normalize_search_cache_key("Jigokuraku 2nd Season", "pt-br")
+        "search:jigokuraku-pt-br"
+        >>> normalize_search_cache_key("DANDADAN", "en-us")
+        "search:dandadan-en-us"
+    """
+    if not query or not query.strip():
+        return f"search:empty-{language}"
+
+    # Step 1: Normalize unicode (decompose accents, etc.)
+    normalized = unicodedata.normalize("NFKD", query)
+    # Remove combining marks (accents)
+    normalized = "".join(c for c in normalized if unicodedata.category(c) != "Mn")
+
+    # Step 2: Convert to lowercase
+    normalized = normalized.lower()
+
+    # Step 3: Extract season numbers BEFORE removing season patterns
+    # This preserves "2" from "2nd Season" or "Season 2"
+    extracted_season = None
+    season_match = re.search(
+        r"(?:season\s+|temporada\s+|s)(\d+)|(\d+)(?:st|nd|rd|th)?\s+season",
+        normalized,
+        re.IGNORECASE,
+    )
+    if season_match:
+        extracted_season = season_match.group(1) or season_match.group(2)
+
+    # Step 4: Remove season/part/episode/language suffixes
+    season_patterns = [
+        r"\s+season\s+\d+",
+        r"\s+\d+(?:st|nd|rd|th)?\s+season",
+        r"\s+temporada\s+\d+",
+        r"\s+s\d+",
+        r"\s+part\s+\d+(?:st|nd|rd|th)?",
+        r"\s+cour\s+\d+",
+        r"\s+arc\s+[^:]+",
+        r"\s+final\s+season",
+        r"\s+dublado.*$",
+        r"\s+legenda.*$",
+        r"\s+sub.*$",
+    ]
+
+    for pattern in season_patterns:
+        normalized = re.sub(pattern, "", normalized, flags=re.IGNORECASE)
+
+    # Step 5: If we extracted a season number, append it to preserve it
+    if extracted_season:
+        normalized = f"{normalized} {extracted_season}"
+
+    # Step 6: Keep only letters, numbers, spaces, and apostrophes
+    normalized = re.sub(r"[^a-z0-9\s']", " ", normalized)
+
+    # Step 7: Remove multiple spaces and strip
+    normalized = re.sub(r"\s+", " ", normalized).strip()
+
+    # Step 8: Replace remaining spaces with dashes
+    normalized = normalized.replace(" ", "-")
+
+    # Fallback: if everything was removed, use original query hash
+    if not normalized:
+        normalized = "empty"
+
+    return f"search:{normalized}:{language}"

@@ -1,4 +1,5 @@
 import asyncio
+import time
 from typing import Optional
 from collections import defaultdict
 from os import cpu_count
@@ -7,6 +8,7 @@ from concurrent.futures import ThreadPoolExecutor
 
 from models.config import settings
 from models.models import EpisodeData, SearchMetadata, SearchResults, AnimeSearchResult
+from services.anime.title_normalization import normalize_search_cache_key
 
 
 class Repository:
@@ -101,13 +103,16 @@ class Repository:
         cls._initialized = False
 
     def search_anime(self, query: str, verbose: bool = True) -> SearchResults:
+        search_start_time = time.time()
+
         if not self.sources:
             print("\n❌ Erro: Nenhum plugin carregado!")
             print("Verifique se os plugins estão instalados em plugins/")
             return SearchResults(query=query, results=(), metadata={})
 
         # CACHE CHECK: Try to get search results from cache first
-        cache_key = f"search:{query.lower()}"
+        cache_key = normalize_search_cache_key(query)
+        cache_check_start = time.time()
         try:
             from utils.cache_manager import get_cache as get_dc
 
@@ -117,6 +122,7 @@ class Repository:
             if verbose:
                 print(f"⚠️  Erro ao acessar cache: {e}")
             cached_results = None
+        cache_check_time_ms = int((time.time() - cache_check_start) * 1000)
 
         if cached_results and isinstance(cached_results, dict):
             # Cache hit! Load results directly without scraping
@@ -130,6 +136,7 @@ class Repository:
             # AniList IDs are discovered on-demand in search_player() if needed
             # Avoid unnecessary API calls for cached results
 
+            total_time_ms = int((time.time() - search_start_time) * 1000)
             # Set search metadata for consistency
             self._last_search_metadata = {
                 "original_query": query,
@@ -138,6 +145,12 @@ class Repository:
                 "total_words": len(query.split()),
                 "min_words": settings.search.progressive_search_min_words,
                 "source": "cache",
+                "cache_hit": True,
+                "cache_age_seconds": 0,  # Will be set by cache manager if available
+                "scraper_sources": [],
+                "cache_check_time_ms": cache_check_time_ms,
+                "scraper_execution_time_ms": 0,
+                "total_execution_time_ms": total_time_ms,
             }
             # Convert results to immutable SearchResults
             return self._build_search_results(query)
@@ -145,6 +158,7 @@ class Repository:
         # Progressive search: start with all words, decrease if no results
         words = query.split()
         min_words = settings.search.progressive_search_min_words
+        scraper_execution_start = time.time()
 
         # Progressive search (DECRESCENTE): len(words), len(words)-1, ..., min_words
         # Tries full query first, then progressively removes words from the end
@@ -163,12 +177,28 @@ class Repository:
                 if verbose and num_words < len(words):
                     print(f"ℹ️  Busca com: '{partial_query}' ({num_words}/{len(words)} palavras)")
                 # Store metadata about the search
+                scraper_execution_time_ms = int((time.time() - scraper_execution_start) * 1000)
+                total_time_ms = int((time.time() - search_start_time) * 1000)
+
+                # Extract unique scraper sources from results
+                scraper_sources = set()
+                for sources_list in self.anime_to_urls.values():
+                    for url, source, params in sources_list:
+                        scraper_sources.add(source)
+
                 self._last_search_metadata = {
                     "original_query": query,
                     "used_query": partial_query,
                     "used_words": num_words,
                     "total_words": len(words),
                     "min_words": min_words,
+                    "source": "scraper",
+                    "cache_hit": False,
+                    "cache_age_seconds": None,
+                    "scraper_sources": sorted(list(scraper_sources)),
+                    "cache_check_time_ms": cache_check_time_ms,
+                    "scraper_execution_time_ms": scraper_execution_time_ms,
+                    "total_execution_time_ms": total_time_ms,
                 }
                 break
             elif verbose and num_words < len(words):
@@ -187,10 +217,12 @@ class Repository:
                 from utils.cache_manager import get_cache as get_dc
 
                 dc = get_dc()
-                cache_key = f"search:{query.lower()}"
+                cache_key = normalize_search_cache_key(query)
                 # Convert anime_to_urls to dict format for caching
                 cache_data = dict(self.anime_to_urls)
-                dc.set(cache_key, cache_data, ttl=settings.performance.default_ttl_hours * 3600)
+                # Use configurable search cache TTL from settings
+                ttl_seconds = settings.cache.search_cache_ttl_seconds
+                dc.set(cache_key, cache_data, ttl=ttl_seconds)
             except Exception as e:
                 if verbose:
                     print(f"⚠️  Erro ao salvar cache: {e}")

@@ -411,6 +411,24 @@ def search_anime_flow(args):
             search_metadata = rep.get_search_metadata()
             used_query = search_metadata.used_query or query
 
+            # Display cache/scraper status with timing
+            if search_metadata.source == "cache":
+                cache_age_str = ""
+                if search_metadata.cache_age_seconds is not None:
+                    cache_age_str = f", {search_metadata.cache_age_seconds}s atrás"
+                print(f"🟢 Cache '{used_query}'{cache_age_str}")
+                if search_metadata.total_execution_time_ms > 0:
+                    print(f"   ⏱️  {search_metadata.total_execution_time_ms}ms")
+            elif search_metadata.source == "scraper":
+                sources_str = (
+                    ", ".join(search_metadata.scraper_sources)
+                    if search_metadata.scraper_sources
+                    else "desconhecido"
+                )
+                print(f"🌐 Scraper '{used_query}' ({sources_str})")
+                if search_metadata.total_execution_time_ms > 0:
+                    print(f"   ⏱️  {search_metadata.total_execution_time_ms}ms")
+
             # Try to get AniList match to rank results by romaji name
             ranking_query = used_query
             try:
