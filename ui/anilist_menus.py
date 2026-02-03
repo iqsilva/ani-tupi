@@ -722,87 +722,19 @@ def _choose_season() -> str | None:
 
 
 def _show_local_library() -> None:
-    """Show local anime library menu."""
-    from services.local_anime_service import LocalAnimeService
-    from utils.video_player import VideoPlayer
+    """Show local anime library menu with full playback flow.
 
-    service = LocalAnimeService()
+    Delegates to handle_local_library_playback() to ensure consistency
+    with the main menu flow, including:
+    - Post-playback confirmation ("Você assistiu até o final?")
+    - AniList sync with offline queue fallback
+    - Navigation menu (Next/Previous/Replay/Back)
+    - Playback loop for multiple episodes
+    """
+    from commands.local_anime import handle_local_library_playback
 
-    # Get list of downloaded anime
-    anime_list = service.get_downloaded_anime_list()
-
-    if not anime_list:
-        print("\n📂 Biblioteca Local")
-        print("❌ Nenhum anime baixado ainda")
-        print("   💡 Use '📥 Baixar para assistir depois' no menu de reprodução")
-        return
-
-    # Let user select anime
-    anime_list_with_counts = []
-    for title in anime_list:
-        info = service.get_anime_info(title)
-        count = info["total_episodes"]
-        anime_list_with_counts.append(f"{title} ({count} eps)")
-
-    selected = menu_navigate(anime_list_with_counts, msg="📂 Biblioteca Local - Selecione um anime")
-
-    if not selected:
-        return
-
-    # Extract title (remove episode count)
-    selected_title = selected.split(" (")[0]
-
-    # Get episodes
-    try:
-        episodes = service.get_downloaded_episodes(selected_title)
-    except FileNotFoundError:
-        print(f"❌ Anime não encontrado: {selected_title}")
-        return
-
-    if not episodes:
-        print("❌ Nenhum episódio encontrado")
-        return
-
-    # Show episodes for selection
-    episode_options = [f"Episódio {ep_num}" for ep_num, _ in episodes]
-    selected_ep_str = menu_navigate(
-        episode_options, msg=f"📂 {selected_title} - Selecione um episódio"
-    )
-
-    if not selected_ep_str:
-        return
-
-    # Extract episode number
-    selected_ep_num = int(selected_ep_str.split()[1])
-
-    # Find the file path
-    ep_path = None
-    for ep_num, file_path in episodes:
-        if ep_num == selected_ep_num:
-            ep_path = file_path
-            break
-
-    if not ep_path:
-        print("❌ Episódio não encontrado")
-        return
-
-    # Play the episode
-    player = VideoPlayer()
-
-    # Convert path to file:// URL
-    file_url = f"file://{ep_path.resolve()}"
-
-    print(f"\n▶️  Reproduzindo: {selected_title} - Episódio {selected_ep_num}")
-    print(f"   Arquivo: {ep_path}")
-
-    player.play_episode(
-        url=file_url,
-        anime_title=selected_title,
-        episode_number=selected_ep_num,
-        total_episodes=len(episodes),
-        source="local",
-        use_ipc=True,
-    )
+    args = argparse.Namespace(debug=False)
+    handle_local_library_playback(args)
 
 
 def authenticate_flow() -> None:
