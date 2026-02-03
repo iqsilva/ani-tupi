@@ -1,15 +1,13 @@
 """MugiwarasOficial.com manga scraper.
 
 Scrapes manga from https://mugiwarasoficial.com/ (Brazilian Portuguese site).
-Uses requests + selectolax (fast) and Playwright for AJAX-loaded chapters.
+Uses Scrapling.Fetcher for search and DynamicFetcher for AJAX-loaded chapters.
 """
 
 import re
 from typing import Any
 
-import requests
-from playwright.sync_api import sync_playwright
-from selectolax.parser import HTMLParser
+from scrapling import Fetcher, DynamicFetcher
 
 
 class MugiwarasOficial:
@@ -20,11 +18,8 @@ class MugiwarasOficial:
     base_url = "https://mugiwarasoficial.com"
 
     def __init__(self):
-        """Initialize scraper with requests session."""
-        self.session = requests.Session()
-        self.session.headers.update(
-            {"User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36"}
-        )
+        """Initialize scraper with Scrapling Fetcher."""
+        self.fetcher = Fetcher()
 
     def search_manga(self, query: str) -> list[dict[str, Any]]:
         """Search for manga by title.
@@ -39,12 +34,8 @@ class MugiwarasOficial:
             # Use WordPress search endpoint
             search_url = f"{self.base_url}/?s={query.replace(' ', '+')}&post_type=wp-manga"
 
-            # Fetch with requests
-            resp = self.session.get(search_url, timeout=10)
-            resp.raise_for_status()
-
-            # Parse HTML
-            tree = HTMLParser(resp.text)
+            # Fetch with Scrapling Fetcher
+            tree = self.fetcher.get(search_url, timeout=10)
 
             results = []
 
@@ -59,8 +50,8 @@ class MugiwarasOficial:
                     if not link:
                         continue
 
-                    title = link.text(strip=True)
-                    url = link.attributes.get("href", "")
+                    title = str(link.text).strip()
+                    url = link.attrib.get("href", "")
 
                     if not title or not url:
                         continue
@@ -68,7 +59,7 @@ class MugiwarasOficial:
                     # Extract latest chapter info (optional)
                     latest_chapter = item.css_first("span.chapter a")
                     latest_chapter_text = (
-                        latest_chapter.text(strip=True) if latest_chapter else None
+                        str(latest_chapter.text).strip() if latest_chapter else None
                     )
 
                     # Extract manga ID from URL (slug)
@@ -109,27 +100,10 @@ class MugiwarasOficial:
             List of chapters with "url" field extracted from HTML href attributes
         """
         try:
-            # Use Playwright to render the page and wait for AJAX-loaded chapters
-            with sync_playwright() as p:
-                browser = p.chromium.launch(headless=True)
-                page = browser.new_page()
+            # Use DynamicFetcher to render the page and wait for AJAX-loaded chapters
+            df = DynamicFetcher()
+            tree = df.fetch(manga_url, timeout=15)
 
-                # Navigate to manga page
-                page.goto(manga_url, wait_until="domcontentloaded", timeout=30000)
-
-                # Wait for chapter list to load (Madara theme loads via AJAX)
-                try:
-                    page.wait_for_selector("li.wp-manga-chapter", timeout=15000)
-                except Exception:
-                    # If chapters don't load within timeout, continue anyway
-                    pass
-
-                # Get page HTML after JavaScript execution
-                html = page.content()
-                browser.close()
-
-            # Parse rendered HTML
-            tree = HTMLParser(html)
             chapters = []
 
             # Extract chapter list
@@ -141,8 +115,8 @@ class MugiwarasOficial:
                     if not link:
                         continue
 
-                    chapter_url = link.attributes.get("href", "")
-                    chapter_title = link.text(strip=True)
+                    chapter_url = link.attrib.get("href", "")
+                    chapter_title = str(link.text).strip()
 
                     if not chapter_url:
                         continue
@@ -206,45 +180,9 @@ class MugiwarasOficial:
             List of image URLs
         """
         try:
-            # Use Playwright to handle age verification modal
-            with sync_playwright() as p:
-                browser = p.chromium.launch(headless=True)
-                page = browser.new_page()
-
-                # Navigate to chapter page
-                page.goto(chapter_url, wait_until="domcontentloaded", timeout=30000)
-
-                # Check for age verification modal and handle it
-                try:
-                    # Wait for adult modal to appear (if present) - it might be hidden initially
-                    page.wait_for_selector("#adult_modal", timeout=5000)
-
-                    # Make modal visible (it might be hidden initially)
-                    page.evaluate("""
-                        const modal = document.getElementById('adult_modal');
-                        if (modal) {
-                            modal.style.display = 'block';
-                            modal.classList.remove('fade');
-                            modal.classList.add('show');
-                        }
-                    """)
-
-                    # Click "Yes, I am" button to confirm age
-                    confirm_button = page.query_selector(".btn-adult-confirm")
-                    if confirm_button:
-                        confirm_button.click()
-                        # Wait a moment for modal to close and content to load
-                        page.wait_for_timeout(3000)
-                except Exception:
-                    # No modal found or modal handling failed, continue anyway
-                    pass
-
-                # Get page HTML after JavaScript execution and modal handling
-                html = page.content()
-                browser.close()
-
-            # Parse rendered HTML
-            tree = HTMLParser(html)
+            # Use DynamicFetcher to handle age verification modal and render JavaScript
+            df = DynamicFetcher()
+            tree = df.fetch(chapter_url, timeout=15)
 
             page_urls = []
 
@@ -256,10 +194,10 @@ class MugiwarasOficial:
                 # Try multiple attributes where image URL might be
                 # MugiwarasOficial uses data-src for lazy loading
                 img_url = (
-                    img.attributes.get("data-src")
-                    or img.attributes.get("data-lazy-src")
-                    or img.attributes.get("src")
-                    or img.attributes.get("data-original")
+                    img.attrib.get("data-src")
+                    or img.attrib.get("data-lazy-src")
+                    or img.attrib.get("src")
+                    or img.attrib.get("data-original")
                 )
 
                 # Skip if no URL
