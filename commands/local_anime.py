@@ -7,8 +7,6 @@ Handles offline viewing of downloaded anime episodes with:
 - Automatic file cleanup after successful sync
 """
 
-from pathlib import Path
-
 from services.local_anime_service import LocalAnimeService
 from utils.anilist_discovery import get_anilist_id_from_title
 from commands.anime import handle_post_playback_confirmation
@@ -52,6 +50,9 @@ def handle_local_library_playback(args) -> None:
     # Extract title (remove episode count)
     selected_title = selected.split(" (")[0]
 
+    # Initialize selected_ep_str - will be set by menu or navigation
+    selected_ep_str = None
+
     # Playback loop for this anime
     while True:
         # Get episodes
@@ -65,15 +66,16 @@ def handle_local_library_playback(args) -> None:
             print(f"❌ Nenhum episódio encontrado para {selected_title}")
             return
 
-        # Show episodes for selection
-        episode_options = [f"Episódio {ep_num}" for ep_num, _ in episodes]
-        selected_ep_str = menu_navigate(
-            episode_options,
-            msg=f"📂 {selected_title} - Selecione um episódio",
-        )
+        # Show episodes for selection only if not already selected by navigation
+        if selected_ep_str is None:
+            episode_options = [f"Episódio {ep_num}" for ep_num, _ in episodes]
+            selected_ep_str = menu_navigate(
+                episode_options,
+                msg=f"📂 {selected_title} - Selecione um episódio",
+            )
 
-        if not selected_ep_str:
-            return  # User cancelled, back to library
+            if not selected_ep_str:
+                return  # User cancelled, back to library
 
         # Extract episode number
         selected_ep_num = int(selected_ep_str.split()[1])
@@ -87,6 +89,7 @@ def handle_local_library_playback(args) -> None:
 
         if not ep_path:
             print("❌ Episódio não encontrado")
+            selected_ep_str = None  # Reset so menu shows again on next iteration
             continue
 
         # Play the episode
@@ -108,7 +111,7 @@ def handle_local_library_playback(args) -> None:
         # Post-playback confirmation and navigation
         anilist_id = get_anilist_id_from_title(selected_title)
 
-        confirmed = handle_post_playback_confirmation(
+        handle_post_playback_confirmation(
             anime_title=selected_title,
             episode_number=selected_ep_num,
             num_episodes=len(episodes),
