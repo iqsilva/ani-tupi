@@ -31,7 +31,8 @@ class AnimesDigital:
 
         try:
             # Allocate Chrome from pool (auto-cleanup on context exit)
-            with browser_pool.get_chrome(timeout=10) as driver:
+            # Increased timeout to 15s to account for pool exhaustion scenarios
+            with browser_pool.get_chrome(timeout=15) as driver:
                 driver.get(url)
 
                 # Wait for page to load
@@ -49,9 +50,15 @@ class AnimesDigital:
                 except Exception as e:
                     raise Exception(f"Could not find #termo_busca on {url}: {e}")
 
-                # Type query and trigger input/change events
+                # Type query and trigger events
                 search_input.clear()
                 search_input.send_keys(query)
+
+                # Trigger keyup, input, and change events to ensure JavaScript search is activated
+                driver.execute_script(
+                    "arguments[0].dispatchEvent(new KeyboardEvent('keyup', { bubbles: true }));",
+                    search_input,
+                )
                 driver.execute_script(
                     "arguments[0].dispatchEvent(new Event('input', { bubbles: true }));",
                     search_input,
@@ -61,14 +68,16 @@ class AnimesDigital:
                     search_input,
                 )
 
-                # Wait for results to load (dynamic wait instead of hardcoded sleep)
+                # Wait longer for search results to load and be rendered
+                time.sleep(2)
+
+                # Wait for results to be present
                 try:
                     WebDriverWait(driver, 5).until(
-                        lambda d: len(d.find_elements(By.CSS_SELECTOR, "div[class*='item']")) > 0
+                        lambda d: len(d.find_elements(By.CSS_SELECTOR, "div[class*='item']")) > 5
                     )
                 except Exception:
-                    # Results didn't load, proceed with parse anyway
-                    # (search might legitimately have no results)
+                    # Results didn't load in expected quantity, proceed with parse anyway
                     pass
 
                 # Parse page content
@@ -91,9 +100,9 @@ class AnimesDigital:
                             results.append((title, href))
 
         except BrowserPoolExhausted as e:
-            logger.warning(f"Browser pool exhausted for '{query}': {e}, skipping AnimesDigital")
+            logger.error(f"❌ AnimesDigital browser pool exhausted for '{query}': {e}")
         except Exception as e:
-            logger.warning(f"Selenium search on {url} for '{query}': {e}")
+            logger.error(f"❌ AnimesDigital Selenium search failed for '{query}': {e}")
 
         return results
 

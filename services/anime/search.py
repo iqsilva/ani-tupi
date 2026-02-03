@@ -236,7 +236,7 @@ def incremental_search_anime(query: str) -> tuple[IncrementalSearchState, list[s
             rep.clear_search_results()
             try:
                 with loading(f"Buscando '{partial_query}'..."):
-                    rep.search_anime(partial_query, verbose=False)
+                    rep.search_anime(partial_query, verbose=True)
 
                 # Get results from this iteration
                 search_metadata = rep.get_search_metadata()

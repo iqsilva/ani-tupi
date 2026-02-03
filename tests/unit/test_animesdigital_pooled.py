@@ -32,7 +32,7 @@ class TestAnimesDigitalPoolIntegration:
             # Verify browser_pool.get_chrome was called
             mock_get_chrome.assert_called_once()
             call_kwargs = mock_get_chrome.call_args[1]
-            assert call_kwargs.get("timeout") == 10
+            assert call_kwargs.get("timeout") == 15
 
     def test_search_handles_pool_exhaustion(self):
         """AnimesDigital gracefully handles pool exhaustion."""
