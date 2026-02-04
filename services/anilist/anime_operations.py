@@ -518,3 +518,64 @@ class AnimeOperationsMixin:
             return None
         except Exception:
             return None
+
+    def get_airing_episodes_for_watching(self) -> list[dict]:
+        """Get user's watching anime with next airing episode info.
+
+        Fetches anime from CURRENT list with airing episode data to support
+        the "Novos Episódios" (New Episodes) tab feature.
+
+        Returns:
+            List of raw API entries with: progress, media (id, title, nextAiringEpisode, averageScore)
+            or empty list if not authenticated or no data available
+        """
+        if not self.is_authenticated():
+            return []
+
+        # Ensure we have user_id
+        if not self.user_id:
+            user_info = self.get_viewer_info()
+            if user_info:
+                self.user_id = user_info.id
+            else:
+                return []
+
+        query = """
+        query ($userId: Int) {
+            MediaListCollection(userId: $userId, type: ANIME, status: CURRENT) {
+                lists {
+                    entries {
+                        progress
+                        media {
+                            id
+                            title {
+                                romaji
+                                english
+                                native
+                            }
+                            averageScore
+                            status
+                            nextAiringEpisode {
+                                episode
+                                airingAt
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        """
+
+        variables = {"userId": self.user_id}
+
+        try:
+            result = self._query(query, variables)
+            if result and "MediaListCollection" in result:
+                # Flatten the lists structure
+                entries = []
+                for list_group in result["MediaListCollection"]["lists"]:
+                    entries.extend(list_group["entries"])
+                return entries
+            return []
+        except Exception:
+            return []

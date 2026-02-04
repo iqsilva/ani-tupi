@@ -9,6 +9,7 @@ import webbrowser
 
 from services.anilist_service import anilist_client
 from services.anime_service import anilist_anime_flow
+from services.anime.airing_episodes_service import AiringEpisodesService
 from models.config import get_data_path, settings
 from ui.components import loading, menu_navigate
 from models.models import AniListTitle
@@ -121,6 +122,7 @@ def anilist_main_menu() -> tuple[str, int] | None:
             [
                 f"👤 {username}",
                 "─" * 30,
+                "🎬 Novos Episódios",
                 "📺 Watching",
                 "📋 Planning",
                 "✅ Completed",
@@ -150,6 +152,9 @@ def anilist_main_menu() -> tuple[str, int] | None:
         return anilist_main_menu()
     if selection == "🔍 Buscar Anime":
         return _search_and_add_anime(is_logged_in)
+    if selection == "🎬 Novos Episódios":
+        _show_airing_episodes()  # Now loops internally
+        return anilist_main_menu()
     if selection == "📺 Watching":
         _show_anime_list("CURRENT")  # Now loops internally
         return anilist_main_menu()
@@ -756,6 +761,81 @@ def _choose_season() -> str | None:
         return None
 
     return season_map.get(selection)
+
+
+def _show_airing_episodes() -> None:
+    """Show airing episodes from watching list with playback flow.
+
+    Displays anime from user's watching list that have new episodes airing,
+    sorted by urgency (most episodes behind first). User can select an anime
+    to watch starting from their current progress.
+    """
+    while True:
+        # Fetch airing episodes
+        with loading("Carregando episódios em transmissão..."):
+            service = AiringEpisodesService()
+            airing_anime = service.get_watching_with_airing_episodes()
+
+        if not airing_anime:
+            print("\n❌ Nenhum anime em transmissão na sua lista 'Assistindo'")
+            input("\nPressione Enter para voltar...")
+            return
+
+        # Build menu options
+        options = []
+        anime_map = {}
+
+        for entry in airing_anime:
+            # Format: "Title - Ep X aired, você viu Y (Z atrasado) ⭐Score%"
+            status_str = f"Ep {entry.next_episode_number} aired, você viu {entry.progress}"
+
+            if entry.episodes_behind > 0:
+                status_str += f" ({entry.episodes_behind} atrasado)"
+            else:
+                status_str += " (0 atrasado)"
+
+            display = f"{entry.title} - {status_str}"
+
+            if entry.average_score:
+                display += f" ⭐{entry.average_score}%"
+
+            options.append(display)
+            anime_map[display] = entry
+
+        # Show menu
+        selection = menu_navigate(options, "🎬 Novos Episódios - Assistindo")
+
+        if selection is None:
+            return  # User cancelled, go back to main menu
+
+        # Get selected anime
+        entry = anime_map[selection]
+
+        # Get anime info for search
+        anime_info = anilist_client.get_anime_by_id(entry.anilist_id)
+        if not anime_info:
+            print(f"\n❌ Erro ao buscar informações de '{entry.title}'")
+            input("\nPressione Enter para tentar novamente...")
+            continue
+
+        # Format titles
+        display_title = anilist_client.format_title(anime_info.title)
+        search_title = get_search_title(anime_info.title, display_title)
+
+        # Create args object for anilist_anime_flow
+        args = argparse.Namespace(debug=False)
+
+        # Watch the anime
+        anilist_anime_flow(
+            search_title,
+            entry.anilist_id,
+            args,
+            anilist_progress=entry.progress,
+            display_title=display_title,
+            total_episodes=anime_info.episodes,
+        )
+
+        # After watching, loop back to show airing episodes list again
 
 
 def _show_local_library() -> None:

@@ -360,6 +360,115 @@ export ANI_TUPI__ANIME__VIDEO_FORMAT="mp4"
 - **Retry Logic**: Exponential backoff (2s, 4s, 8s) for failed downloads
 - **Skip Logic**: If episode exists in database and skip_already_downloaded=True, download is skipped
 
+## Airing Episodes Feature
+
+### Overview
+
+The "🎬 Novos Episódios" (New Episodes) tab displays anime from your AniList watching list that have new episodes currently airing. This feature helps you quickly discover which anime need attention without manually checking each title.
+
+### How to Access
+
+1. Open the AniList menu: `uv run ani-tupi`
+2. Select "🎬 Novos Episódios" (appears at top of authenticated menu)
+3. Browse anime sorted by urgency (most episodes behind first)
+4. Select an anime to start playback
+
+### Display Format
+
+Each anime shows:
+- **Title**: Formatted with emoji and official AniList name
+- **Episode Status**: "Ep X aired, você viu Y (Z atrasado)"
+  - `X` = next episode number that aired
+  - `Y` = your current progress
+  - `Z` = how many episodes you're behind (gap)
+- **Score**: AniList average score as "⭐Score%"
+
+Example:
+```
+Jujutsu Kaisen - Ep 25 aired, você viu 22 (3 atrasado) ⭐82%
+Dandadan - Ep 18 aired, você viu 15 (3 atrasado) ⭐79%
+Blue Lock - Ep 11 aired, você viu 11 (0 atrasado) ⭐75%
+```
+
+### Sorting
+
+Anime are sorted by **episodes_behind** (descending), so:
+- Anime with the largest gap appear first (most urgent)
+- Caught-up anime (gap = 0) appear last
+- Within same gap, order matches API response
+
+### Architecture
+
+**Data Flow**:
+```
+User selects "🎬 Novos Episódios"
+  ↓
+AiringEpisodesService.get_watching_with_airing_episodes()
+  ↓
+AniListClient.get_airing_episodes_for_watching()
+  ↓
+GraphQL: MediaListCollection(status: CURRENT) with nextAiringEpisode
+  ↓
+Filter: nextAiringEpisode != null
+  ↓
+Calculate gap: next_episode - progress
+  ↓
+Sort by gap (descending)
+  ↓
+Display menu
+  ↓
+User selects anime → anilist_anime_flow() → playback
+```
+
+**Services**:
+- `services/anime/airing_episodes_service.py`: Business logic (filtering, sorting, gap calculation)
+- `services/anilist/anime_operations.py`: GraphQL query method `get_airing_episodes_for_watching()`
+
+**Models**:
+- `models/models.py`: `AiringAnimeEntry` (Pydantic model for display data)
+
+**UI**:
+- `ui/anilist_menus.py`: Menu integration and display function `_show_airing_episodes()`
+
+### Testing
+
+Run unit and integration tests:
+```bash
+uv run pytest tests/test_airing_episodes_service.py tests/test_anilist_airing_query.py tests/test_airing_anime_entry_model.py -v
+```
+
+Tests cover:
+- Gap calculation accuracy
+- Filtering logic (only anime with nextAiringEpisode)
+- Sorting by urgency (descending gap)
+- Title extraction with fallbacks (romaji → english → native → "Unknown")
+- Edge cases (zero progress, caught up, large lists, null fields)
+- Model validation (required fields, ranges, constraints)
+
+### Empty States
+
+If no airing episodes are found, you'll see:
+- **"Você não tem nenhum anime na lista 'Assistindo'"** - No anime in watching list
+- **"Nenhum anime da sua lista está em transmissão no momento"** - All watching anime finished airing
+- **"Erro ao buscar dados do AniList. Tente novamente."** - API error (user can retry)
+
+### Known Limitations
+
+- Only shows anime in "Watching" (CURRENT) list
+- Does not include anime in "Planning" list (can be extended later)
+- No countdown timers for next episode (just episode number that aired)
+- No caching (always fetches fresh data from AniList on tab open)
+- Large watching lists (100+ anime) may take a few seconds to load
+
+### Future Extensions
+
+Without changing current design:
+- Add caching with TTL and manual refresh button
+- Show countdown timers for next episode air time
+- Extend to "Planning" list (anime airing soon but not yet watched)
+- Add filters (by genre, score, year, etc.)
+- Add option to batch-add multiple anime to download queue
+
 ## Known Issues & Solutions
 
 ### Issue: Scraper Results Not Cached

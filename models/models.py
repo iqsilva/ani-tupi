@@ -298,6 +298,31 @@ class AniListViewerInfo(BaseModel):
     statistics: AniListStatistics | None = Field(None, description="User statistics")
 
 
+class AiringAnimeEntry(BaseModel):
+    """Anime from watching list with airing episode info.
+
+    Represents an anime that is in the user's watching list and has
+    new episodes airing. Used for the "Novos Episódios" (New Episodes) tab.
+
+    Attributes:
+        anilist_id: AniList anime ID for routing to playback
+        title: Formatted anime title for display
+        progress: User's current episode progress
+        next_episode_number: Episode number that aired/is airing
+        episodes_behind: Gap between next episode and user progress (for sorting)
+        airing_at: Unix timestamp of next episode air time (optional)
+        average_score: AniList score for context (0-100, optional)
+    """
+
+    anilist_id: int = Field(..., description="AniList anime ID")
+    title: str = Field(..., min_length=1, description="Formatted anime title")
+    progress: int = Field(..., ge=0, description="User's current episode progress")
+    next_episode_number: int = Field(..., ge=1, description="Episode number that aired")
+    episodes_behind: int = Field(..., ge=0, description="Episodes behind (next_episode - progress)")
+    airing_at: int | None = Field(None, description="Unix timestamp of next episode air time")
+    average_score: int | None = Field(None, ge=0, le=100, description="AniList average score")
+
+
 class AniListAnime(BaseModel):
     """AniList anime media object.
 
