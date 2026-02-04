@@ -55,18 +55,20 @@ def save_anilist_mapping(
     scraper_title: str,
     search_title: str | None = None,
     source: str | None = None,
+    language_choice: str | None = None,
 ) -> None:
-    """Save scraper title choice, search title, and source for an AniList ID.
+    """Save scraper title choice, search title, source, and language preference for an AniList ID.
 
     Args:
         anilist_id: The AniList ID
         scraper_title: The selected anime title from scraper
         search_title: The original search/display title used to find it
         source: The scraper source (e.g., "animefire", "animesdigital")
+        language_choice: The language chosen ("romaji" or "english")
     """
     try:
         mapping_id = str(anilist_id)
-        # Preserve existing search_title and source if not provided
+        # Preserve existing values if not provided
         existing = _anilist_mappings_store.get(mapping_id, {})
         if isinstance(existing, str):
             # Migrate old format to new format
@@ -78,7 +80,42 @@ def save_anilist_mapping(
                 "scraper_title": scraper_title,
                 "search_title": search_title or existing.get("search_title"),
                 "source": source or existing.get("source"),
+                "language_choice": language_choice or existing.get("language_choice"),
             },
         )
     except PersistenceError as e:
         logger.error(f"Failed to save AniList mapping: {e}")
+
+
+def load_language_preference(anilist_id: int) -> str | None:
+    """Load the language preference (romaji or english) for an AniList ID.
+
+    Args:
+        anilist_id: The AniList anime ID
+
+    Returns:
+        "romaji", "english", or None if not found
+    """
+    mapping = _anilist_mappings_store.get(str(anilist_id))
+    if isinstance(mapping, dict):
+        return mapping.get("language_choice")
+    return None
+
+
+def save_language_preference(anilist_id: int, language_choice: str) -> None:
+    """Save the language preference for an AniList ID.
+
+    Args:
+        anilist_id: The AniList anime ID
+        language_choice: "romaji" or "english"
+    """
+    try:
+        mapping_id = str(anilist_id)
+        existing = _anilist_mappings_store.get(mapping_id, {})
+        if isinstance(existing, str):
+            existing = {"scraper_title": existing}
+
+        existing["language_choice"] = language_choice
+        _anilist_mappings_store.set(mapping_id, existing)
+    except PersistenceError as e:
+        logger.error(f"Failed to save language preference: {e}")

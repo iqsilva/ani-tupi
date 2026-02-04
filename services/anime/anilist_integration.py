@@ -20,6 +20,8 @@ from services.anime.source_management import switch_anime_source
 from services.anime.mappings import (
     load_anilist_mapping,
     save_anilist_mapping,
+    load_language_preference,
+    save_language_preference,
 )
 from services.anime.search import incremental_search_anime
 
@@ -141,26 +143,11 @@ def anilist_anime_flow(
 
     # Get full anime info from AniList to access both English and Romaji titles
     anime_info = anilist_client.get_anime_by_id(anilist_id)
+    english_title = None
+    romaji_title = None
     if anime_info:
         english_title = anime_info.title.english
         romaji_title = anime_info.title.romaji
-
-        # Build language selection menu (only if both titles exist and are different)
-        if english_title and romaji_title and english_title != romaji_title:
-            language_options = [
-                f"🇯🇵 Romanji: {romaji_title}",
-                f"🇬🇧 Inglês: {english_title}",
-            ]
-            language_choice = menu_navigate(language_options, msg="Escolha o idioma para buscar:")
-
-            if not language_choice:
-                return  # User cancelled
-
-            # Set anime_title based on choice
-            if language_choice.startswith("🇬🇧"):
-                anime_title = english_title
-            else:
-                anime_title = romaji_title
 
     loader.load_plugins({"pt-br"})  # type: ignore
 
@@ -203,6 +190,35 @@ def anilist_anime_flow(
             # Discover available sources for this anime (background search)
             # This is needed to populate the repository so we can fetch episodes
             rep.search_anime(selected_anime, verbose=False)
+
+    # Only ask for language preference if no saved title or user wants to choose another
+    if selected_anime is None and english_title and romaji_title and english_title != romaji_title:
+        # Check if language preference is cached
+        cached_language = load_language_preference(anilist_id) if anilist_id else None
+
+        if cached_language:
+            # Use cached language preference
+            anime_title = english_title if cached_language == "english" else romaji_title
+        else:
+            # Ask user for language preference
+            language_options = [
+                f"🇯🇵 Romanji: {romaji_title}",
+                f"🇬🇧 Inglês: {english_title}",
+            ]
+            language_choice = menu_navigate(language_options, msg="Escolha o idioma para buscar:")
+
+            if not language_choice:
+                return  # User cancelled
+
+            # Set anime_title based on choice and cache the preference
+            if language_choice.startswith("🇬🇧"):
+                anime_title = english_title
+                if anilist_id:
+                    save_language_preference(anilist_id, "english")
+            else:
+                anime_title = romaji_title
+                if anilist_id:
+                    save_language_preference(anilist_id, "romaji")
 
     # Only search if no saved title or user wants to choose another
     search_state = None
