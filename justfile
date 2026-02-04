@@ -12,14 +12,15 @@
 @continue:
     uv run ani-tupi --continue-watching
 
-# Clear anime search cache
+# Clear anime search cache (query cache and episode cache)
 @clear-cache:
     uv run ani-tupi --clear-cache
-    echo "✅ Cache cleared!"
+    uv run scripts/clean_caches.py
 
-# Clear entire cache directory
+# Clear entire cache directory (also clears state)
 @clear-cache-full:
     rm -rf ~/.cache/ani-tugo
+    rm -rf ~/.local/state/ani-tupi/cache
     echo "✅ Full cache directory removed!"
 
 # Run tests
