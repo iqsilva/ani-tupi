@@ -763,6 +763,39 @@ def _choose_season() -> str | None:
     return season_map.get(selection)
 
 
+def _format_time_until_airing(airing_at: int | None) -> str:
+    """Format time until episode airs.
+
+    Args:
+        airing_at: Unix timestamp of episode air time
+
+    Returns:
+        Formatted string like "em 2h 30m" or "em 1d 5h"
+    """
+    if not airing_at:
+        return "data desconhecida"
+
+    from datetime import datetime, timezone
+
+    now = datetime.now(timezone.utc).timestamp()
+    seconds_until = int(airing_at - now)
+
+    if seconds_until <= 0:
+        return "agora"
+
+    # Convert to human-readable format
+    days = seconds_until // 86400
+    hours = (seconds_until % 86400) // 3600
+    minutes = (seconds_until % 3600) // 60
+
+    if days > 0:
+        return f"em {days}d {hours}h"
+    elif hours > 0:
+        return f"em {hours}h {minutes}m"
+    else:
+        return f"em {minutes}m"
+
+
 def _show_airing_episodes() -> None:
     """Show airing episodes from watching list with playback flow.
 
@@ -786,8 +819,9 @@ def _show_airing_episodes() -> None:
         anime_map = {}
 
         for entry in airing_anime:
-            # Format: "Title - Ep X aired, você viu Y (Z atrasado) ⭐Score%"
-            status_str = f"Ep {entry.next_episode_number} aired, você viu {entry.progress}"
+            # Format: "Title - Próximo Ep X sai em Xh Ym, você viu Y (Z atrasado) ⭐Score%"
+            time_until = _format_time_until_airing(entry.airing_at)
+            status_str = f"Próximo Ep {entry.next_episode_number} sai {time_until}, você viu {entry.progress}"
 
             if entry.episodes_behind > 0:
                 status_str += f" ({entry.episodes_behind} atrasado)"

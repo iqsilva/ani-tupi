@@ -80,8 +80,9 @@ class AiringEpisodesService:
                 if next_episode_number <= 0:
                     continue
 
-                # Calculate gap
-                episodes_behind = max(0, next_episode_number - progress)
+                # Calculate gap: episodes behind = (last aired episode) - (user progress)
+                # where last aired episode = next_episode_number - 1
+                episodes_behind = max(0, (next_episode_number - 1) - progress)
 
                 # Extract optional fields
                 anilist_id = media.get("id", 0)
