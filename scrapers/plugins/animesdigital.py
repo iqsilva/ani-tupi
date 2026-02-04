@@ -20,112 +20,112 @@ class AnimesDigital:
     languages = ["pt-br"]
     name = "animesdigital"
 
-    def _search_with_selenium(self, query: str, url: str) -> list[tuple[str, str]]:
-        """Search anime using Selenium with #termo_busca input.
+    def _search_with_driver(self, driver, query: str, url: str) -> list[tuple[str, str]]:
+        """Search anime using existing Selenium driver with #termo_busca input.
 
-        Uses dynamic page interaction to search both dubbed and subtitled versions.
-        Allocates Chrome from browser pool for efficient resource reuse.
-        Returns list of (title, url) tuples.
+        Reuses the same browser for both subtitled and dubbed searches to reduce
+        browser pool pressure. Returns list of (title, url) tuples.
         """
         results = []
 
         try:
-            # Allocate Chrome from pool (auto-cleanup on context exit)
-            # Increased timeout to 15s to account for pool exhaustion scenarios
-            with browser_pool.get_chrome(timeout=15) as driver:
-                driver.get(url)
+            driver.get(url)
 
-                # Wait for page to load
-                WebDriverWait(driver, 10).until(
-                    EC.presence_of_all_elements_located((By.TAG_NAME, "body"))
+            # Wait for page to load
+            WebDriverWait(driver, 10).until(
+                EC.presence_of_all_elements_located((By.TAG_NAME, "body"))
+            )
+
+            time.sleep(1)
+
+            # Find search input #termo_busca
+            try:
+                search_input = WebDriverWait(driver, 10).until(
+                    EC.presence_of_element_located((By.ID, "termo_busca"))
                 )
+            except Exception as e:
+                raise Exception(f"Could not find #termo_busca on {url}: {e}")
 
-                time.sleep(1)
+            # Type query and trigger events
+            search_input.clear()
+            search_input.send_keys(query)
 
-                # Find search input #termo_busca
-                try:
-                    search_input = WebDriverWait(driver, 10).until(
-                        EC.presence_of_element_located((By.ID, "termo_busca"))
-                    )
-                except Exception as e:
-                    raise Exception(f"Could not find #termo_busca on {url}: {e}")
+            # Trigger keyup, input, and change events to ensure JavaScript search is activated
+            driver.execute_script(
+                "arguments[0].dispatchEvent(new KeyboardEvent('keyup', { bubbles: true }));",
+                search_input,
+            )
+            driver.execute_script(
+                "arguments[0].dispatchEvent(new Event('input', { bubbles: true }));",
+                search_input,
+            )
+            driver.execute_script(
+                "arguments[0].dispatchEvent(new Event('change', { bubbles: true }));",
+                search_input,
+            )
 
-                # Type query and trigger events
-                search_input.clear()
-                search_input.send_keys(query)
+            # Wait longer for search results to load and be rendered
+            time.sleep(2)
 
-                # Trigger keyup, input, and change events to ensure JavaScript search is activated
-                driver.execute_script(
-                    "arguments[0].dispatchEvent(new KeyboardEvent('keyup', { bubbles: true }));",
-                    search_input,
+            # Wait for results to be present
+            try:
+                WebDriverWait(driver, 5).until(
+                    lambda d: len(d.find_elements(By.CSS_SELECTOR, "div[class*='item']")) > 5
                 )
-                driver.execute_script(
-                    "arguments[0].dispatchEvent(new Event('input', { bubbles: true }));",
-                    search_input,
-                )
-                driver.execute_script(
-                    "arguments[0].dispatchEvent(new Event('change', { bubbles: true }));",
-                    search_input,
-                )
+            except Exception:
+                # Results didn't load in expected quantity, proceed with parse anyway
+                pass
 
-                # Wait longer for search results to load and be rendered
-                time.sleep(2)
+            # Parse page content
+            soup = BeautifulSoup(driver.page_source, "html.parser")
 
-                # Wait for results to be present
-                try:
-                    WebDriverWait(driver, 5).until(
-                        lambda d: len(d.find_elements(By.CSS_SELECTOR, "div[class*='item']")) > 5
-                    )
-                except Exception:
-                    # Results didn't load in expected quantity, proceed with parse anyway
-                    pass
+            # Extract anime from div[class*='item'] containers
+            anime_items = soup.select("div[class*='item']")
 
-                # Parse page content
-                soup = BeautifulSoup(driver.page_source, "html.parser")
+            for item in anime_items:
+                link = item.find("a", href=True)
+                if not link:
+                    continue
 
-                # Extract anime from div[class*='item'] containers
-                anime_items = soup.select("div[class*='item']")
+                href = link.get("href")
+                title = link.get_text(strip=True)
 
-                for item in anime_items:
-                    link = item.find("a", href=True)
-                    if not link:
-                        continue
+                if href and title and "/anime/" in href:
+                    # Avoid duplicates
+                    if not any(t[0] == title for t in results):
+                        results.append((title, href))
 
-                    href = link.get("href")
-                    title = link.get_text(strip=True)
-
-                    if href and title and "/anime/" in href:
-                        # Avoid duplicates
-                        if not any(t[0] == title for t in results):
-                            results.append((title, href))
-
-        except BrowserPoolExhausted as e:
-            logger.error(f"❌ AnimesDigital browser pool exhausted for '{query}': {e}")
         except Exception as e:
-            logger.error(f"❌ AnimesDigital Selenium search failed for '{query}': {e}")
+            logger.error(f"❌ AnimesDigital search failed for '{query}' on {url}: {e}")
 
         return results
 
     def search_anime(self, query) -> None:
         """Search for anime on AnimesDigital.
 
-        Searches both dubbed (dublado) and subtitled (legendado) versions.
-        Uses dynamic Selenium-based search with #termo_busca input.
+        Searches both dubbed (dublado) and subtitled (legendado) versions sequentially
+        using the SAME browser instance for efficiency. This minimizes browser pool usage.
         Returns all versions found (legendado and dublado are different links).
         """
         search_urls = [
-            "https://animesdigital.org/animes-legendados-online",
-            "https://animesdigital.org/animes-dublado/",
+            ("legendado", "https://animesdigital.org/animes-legendados-online"),
+            ("dublado", "https://animesdigital.org/animes-dublado/"),
         ]
 
         titled_urls = []
 
-        for search_url in search_urls:
-            results = self._search_with_selenium(query, search_url)
+        try:
+            # Allocate ONE browser for both searches
+            with browser_pool.get_chrome(timeout=30) as driver:
+                for version_name, search_url in search_urls:
+                    results = self._search_with_driver(driver, query, search_url)
 
-            for title, url in results:
-                # Add all versions (legendado and dublado are different URLs)
-                titled_urls.append((title, url))
+                    for title, url in results:
+                        # Add all versions (legendado and dublado are different URLs)
+                        titled_urls.append((title, url))
+
+        except BrowserPoolExhausted as e:
+            logger.error(f"❌ AnimesDigital browser pool exhausted for '{query}': {e}")
 
         # Add anime to repository
         for title, url in titled_urls:

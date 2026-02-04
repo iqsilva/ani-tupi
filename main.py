@@ -36,6 +36,9 @@ def show_main_menu():
 
 def main_menu_flow(args) -> None:
     """Show main menu and route to appropriate command handler."""
+    # Clean up any zombie browser processes from previous runs
+    cleanup_zombie_browsers()
+
     choice = show_main_menu()
 
     if choice == "🔍 Buscar Anime":
@@ -52,6 +55,28 @@ def main_menu_flow(args) -> None:
         manga_cmd(args)
     elif choice == "⚙️  Gerenciar Fontes":
         manage_sources_cmd(args)
+
+
+def cleanup_zombie_browsers():
+    """Clean up any zombie browser processes from previous runs."""
+    try:
+        import subprocess
+        import logging
+
+        logger = logging.getLogger(__name__)
+
+        # Clean up Firefox zombies
+        result = subprocess.run(["pkill", "-f", "firefox"], capture_output=True, timeout=5)
+        if result.returncode == 0:
+            logger.info("Cleaned up zombie Firefox processes")
+
+        # Clean up Chrome/Chromium zombies
+        for browser in ["chrome", "chromium"]:
+            subprocess.run(["pkill", "-f", browser], capture_output=True, timeout=5)
+
+    except (subprocess.TimeoutExpired, FileNotFoundError, ImportError):
+        # Silently ignore cleanup failures
+        pass
 
 
 def cli() -> None:

@@ -13,6 +13,7 @@ from services.anime.title_normalization import normalize_anime_title
 from services.anime.mappings import (
     load_anilist_search_title,
 )
+from utils.scraper_cache import get_cache
 
 HISTORY_PATH = get_data_path()
 
@@ -48,8 +49,14 @@ def switch_anime_source(
         search_title = None
     search_title = search_title or display_title or current_anime
 
-    # Generate title variations using the search title (same as original search)
-    title_variations = normalize_anime_title(search_title)
+    # Try to use the exact search title first (without variations) for cache lookup
+    # This handles the common case where user switches source immediately after initial search
+    # and the cache key matches exactly
+    title_variations = [search_title] + normalize_anime_title(search_title)
+    # Remove duplicates while preserving order
+    seen = set()
+    title_variations = [x for x in title_variations if not (x in seen or seen.add(x))]
+
     current_variant_idx = 0
     selected_anime = None
 
@@ -57,10 +64,17 @@ def switch_anime_source(
     while selected_anime is None and current_variant_idx < len(title_variations):
         variant = title_variations[current_variant_idx]
 
-        # Search with current variation
-        with loading(f"Buscando '{variant}'..."):
-            # Use new progressive search (starts with initial_search_words, increases while >10 results)
-            rep.search_anime(variant, verbose=True)
+        # Cache-first: Check if query is in cache before searching scrapers
+        cache_data = get_cache(variant)
+        if cache_data:
+            with loading(f"Carregando '{variant}' do cache..."):
+                rep.load_from_cache(variant, cache_data)
+                # Discover available sources for this anime (background search)
+                rep.search_anime(variant, verbose=False)
+        else:
+            # Not in cache: regular search with full word count (no progressive word reduction)
+            with loading(f"Buscando '{variant}'..."):
+                rep.search_anime(variant, verbose=True)
 
         # Get results with sources
         search_metadata = rep.get_search_metadata()

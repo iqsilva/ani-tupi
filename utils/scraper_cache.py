@@ -21,6 +21,11 @@ def get_cache(anime_title: str) -> ScraperCacheData | None:
         ScraperCacheData with episode_urls and episode_count or None if not found
 
     """
+    from models.config import settings
+
+    # Check if episodes cache is enabled
+    if not settings.cache.episodes_cache_enabled:
+        return None
 
     try:
         # Try to discover AniList ID for better cache lookup
@@ -57,9 +62,14 @@ def set_cache(anime_title: str, episode_count: int, episode_urls: list[str]) -> 
         episode_urls: List of episode URLs
 
     """
+    from models.config import settings
+
+    # Check if episodes cache is enabled
+    if not settings.cache.episodes_cache_enabled:
+        return
+
     try:
         cache_obj = _get_unified_cache()
-        from models.config import settings
 
         # Try to discover AniList ID for better cache key
         anilist_id = get_anilist_id_from_title(anime_title)

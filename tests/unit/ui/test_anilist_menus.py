@@ -771,9 +771,7 @@ class TestGetEpisodeCount:
             mock_cache_func.return_value = cache_mock
             yield cache_mock
 
-    def test_returns_existing_episodes_when_not_null(
-        self, mock_anilist_client, mock_cache
-    ):
+    def test_returns_existing_episodes_when_not_null(self, mock_anilist_client, mock_cache):
         """When media.episodes is not None, should return it directly."""
         from ui.anilist_menus import _get_episode_count
 
@@ -824,9 +822,7 @@ class TestGetEpisodeCount:
         # Should cache the result
         mock_cache.set.assert_called_once_with("anilist_episodes:123", 12, ttl=604800)
 
-    def test_returns_none_when_api_returns_none(
-        self, mock_anilist_client, mock_cache
-    ):
+    def test_returns_none_when_api_returns_none(self, mock_anilist_client, mock_cache):
         """When API returns None, should return None and not cache."""
         from ui.anilist_menus import _get_episode_count
 
@@ -869,9 +865,7 @@ class TestGetEpisodeCount:
         # Should not cache None result
         mock_cache.set.assert_not_called()
 
-    def test_handles_api_exception_gracefully(
-        self, mock_anilist_client, mock_cache
-    ):
+    def test_handles_api_exception_gracefully(self, mock_anilist_client, mock_cache):
         """When API call fails with exception, should return None."""
         from ui.anilist_menus import _get_episode_count
 

@@ -90,6 +90,10 @@ class CacheSettings(BaseModel):
         le=100,
         description="Minimum fuzzy match score (0-100) for AniList ID auto-discovery",
     )
+    episodes_cache_enabled: bool = Field(
+        False,
+        description="Enable episodes cache (disabled by default due to stability issues)",
+    )
     # TTL Configuration
     search_cache_ttl_seconds: int = Field(
         3600,
@@ -199,7 +203,7 @@ class PerformanceSettings(BaseModel):
 
     # Browser Pool Settings
     browser_pool_size: int = Field(
-        5,
+        3,
         ge=1,
         le=8,
         description="Maximum number of Chrome instances in browser pool for parallel scraping",
@@ -211,7 +215,7 @@ class PerformanceSettings(BaseModel):
         description="Maximum age of browser instances before cleanup (seconds)",
     )
     browser_health_check_timeout: int = Field(
-        3,
+        10,
         ge=1,
         le=30,
         description="Timeout for getting browser from pool (seconds)",
@@ -225,7 +229,7 @@ class PerformanceSettings(BaseModel):
         description="Maximum number of scrapers running concurrently",
     )
     concurrent_timeout: int = Field(
-        60,
+        90,
         ge=15,
         le=180,
         description="Timeout for concurrent scraper operations (seconds). Browser-based scrapers need extra time for startup.",

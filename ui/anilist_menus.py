@@ -35,25 +35,25 @@ def get_search_title(title: AniListTitle, display_title: str = "") -> str:
 
 def _get_episode_count(anime_id: int, media_episodes: int | None) -> int | None:
     """Get episode count for an anime with caching fallback.
-    
+
     Args:
         anime_id: AniList anime ID
         media_episodes: Episode count from media list response (can be None)
-        
+
     Returns:
         Episode count as int, or None if truly unknown
     """
     # If we already have episode count, return it
     if media_episodes is not None:
         return media_episodes
-    
+
     # Check cache first
     cache = get_cache()
     cache_key = f"anilist_episodes:{anime_id}"
     cached_episodes = cache.get(cache_key)
     if cached_episodes is not None:
         return cached_episodes
-    
+
     # Cache miss - fetch full anime details
     try:
         anime_details = anilist_client.get_anime_by_id(anime_id)
@@ -64,7 +64,7 @@ def _get_episode_count(anime_id: int, media_episodes: int | None) -> int | None:
     except Exception:
         # If API call fails, we'll return None and keep "?" fallback
         pass
-    
+
     # Truly unknown episode count
     return None
 

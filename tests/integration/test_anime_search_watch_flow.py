@@ -323,23 +323,21 @@ class TestEpisodeFetchingIntegration:
             episodes=36,
         )
         mock_anilist_client.get_anime_by_id.return_value = anime_with_episodes
-        
+
         result = _get_episode_count(789, None)
         assert result == 36
         mock_cache.get.assert_called_with("anilist_episodes:789")
         mock_anilist_client.get_anime_by_id.assert_called_with(789)
         mock_cache.set.assert_called_with("anilist_episodes:789", 36, ttl=604800)
 
-    def test_get_episode_count_integration_edge_cases(
-        self, mock_anilist_client, mock_cache
-    ):
+    def test_get_episode_count_integration_edge_cases(self, mock_anilist_client, mock_cache):
         """Test _get_episode_count edge cases."""
         from ui.anilist_menus import _get_episode_count
 
         # Test 1: API returns None
         mock_cache.get.return_value = None
         mock_anilist_client.get_anime_by_id.return_value = None
-        
+
         result = _get_episode_count(123, None)
         assert result is None
         mock_cache.set.assert_not_called()
@@ -353,7 +351,7 @@ class TestEpisodeFetchingIntegration:
             episodes=None,
         )
         mock_anilist_client.get_anime_by_id.return_value = anime_with_null_episodes
-        
+
         result = _get_episode_count(456, None)
         assert result is None
         mock_cache.set.assert_not_called()
@@ -362,44 +360,42 @@ class TestEpisodeFetchingIntegration:
         mock_cache.reset_mock()
         mock_cache.get.return_value = None
         mock_anilist_client.get_anime_by_id.side_effect = Exception("API Error")
-        
+
         result = _get_episode_count(789, None)
         assert result is None
         mock_cache.set.assert_not_called()
 
-    def test_cache_performance_benefit_simulation(
-        self, mock_anilist_client, mock_cache
-    ):
+    def test_cache_performance_benefit_simulation(self, mock_anilist_client, mock_cache):
         """Simulate performance benefit of caching across multiple calls."""
         from ui.anilist_menus import _get_episode_count
 
         anime_ids = [100, 101, 102, 103, 104]
-        
+
         # First round: all cache misses, API calls
         mock_cache.get.side_effect = [None] * 5
         mock_anilist_client.get_anime_by_id.side_effect = [
-            AniListAnime(id=id, title=AniListTitle(romaji=f"Anime {i}"), episodes=12+i)
+            AniListAnime(id=id, title=AniListTitle(romaji=f"Anime {i}"), episodes=12 + i)
             for i, id in enumerate(anime_ids)
         ]
-        
+
         # First calls
         first_results = [_get_episode_count(id, None) for id in anime_ids]
         expected_first = [12, 13, 14, 15, 16]
         assert first_results == expected_first
-        
+
         # Verify API was called 5 times and cache was set 5 times
         assert mock_anilist_client.get_anime_by_id.call_count == 5
         assert mock_cache.set.call_count == 5
-        
+
         # Second round: all cache hits
         mock_cache.reset_mock()
         mock_anilist_client.reset_mock()
         mock_cache.get.side_effect = [12, 13, 14, 15, 16]  # Cached values
-        
+
         # Second calls
         second_results = [_get_episode_count(id, None) for id in anime_ids]
         assert second_results == expected_first
-        
+
         # Verify no API calls, only cache gets
         assert mock_anilist_client.get_anime_by_id.call_count == 0
         assert mock_cache.set.call_count == 0
