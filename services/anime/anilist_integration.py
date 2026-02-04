@@ -178,14 +178,20 @@ def anilist_anime_flow(
         print(f"ℹ️  Fontes ativas: {', '.join(active_sources)}")
 
     # Check if we have a saved title choice from before (ASK BEFORE SEARCHING)
-    saved_title = load_anilist_mapping(anilist_id) if anilist_id else None
+    saved_title, saved_source = load_anilist_mapping(anilist_id) if anilist_id else (None, None)
     selected_anime = None
+    source = None
 
     if saved_title:
+        # Format title with source for display
+        display_title_with_source = saved_title
+        if saved_source:
+            display_title_with_source = f"{saved_title} [{saved_source}]"
+
         # Ask user if they want to continue with saved choice BEFORE searching
         choice = menu_navigate(
             ["✅ Continuar com este", "🔄 Escolher outro"],
-            msg=f"Você usou '{saved_title}' antes.\nQuer continuar?",
+            msg=f"Você usou '{display_title_with_source}' antes.\nQuer continuar?",
         )
 
         if not choice:
@@ -193,6 +199,7 @@ def anilist_anime_flow(
 
         if choice == "✅ Continuar com este":
             selected_anime = saved_title
+            source = saved_source
             # Discover available sources for this anime (background search)
             # This is needed to populate the repository so we can fetch episodes
             rep.search_anime(selected_anime, verbose=False)
@@ -354,7 +361,7 @@ def anilist_anime_flow(
 
     # Save the choice for next time (with original search title for "Trocar fonte")
     if anilist_id:
-        save_anilist_mapping(anilist_id, selected_anime, search_title=anime_title)
+        save_anilist_mapping(anilist_id, selected_anime, search_title=anime_title, source=source)
 
     # Get episodes (check cache first)
     cache_data = get_cache(selected_anime)
