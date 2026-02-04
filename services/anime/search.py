@@ -187,11 +187,11 @@ class IncrementalSearchState:
 
 
 def incremental_search_anime(query: str) -> tuple[IncrementalSearchState, list[str]]:
-    """Perform incremental anime search starting with 3 words and adding progressively.
+    """Perform incremental anime search starting with 1 word and adding progressively.
 
     Implements the filtering-based word addition strategy:
     1. Normalize query first (lowercase, remove season patterns, punctuation, etc)
-    2. Start with first 3 words of normalized query (or all if fewer)
+    2. Start with first word of normalized query
     3. Execute initial search to get base results
     4. For each additional word: filter base results instead of re-searching
     5. Stop when results ≤ 5
@@ -218,8 +218,8 @@ def incremental_search_anime(query: str) -> tuple[IncrementalSearchState, list[s
     normalized_query = variations[0]
     words = normalized_query.split()
 
-    # Determine starting word count (min 3, or all words if fewer)
-    start_word_count = min(3, len(words))
+    # Determine starting word count (start with 1 word, add more if results > 5)
+    start_word_count = 1
     current_word_count = start_word_count
     current_results: list[str] = []
     base_results: list[str] = []  # Store base search results for filtering

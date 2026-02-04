@@ -1,13 +1,11 @@
+import json
 import logging
-import time
+from typing import TypedDict
 
+import requests
 from bs4 import BeautifulSoup
-from selenium.webdriver.common.by import By
-from selenium.webdriver.support import expected_conditions as EC
-from selenium.webdriver.support.ui import WebDriverWait
 from scrapling import DynamicFetcher, Fetcher
 
-from scrapers.core.browser_pool import browser_pool, BrowserPoolExhausted
 from services.repository import rep
 
 logger = logging.getLogger(__name__)
@@ -15,121 +13,176 @@ logger = logging.getLogger(__name__)
 # Request timeout for all AnimesDigital API calls (seconds)
 REQUEST_TIMEOUT = 30
 
+# API endpoint for searching
+API_URL = "https://animesdigital.org/func/listanime"
+
+# API token - may need to be updated if it expires
+API_TOKEN = "c1deb78cd4"
+
+# Headers for API requests
+API_HEADERS = {
+    "User-Agent": "Mozilla/5.0 (X11; Linux x86_64; rv:146.0) Gecko/20100101 Firefox/146.0",
+    "Accept": "application/json, text/javascript, */*; q=0.01",
+    "Accept-Language": "en-US,en;q=0.5",
+    "Accept-Encoding": "gzip, deflate, br, zstd",
+    "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
+    "X-Requested-With": "XMLHttpRequest",
+    "Origin": "https://animesdigital.org",
+    "Connection": "keep-alive",
+    "Referer": "https://animesdigital.org/animes-legendados-online",
+    "Sec-Fetch-Dest": "empty",
+    "Sec-Fetch-Mode": "cors",
+    "Sec-Fetch-Site": "same-origin",
+}
+
+
+class AnimeResult(TypedDict):
+    title: str
+    url: str
+    image: str
+
 
 class AnimesDigital:
     languages = ["pt-br"]
     name = "animesdigital"
 
-    def _search_with_driver(self, driver, query: str, url: str) -> list[tuple[str, str]]:
-        """Search anime using existing Selenium driver with #termo_busca input.
+    def _search_api(
+        self, query: str, page: int = 1, limit: int = 30, audio_type: str = "legendado"
+    ) -> tuple[list[AnimeResult], dict]:
+        """Search anime using the JSON API.
 
-        Reuses the same browser for both subtitled and dubbed searches to reduce
-        browser pool pressure. Returns list of (title, url) tuples.
+        Args:
+            query: Search term
+            page: Page number (1-indexed)
+            limit: Results per page
+            audio_type: "legendado" or "dublado"
+
+        Returns:
+            Tuple of (results list, metadata dict)
+        """
+        filters = {
+            "filter_data": f"filter_letter=0&type_url=animes&filter_audio={audio_type}&filter_order=name",
+            "filter_genre_add": [],
+            "filter_genre_del": [],
+        }
+
+        payload = {
+            "token": API_TOKEN,
+            "pagina": str(page),
+            "search": query,
+            "limit": str(limit),
+            "type": "lista",
+            "filters": json.dumps(filters),
+        }
+
+        try:
+            response = requests.post(
+                API_URL, data=payload, headers=API_HEADERS, timeout=REQUEST_TIMEOUT
+            )
+            response.raise_for_status()
+            data = response.json()
+
+            # Parse HTML fragments from results
+            results = self._parse_html_results(data.get("results", []))
+
+            # Extract metadata
+            metadata = {
+                "page": data.get("page"),
+                "total_results": data.get("total_results"),
+                "total_page": data.get("total_page"),
+            }
+
+            return results, metadata
+
+        except requests.exceptions.RequestException as e:
+            logger.error(f"❌ AnimesDigital API request failed for '{query}': {e}")
+            return [], {}
+        except json.JSONDecodeError as e:
+            logger.error(f"❌ AnimesDigital failed to parse API response for '{query}': {e}")
+            return [], {}
+
+    def _parse_html_results(self, html_fragments: list[str]) -> list[AnimeResult]:
+        """Parse HTML fragments from API response.
+
+        Each fragment is a <div class="itemA"> containing anime link and image.
+
+        Args:
+            html_fragments: List of HTML strings from API
+
+        Returns:
+            List of parsed anime results
         """
         results = []
 
-        try:
-            driver.get(url)
-
-            # Wait for page to load
-            WebDriverWait(driver, 10).until(
-                EC.presence_of_all_elements_located((By.TAG_NAME, "body"))
-            )
-
-            time.sleep(1)
-
-            # Find search input #termo_busca
+        for html in html_fragments:
             try:
-                search_input = WebDriverWait(driver, 10).until(
-                    EC.presence_of_element_located((By.ID, "termo_busca"))
-                )
-            except Exception as e:
-                raise Exception(f"Could not find #termo_busca on {url}: {e}")
+                soup = BeautifulSoup(html, "html.parser")
 
-            # Type query and trigger events
-            search_input.clear()
-            search_input.send_keys(query)
-
-            # Trigger keyup, input, and change events to ensure JavaScript search is activated
-            driver.execute_script(
-                "arguments[0].dispatchEvent(new KeyboardEvent('keyup', { bubbles: true }));",
-                search_input,
-            )
-            driver.execute_script(
-                "arguments[0].dispatchEvent(new Event('input', { bubbles: true }));",
-                search_input,
-            )
-            driver.execute_script(
-                "arguments[0].dispatchEvent(new Event('change', { bubbles: true }));",
-                search_input,
-            )
-
-            # Wait longer for search results to load and be rendered
-            time.sleep(2)
-
-            # Wait for results to be present
-            try:
-                WebDriverWait(driver, 5).until(
-                    lambda d: len(d.find_elements(By.CSS_SELECTOR, "div[class*='item']")) > 5
-                )
-            except Exception:
-                # Results didn't load in expected quantity, proceed with parse anyway
-                pass
-
-            # Parse page content
-            soup = BeautifulSoup(driver.page_source, "html.parser")
-
-            # Extract anime from div[class*='item'] containers
-            anime_items = soup.select("div[class*='item']")
-
-            for item in anime_items:
-                link = item.find("a", href=True)
+                # Find the link element
+                link = soup.find("a", href=True)
                 if not link:
                     continue
 
-                href = link.get("href")
-                title = link.get_text(strip=True)
+                url = link.get("href")
+                title_elem = link.find("span", class_="title_anime")
+                title = title_elem.get_text(strip=True) if title_elem else ""
 
-                if href and title and "/anime/" in href:
-                    # Avoid duplicates
-                    if not any(t[0] == title for t in results):
-                        results.append((title, href))
+                # Find the image
+                img = link.find("img")
+                image = img.get("src") if img else ""
 
-        except Exception as e:
-            logger.error(f"❌ AnimesDigital search failed for '{query}' on {url}: {e}")
+                if title and url:
+                    results.append(
+                        {
+                            "title": title,
+                            "url": url,
+                            "image": image,
+                        }
+                    )
+
+            except Exception as e:
+                logger.debug(f"Failed to parse HTML fragment: {e}")
+                continue
 
         return results
 
-    def search_anime(self, query) -> None:
-        """Search for anime on AnimesDigital.
+    def search_anime(self, query: str) -> None:
+        """Search for anime on AnimesDigital using the JSON API.
 
-        Searches both dubbed (dublado) and subtitled (legendado) versions sequentially
-        using the SAME browser instance for efficiency. This minimizes browser pool usage.
-        Returns all versions found (legendado and dublado are different links).
+        Searches both dubbed and subtitled versions using the efficient
+        /func/listanime endpoint. Much faster than browser automation.
         """
-        search_urls = [
-            ("legendado", "https://animesdigital.org/animes-legendados-online"),
-            ("dublado", "https://animesdigital.org/animes-dublado/"),
+        search_configs = [
+            ("legendado", "subtitled"),
+            ("dublado", "dubbed"),
         ]
 
-        titled_urls = []
+        all_anime = []
 
         try:
-            # Allocate ONE browser for both searches
-            with browser_pool.get_chrome(timeout=30) as driver:
-                for version_name, search_url in search_urls:
-                    results = self._search_with_driver(driver, query, search_url)
+            for audio_type, audio_name in search_configs:
+                logger.info(f"🔍 Searching {audio_name} anime for '{query}'")
 
-                    for title, url in results:
-                        # Add all versions (legendado and dublado are different URLs)
-                        titled_urls.append((title, url))
+                results, metadata = self._search_api(query, audio_type=audio_type)
 
-        except BrowserPoolExhausted as e:
-            logger.error(f"❌ AnimesDigital browser pool exhausted for '{query}': {e}")
+                if not results:
+                    logger.debug(f"No {audio_name} results found for '{query}'")
+                    continue
+
+                logger.info(
+                    f"✅ Found {len(results)} {audio_name} results for '{query}' "
+                    f"({metadata.get('total_results')} total)"
+                )
+
+                all_anime.extend(results)
+
+        except Exception as e:
+            logger.error(f"❌ AnimesDigital search failed for '{query}': {e}")
+            return
 
         # Add anime to repository
-        for title, url in titled_urls:
-            rep.add_anime(title, url, AnimesDigital.name)
+        for anime in all_anime:
+            rep.add_anime(anime["title"], anime["url"], AnimesDigital.name)
 
     def search_episodes(self, anime: str, url: str, params: dict | None) -> None:
         """Fetch episode list from anime page.
@@ -153,8 +206,8 @@ class AnimesDigital:
         # Find all episode containers
         episode_divs = tree.css("div.item_ep")
 
-        episode_titles = []
-        episode_urls = []
+        episode_titles: list[str] = []
+        episode_urls: list[str] = []
 
         for ep_div in episode_divs:
             # Find the link inside the episode div for the URL
