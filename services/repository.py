@@ -311,8 +311,8 @@ class Repository:
         Used for both queries and titles before comparison.
         """
         text = text.lower()
-        # Remove punctuation and special characters
-        for char in ["-", ":", "(", ")", "!", "?", "."]:
+        # Remove punctuation and special characters (including em-dash and en-dash)
+        for char in ["-", ":", "(", ")", "!", "?", ".", "–", "—"]:
             text = text.replace(char, " ")
         # Remove multiple spaces
         text = " ".join(text.split())
@@ -357,8 +357,25 @@ class Repository:
                 future = executor.submit(plugin.search_anime, query)
                 future_to_source[future] = source_name
 
-            # Wait for all tasks to complete
-            done, _ = wait(future_to_source.keys(), return_when=ALL_COMPLETED)
+            # Wait for all tasks to complete with timeout
+            done, not_done = wait(
+                future_to_source.keys(),
+                timeout=settings.performance.concurrent_timeout,
+                return_when=ALL_COMPLETED,
+            )
+
+            # Handle timeout: cancel pending tasks and show partial results
+            if not_done:
+                timed_out_sources = [future_to_source[f] for f in not_done]
+                if verbose:
+                    print(
+                        f"\n⚠️  Timeout em {len(timed_out_sources)} fonte(s): {', '.join(timed_out_sources)}"
+                    )
+                    print(f"   Usando resultados parciais de {len(done)} fonte(s)")
+
+                # Cancel pending tasks to free resources
+                for future in not_done:
+                    future.cancel()
 
             # Process completed futures
             for future in done:

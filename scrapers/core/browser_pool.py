@@ -63,6 +63,9 @@ class BrowserPool:
         if hasattr(self, "_initialized"):
             return
 
+        # Clean up any existing zombie processes before initializing
+        self._cleanup_zombie_processes()
+
         self.chrome_idle: Queue = Queue()
         self.firefox_idle: Queue = Queue()
         self.chrome_active: set = set()
@@ -84,6 +87,42 @@ class BrowserPool:
             f"Browser pool initialized: size={pool_size}, "
             f"max_age={settings.performance.browser_max_age}s"
         )
+
+    def _cleanup_zombie_processes(self) -> None:
+        """Clean up zombie browser processes before pool initialization."""
+        try:
+            import subprocess
+            import os
+
+            # Kill zombie Firefox processes
+            result = subprocess.run(
+                ["pgrep", "-f", "firefox"], capture_output=True, text=True, timeout=5
+            )
+            if result.returncode == 0:
+                pids = result.stdout.strip().split("\n")
+                for pid in pids:
+                    if pid:
+                        try:
+                            # Check if it's a zombie process (stat starts with 'Z')
+                            with open(f"/proc/{pid}/stat", "r") as f:
+                                stat = f.read()
+                                if stat.split()[2] == "Z":
+                                    # Kill the parent process to clean up the zombie
+                                    ppid = stat.split()[3]
+                                    if ppid != "1":  # Don't kill init process
+                                        os.kill(int(ppid), 9)  # SIGKILL
+                        except (FileNotFoundError, PermissionError, IndexError):
+                            pass
+
+            # Force cleanup any remaining browser processes
+            subprocess.run(["pkill", "-f", "firefox"], capture_output=True, timeout=5)
+            subprocess.run(["pkill", "-f", "chrome"], capture_output=True, timeout=5)
+            subprocess.run(["pkill", "-f", "chromium"], capture_output=True, timeout=5)
+
+            logger.info("Cleaned up zombie browser processes during initialization")
+
+        except Exception as e:
+            logger.debug(f"Zombie cleanup failed: {e}")
 
     @contextmanager
     def get_chrome(self, timeout: Optional[int] = None) -> Iterator[WebDriver]:
@@ -312,27 +351,87 @@ class BrowserPool:
             else:
                 self.firefox_active.discard(driver_id)
 
-            # Recycle if over max age
-            if age > max_age:
+            # Return to idle pool if not stale, otherwise recycle
+            if age < max_age:
+                # Browser is still fresh, return to idle pool for reuse
+                logger.debug(f"Returning {browser_type} browser to idle pool (age: {age:.0f}s)")
+                try:
+                    if browser_type == "chrome":
+                        self.chrome_idle.put_nowait(driver)
+                    else:
+                        self.firefox_idle.put_nowait(driver)
+                except Exception as e:
+                    logger.debug(f"Error returning {browser_type} to pool: {e}, quitting instead")
+                    try:
+                        driver.quit()
+                        self._force_cleanup_browser_processes(driver, browser_type)
+                    except Exception as cleanup_error:
+                        logger.debug(f"Error during browser cleanup: {cleanup_error}")
+                        self._force_cleanup_browser_processes(driver, browser_type)
+                    self._browser_creation_times.pop(driver_id, None)
+                    self._browser_use_count.pop(driver_id, None)
+            else:
+                # Browser exceeded max age, recycle it
                 logger.debug(
-                    f"{browser_type} browser exceeded max age ({age:.0f}s > {max_age}s), recycling"
+                    f"Recycling {browser_type} browser (age: {age:.0f}s > max_age: {max_age}s)"
                 )
                 try:
                     driver.quit()
-                except:
-                    pass
+                    # Force kill any remaining processes
+                    self._force_cleanup_browser_processes(driver, browser_type)
+                except Exception as e:
+                    logger.debug(f"Error during browser cleanup: {e}")
+                    # Try force cleanup anyway
+                    self._force_cleanup_browser_processes(driver, browser_type)
+
                 # Clean up tracking
                 self._browser_creation_times.pop(driver_id, None)
                 self._browser_use_count.pop(driver_id, None)
-                return
 
-        # Otherwise, return to idle queue
-        if browser_type == "chrome":
-            self.chrome_idle.put(driver)
-            logger.debug(f"Returned Chrome to idle pool (size: {self.chrome_idle.qsize()})")
-        else:
-            self.firefox_idle.put(driver)
-            logger.debug(f"Returned Firefox to idle pool (size: {self.firefox_idle.qsize()})")
+    def _force_cleanup_browser_processes(self, driver: WebDriver, browser_type: str) -> None:
+        """Force cleanup of any remaining browser processes.
+
+        This is a safety net to prevent zombie processes when driver.quit() fails.
+        """
+        try:
+            # Get the process ID from the driver if available
+            if hasattr(driver, "service") and hasattr(driver.service, "process"):
+                process = driver.service.process
+                if process and process.pid:
+                    # Kill the main process and any child processes
+                    import os
+                    import signal
+
+                    try:
+                        # Kill the process group to include child processes
+                        os.killpg(os.getpgid(process.pid), signal.SIGTERM)
+                        logger.debug(f"Killed browser process group: {process.pid}")
+                    except (ProcessLookupError, PermissionError):
+                        # Process might already be dead
+                        pass
+
+                    # Force kill if SIGTERM didn't work
+                    try:
+                        os.killpg(os.getpgid(process.pid), signal.SIGKILL)
+                    except (ProcessLookupError, PermissionError):
+                        pass
+
+            # Additional cleanup for Firefox (which can leave behind hanging processes)
+            if browser_type == "firefox":
+                import subprocess
+
+                try:
+                    # Kill any remaining firefox processes owned by current user
+                    result = subprocess.run(
+                        ["pkill", "-f", "firefox"], capture_output=True, timeout=5
+                    )
+                    if result.returncode == 0:
+                        logger.debug("Cleaned up remaining Firefox processes")
+                except (subprocess.TimeoutExpired, FileNotFoundError):
+                    pass
+
+        except Exception as e:
+            logger.debug(f"Force cleanup failed: {e}")
 
     def close_all(self) -> None:
         """Cleanup all browsers in pool (active and idle).
@@ -347,6 +446,7 @@ class BrowserPool:
                 driver = self.chrome_idle.get_nowait()
                 try:
                     driver.quit()
+                    self._force_cleanup_browser_processes(driver, "chrome")
                 except:
                     pass
             except:
@@ -357,6 +457,7 @@ class BrowserPool:
                 driver = self.firefox_idle.get_nowait()
                 try:
                     driver.quit()
+                    self._force_cleanup_browser_processes(driver, "firefox")
                 except:
                     pass
             except:
@@ -370,6 +471,16 @@ class BrowserPool:
         for browser_id in list(self.firefox_active):
             with self._pool_lock:
                 self.firefox_active.discard(browser_id)
+
+        # Final cleanup of any remaining processes
+        try:
+            import subprocess
+
+            subprocess.run(["pkill", "-f", "firefox"], capture_output=True, timeout=5)
+            subprocess.run(["pkill", "-f", "chrome"], capture_output=True, timeout=5)
+            subprocess.run(["pkill", "-f", "chromium"], capture_output=True, timeout=5)
+        except (subprocess.TimeoutExpired, FileNotFoundError):
+            pass
 
         logger.info("Browser pool cleanup complete")
 

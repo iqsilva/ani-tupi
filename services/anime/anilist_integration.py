@@ -148,8 +148,8 @@ def anilist_anime_flow(
         # Build language selection menu (only if both titles exist and are different)
         if english_title and romaji_title and english_title != romaji_title:
             language_options = [
-                f"🇬🇧 Inglês: {english_title}",
                 f"🇯🇵 Romanji: {romaji_title}",
+                f"🇬🇧 Inglês: {english_title}",
             ]
             language_choice = menu_navigate(language_options, msg="Escolha o idioma para buscar:")
 
@@ -177,39 +177,62 @@ def anilist_anime_flow(
     if active_sources:
         print(f"ℹ️  Fontes ativas: {', '.join(active_sources)}")
 
-    # Cache-first: Check if anime_title is in cache before searching
-    cache_data = get_cache(anime_title)
+    # Check if we have a saved title choice from before (ASK BEFORE SEARCHING)
+    saved_title = load_anilist_mapping(anilist_id) if anilist_id else None
+    selected_anime = None
+
+    if saved_title:
+        # Ask user if they want to continue with saved choice BEFORE searching
+        choice = menu_navigate(
+            ["✅ Continuar com este", "🔄 Escolher outro"],
+            msg=f"Você usou '{saved_title}' antes.\nQuer continuar?",
+        )
+
+        if not choice:
+            return  # User cancelled
+
+        if choice == "✅ Continuar com este":
+            selected_anime = saved_title
+            # Discover available sources for this anime (background search)
+            # This is needed to populate the repository so we can fetch episodes
+            rep.search_anime(selected_anime, verbose=False)
+
+    # Only search if no saved title or user wants to choose another
     search_state = None
     titles_with_sources = None
     used_query = None
     source = None
 
-    if cache_data:
-        # Found in cache! Use it directly
-        print(f"ℹ️  Usando cache ({cache_data.episode_count} eps disponíveis)")
-        rep.load_from_cache(anime_title, cache_data)
+    if selected_anime is None:
+        # Cache-first: Check if anime_title is in cache before searching
+        cache_data = get_cache(anime_title)
 
-        # Discover available sources for this anime (background search)
-        rep.search_anime(anime_title, verbose=False)
+        if cache_data:
+            # Found in cache! Use it directly
+            print(f"ℹ️  Usando cache ({cache_data.episode_count} eps disponíveis)")
+            rep.load_from_cache(anime_title, cache_data)
 
-        used_query = anime_title
-        titles_with_sources = rep.get_anime_titles_with_sources(
-            filter_by_query=anime_title, original_query=anime_title
-        )
-        if not titles_with_sources:
-            titles_with_sources = [anime_title]
-    else:
-        # Not in cache: use incremental search
-        search_state, titles_with_sources = incremental_search_anime(anime_title)
+            # Discover available sources for this anime (background search)
+            rep.search_anime(anime_title, verbose=False)
 
-        # Extract the query that was actually used for the final results
-        if search_state:
-            current_result_set = search_state.get_current()
-            if current_result_set:
-                used_query = current_result_set.query
+            used_query = anime_title
+            # Don't filter - repo.search_anime already loaded cache data
+            # If we filter by anime_title, we might exclude alternate title versions in cache
+            titles_with_sources = rep.get_anime_titles_with_sources()
+            if not titles_with_sources:
+                titles_with_sources = [anime_title]
+        else:
+            # Not in cache: use incremental search (start with min(3,len(words)) and filter)
+            search_state, titles_with_sources = incremental_search_anime(anime_title)
 
-    if not titles_with_sources:
-        # Offer manual search
+            # Extract the query that was actually used for the final results
+            if search_state:
+                current_result_set = search_state.get_current()
+                if current_result_set:
+                    used_query = current_result_set.query
+
+    if selected_anime is None and not titles_with_sources:
+        # Offer manual search (only if we haven't found anything)
         choice = menu_navigate(
             ["🔍 Buscar manualmente", "🔙 Voltar ao AniList"], msg="O que deseja fazer?"
         )
@@ -253,30 +276,8 @@ def anilist_anime_flow(
         else:
             return  # Back to AniList menu
 
-    # Check if we have a saved title choice from before
-    saved_title = load_anilist_mapping(anilist_id) if anilist_id else None
-
-    # Convert titles with sources to plain titles for saved title check
-    titles = [t.split(" [")[0] for t in titles_with_sources]
-
     # Loop to allow navigation between result sets and selection
-    selected_anime = None
     while selected_anime is None:
-        # If we have a saved title and it's in the current results, ask user if they want to keep it
-        if saved_title and saved_title in titles:
-            # Ask user if they want to continue with saved choice
-            choice = menu_navigate(
-                ["✅ Continuar com este", "🔄 Escolher outro"],
-                msg=f"Você usou '{saved_title}' antes.\nQuer continuar?",
-            )
-
-            if not choice:
-                return  # User cancelled
-
-            if choice == "✅ Continuar com este":
-                selected_anime = saved_title
-                break  # Exit while loop
-
         # Show menu with optional navigation if search_state exists
         menu_title = f"📺 Anime do AniList: '{display_title}'\n"
 
@@ -331,7 +332,6 @@ def anilist_anime_flow(
             new_result_set = search_state.get_current()
             assert new_result_set is not None
             titles_with_sources = new_result_set.results
-            titles = [t.split(" [")[0] for t in titles_with_sources]
             continue  # Loop back to show menu with new results
 
         elif selected_anime_with_source == "__nav_next__":
@@ -341,7 +341,6 @@ def anilist_anime_flow(
             new_result_set = search_state.get_current()
             assert new_result_set is not None
             titles_with_sources = new_result_set.results
-            titles = [t.split(" [")[0] for t in titles_with_sources]
             continue  # Loop back to show menu with new results
 
         else:
