@@ -148,6 +148,11 @@ class SearchSettings(BaseModel):
         le=50,
         description="Maximum results to show initially (before 'Show all' button)",
     )
+    preferred_audio: str = Field(
+        "dublado",
+        pattern="^(dublado|legendado)$",
+        description="Preferred audio type for AnimesDigital: 'dublado' or 'legendado'",
+    )
 
 
 class PluginSettings(BaseModel):

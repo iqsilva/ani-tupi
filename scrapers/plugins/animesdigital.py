@@ -176,6 +176,37 @@ class AnimesDigital:
         for anime in all_anime:
             rep.add_anime(anime["title"], anime["url"], AnimesDigital.name)
 
+    def _search_episodes_with_audio(
+        self, search_query: str, audio_type: str = "dublado"
+    ) -> list[dict]:
+        """Search for episodes with a specific audio type.
+
+        Args:
+            search_query: Anime search term
+            audio_type: "dublado" or "legendado"
+
+        Returns:
+            List of dicts with 'title' and 'url' keys
+        """
+        payload = {
+            "token": API_TOKEN,
+            "search": search_query,
+            "type": "lista",
+            "filter_audio": audio_type,
+        }
+
+        try:
+            response = requests.post(
+                API_URL, data=payload, headers=API_HEADERS, timeout=REQUEST_TIMEOUT
+            )
+            response.raise_for_status()
+            data = response.json()
+            results = self._parse_episode_results(data.get("results", []))
+            return results
+        except Exception as e:
+            logger.debug(f"Search failed for audio_type={audio_type}: {e}")
+            return []
+
     def search_episodes(self, anime: str, url: str, params: dict | None) -> None:
         """Fetch episode list using the API.
 
@@ -184,8 +215,9 @@ class AnimesDigital:
 
         Strategy:
         1. Extract anime name from the series URL slug
-        2. Query API with anime name (minimal params for best results)
-        3. Parse results and extract episode URLs
+        2. Try "dublado" first (more complete on AnimesDigital)
+        3. If few episodes, supplement with "legendado"
+        4. Parse results and extract episode URLs
 
         This avoids the dynamic loading issue while being faster and more reliable
         than trying to scrape the series page with JavaScript rendering.
@@ -210,25 +242,39 @@ class AnimesDigital:
         search_words = anime_slug_clean.split("-")[:4]
         search_query = " ".join(search_words)
 
+        from models.config import settings
+
+        all_results = []
+        found_audio_type = None
+        preferred = settings.search.preferred_audio
+
         try:
-            # Search for episodes using API
-            # API returns what it finds (usually dubbed versions are more complete)
-            payload = {
-                "token": API_TOKEN,
-                "search": search_query,
-                "type": "lista",
-            }
+            # Try preferred audio type first
+            preferred_results = self._search_episodes_with_audio(search_query, preferred)
+            if preferred_results:
+                all_results = preferred_results
+                found_audio_type = preferred
+                logger.debug(
+                    f"Found {len(preferred_results)} {preferred} episodes for '{search_query}'"
+                )
 
-            response = requests.post(
-                API_URL, data=payload, headers=API_HEADERS, timeout=REQUEST_TIMEOUT
-            )
-            response.raise_for_status()
-            data = response.json()
+            # If few episodes, supplement with the other audio type
+            if len(all_results) < 5:
+                other_audio = "legendado" if preferred == "dublado" else "dublado"
+                other_results = self._search_episodes_with_audio(search_query, other_audio)
+                if other_results:
+                    # Find which ones are new (not already in preferred)
+                    preferred_urls = {r["url"] for r in all_results}
+                    new_episodes = [r for r in other_results if r["url"] not in preferred_urls]
+                    if new_episodes:
+                        all_results.extend(new_episodes)
+                        if not found_audio_type:
+                            found_audio_type = other_audio
+                        logger.debug(
+                            f"Supplemented with {len(new_episodes)} {other_audio} episodes (total: {len(all_results)})"
+                        )
 
-            # Parse HTML fragments from results
-            results = self._parse_episode_results(data.get("results", []))
-
-            if not results:
+            if not all_results:
                 logger.debug(
                     f"No episodes found via API for '{search_query}'. Falling back to scraping series page."
                 )
@@ -239,11 +285,12 @@ class AnimesDigital:
                     logger.debug(f"Series page scraping failed: {e}")
                 # Don't return here - continue to homepage search for newly-published episodes
 
-            episode_titles = [ep["title"] for ep in results]
-            episode_urls = [ep["url"] for ep in results]
+            episode_titles = [ep["title"] for ep in all_results]
+            episode_urls = [ep["url"] for ep in all_results]
 
             # Add episodes to repository
-            rep.add_episode_list(anime, episode_titles, episode_urls, AnimesDigital.name)
+            if episode_titles and episode_urls:
+                rep.add_episode_list(anime, episode_titles, episode_urls, AnimesDigital.name)
 
         except Exception as e:
             logger.debug(f"AnimesDigital API search failed for '{search_query}': {e}")
@@ -267,10 +314,6 @@ class AnimesDigital:
                     if source == AnimesDigital.name:
                         animesdigital_urls = list(urls_list)
                         break
-
-                print(
-                    f"[DEBUG homepage merge] AnimesDigital has {len(animesdigital_urls)} episodes"
-                )
 
                 # Extract all URLs currently in repository for this anime (all sources)
                 current_urls = set()
@@ -300,9 +343,6 @@ class AnimesDigital:
                         urls.append(ep["episode_url"])
 
                     if animesdigital_urls:
-                        print(
-                            f"[DEBUG homepage merge] Merging {len(titles)} new episodes with {len(animesdigital_urls)} existing"
-                        )
                         # Merge: Generate titles for all AnimesDigital episodes (existing + new)
                         all_titles = []
                         for i in range(len(animesdigital_urls)):
@@ -313,13 +353,9 @@ class AnimesDigital:
                         # Combine URLs: existing AnimesDigital + new from homepage
                         all_urls = animesdigital_urls + urls
 
-                        print(f"[DEBUG homepage merge] Adding {len(all_titles)} total episodes")
                         rep.add_episode_list(anime, all_titles, all_urls, AnimesDigital.name)
                     else:
                         # No existing AnimesDigital episodes, just add the homepage episodes
-                        print(
-                            f"[DEBUG homepage merge] No existing episodes, adding {len(titles)} from homepage"
-                        )
                         rep.add_episode_list(anime, titles, urls, AnimesDigital.name)
 
         except Exception as e:
