@@ -7,9 +7,12 @@ Handles offline viewing of downloaded anime episodes with:
 - Automatic file cleanup after successful sync
 """
 
+from models.config import settings
 from services.local_anime_service import LocalAnimeService
-from utils.anilist_discovery import get_anilist_id_from_title
-from commands.anime import handle_post_playback_confirmation
+from utils.anilist_discovery import (
+    get_anilist_id_from_title,
+    get_anilist_id_with_interactive_fallback,
+)
 from ui.components import menu_navigate
 from utils.video_player import VideoPlayer
 
@@ -108,18 +111,67 @@ def handle_local_library_playback(args) -> None:
             use_ipc=True,
         )
 
-        # Post-playback confirmation and navigation
-        anilist_id = get_anilist_id_from_title(selected_title)
+        # Post-playback: Discover AniList ID, save history, sync, and cleanup
+        from services.anime.playback_service import sync_progress_to_anilist
+        from services.history_service import save_history
+        from utils.persistence import JSONStore
+        from models.config import get_data_path
 
-        handle_post_playback_confirmation(
-            anime_title=selected_title,
-            episode_number=selected_ep_num,
-            num_episodes=len(episodes),
-            anilist_id=anilist_id,
-            source="local",
-            is_local=True,
-            file_path=ep_path,
-        )
+        # Step 1: Discover AniList ID for first watched episode
+        anilist_id = None
+        try:
+            # Check if this is first watched episode (non-interactive load of history)
+            try:
+                history_path = get_data_path()
+                history_store = JSONStore(history_path / "history.json")
+                history_data = history_store.load({})
+                is_first_watched = selected_title not in history_data
+            except Exception:
+                is_first_watched = True
+
+            if is_first_watched:
+                # Interactive discovery for first watched episode
+                anilist_id = get_anilist_id_with_interactive_fallback(
+                    selected_title,
+                    strict_threshold=95,
+                )
+            else:
+                # Standard discovery (use cached result if available)
+                anilist_id = get_anilist_id_from_title(selected_title)
+        except Exception:
+            pass  # Discovery failure is silent - proceed without AniList ID
+
+        # Step 2: Save history with discovered AniList ID
+        try:
+            save_history(
+                selected_title,
+                selected_ep_num - 1,
+                anilist_id,
+                source="local",
+                total_episodes=len(episodes),
+            )
+        except Exception:
+            pass  # History save failure is silent
+
+        # Step 3: Attempt AniList sync (best effort, no blocking)
+        try:
+            if anilist_id:
+                sync_progress_to_anilist(
+                    anilist_id,
+                    selected_ep_num,
+                    len(episodes),
+                    selected_title,
+                )
+        except Exception:
+            pass  # Sync failure is silent - user can continue watching
+
+        # Step 4: Delete file if configured
+        if settings.offline_sync.delete_after_watch:
+            try:
+                service = LocalAnimeService()
+                service.delete_episode(selected_title, selected_ep_num)
+            except Exception:
+                pass
 
         # Navigation menu after playback
         opts = []
@@ -140,7 +192,7 @@ def handle_local_library_playback(args) -> None:
         opts.append("🔁 Replay")
         opts.append("📂 Voltar à Biblioteca")
 
-        selected_opt = menu_navigate(opts, msg="O que quer fazer agora?")
+        selected_opt = menu_navigate(opts, msg="O que quer fazer agora?", enable_search=False)
 
         if not selected_opt or selected_opt == "📂 Voltar à Biblioteca":
             return  # Back to library selection

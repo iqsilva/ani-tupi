@@ -196,9 +196,10 @@ def get_episode_url_and_source(
     """Get video URL for an episode.
 
     This function:
-    1. Uses repository to search for video URL
-    2. Handles errors gracefully
-    3. Returns immutable result
+    1. Checks if this is an awaiting episode with direct URL from homepage search
+    2. Uses repository to search for video URL (regular path)
+    3. Handles errors gracefully
+    4. Returns immutable result
 
     Args:
         anime_title: The anime title
@@ -208,7 +209,47 @@ def get_episode_url_and_source(
         EpisodePlaybackResult with video URL or error message
     """
     try:
-        # Get episode URL and source info
+        # Check if this is an awaiting episode with a direct URL from incremental search
+        from services.anime import anilist_integration
+        from scrapers.plugins.animesdigital import AnimesDigital
+        from threading import Event
+
+        if hasattr(anilist_integration.anilist_anime_flow, "_awaiting_episode_urls"):
+            awaiting_urls = anilist_integration.anilist_anime_flow._awaiting_episode_urls
+            if anime_title in awaiting_urls and episode in awaiting_urls[anime_title]:
+                # Use the direct episode URL from AnimesDigital homepage search
+                episode_url = awaiting_urls[anime_title][episode]
+
+                # Extract player URL from the AnimesDigital episode page
+                try:
+                    scraper = AnimesDigital()
+                    container = []
+                    event = Event()
+
+                    # Call search_player_src to extract the video URL
+                    scraper.search_player_src(episode_url, container, event)
+
+                    if container:
+                        player_url = container[0]
+                        return EpisodePlaybackResult(
+                            player_url=player_url,
+                            source="animesdigital",
+                            success=True,
+                            error_message=None,
+                        )
+                    else:
+                        # If we couldn't extract player from the direct URL, fall back to regular search
+                        logger.debug(
+                            f"Could not extract player from direct AnimesDigital URL for {anime_title} ep {episode}, trying regular search"
+                        )
+                except Exception as e:
+                    logger.debug(
+                        f"Error extracting player from AnimesDigital awaiting episode: {e}"
+                    )
+                    # Fall back to regular search
+                    pass
+
+        # Regular path: Get episode URL and source info
         episode_info = rep.get_episode_url_and_source(anime_title, episode)
         source = episode_info[1] if episode_info else None
 
@@ -244,19 +285,76 @@ def get_episode_url_and_source(
 # =============================================================================
 
 
+def _validate_anilist_id(
+    anilist_id: int,
+    episode: int,
+    anime_title: str | None = None,
+) -> bool:
+    """Validate AniList ID by checking anime exists.
+
+    Args:
+        anilist_id: The AniList media ID to validate
+        episode: The episode number being synced
+        anime_title: Original anime title (for cache cleanup if invalid)
+
+    Returns:
+        True if anime exists and is valid, False otherwise
+    """
+    try:
+        anime_info = anilist_client.get_anime_by_id(anilist_id)
+        if not anime_info:
+            logger.warning(
+                "AniList ID %d not found. Anime may not exist or ID is incorrect.",
+                anilist_id,
+            )
+            # Clear the invalid cached mapping if provided
+            if anime_title:
+                from utils.anilist_discovery import clear_discovery_cache
+
+                try:
+                    clear_discovery_cache(anime_title)
+                    logger.info(
+                        "Cleared invalid cache mapping for '%s' (was ID %d)",
+                        anime_title,
+                        anilist_id,
+                    )
+                except Exception:
+                    pass
+            return False
+
+        # Check if episode number is reasonable
+        if anime_info.episodes and episode > anime_info.episodes:
+            logger.warning(
+                "Episode %d exceeds total episodes (%d) for anime_id=%d (%s). "
+                "AniList ID may be incorrect.",
+                episode,
+                anime_info.episodes,
+                anilist_id,
+                anime_info.title.romaji,
+            )
+            return False
+
+        return True
+    except Exception as e:
+        logger.error("Failed to validate anime_id=%d: %s", anilist_id, e)
+        return False
+
+
 def sync_progress_to_anilist(
     anilist_id: int | None,
     episode: int,
     num_episodes: int,
+    anime_title: str | None = None,
 ) -> bool:
     """Sync episode progress to AniList.
 
     This function:
     1. Checks if AniList is authenticated and has valid ID
-    2. Adds anime to list if not present
-    3. Promotes status if needed (PLANNING -> CURRENT)
-    4. Updates episode progress
-    5. Marks as COMPLETED if last episode
+    2. Validates the AniList ID exists and episode number is valid
+    3. Adds anime to list if not present
+    4. Promotes status if needed (PLANNING -> CURRENT)
+    5. Updates episode progress
+    6. Marks as COMPLETED if last episode
 
     All errors are handled gracefully - function never raises exceptions.
 
@@ -264,19 +362,47 @@ def sync_progress_to_anilist(
         anilist_id: The AniList media ID (None = no sync)
         episode: The episode number watched (1-indexed)
         num_episodes: Total number of episodes
+        anime_title: Original anime title (for cache cleanup if ID is invalid)
 
     Returns:
         True if sync was successful, False otherwise
     """
     # Check if we have an AniList ID
     if anilist_id is None:
+        logger.debug("No AniList ID provided, skipping sync")
         return False
 
     # Check if client is authenticated
     if not anilist_client.is_authenticated():
+        logger.debug("AniList not authenticated, skipping sync")
         return False
 
     try:
+        # Validate anilist_id is positive
+        if not isinstance(anilist_id, int) or anilist_id <= 0:
+            logger.error(
+                "Invalid AniList ID: %r (must be positive integer)",
+                anilist_id,
+            )
+            return False
+
+        # Validate AniList ID exists and episode is valid
+        if not _validate_anilist_id(anilist_id, episode, anime_title):
+            logger.warning(
+                "AniList ID validation failed for anime_id=%d ep=%d. "
+                "Skipping sync - check that ID is correct.",
+                anilist_id,
+                episode,
+            )
+            return False
+
+        logger.debug(
+            "Syncing to AniList: anime_id=%d, episode=%d/%d",
+            anilist_id,
+            episode,
+            num_episodes,
+        )
+
         # Check if anime is in any list
         if not anilist_client.is_in_any_list(anilist_id):
             logger.info("Adding anime %d to AniList CURRENT list", anilist_id)
@@ -292,14 +418,36 @@ def sync_progress_to_anilist(
         # Update progress
         success = anilist_client.update_progress(anilist_id, episode)
         if not success:
-            logger.warning("Failed to update progress for anime %d ep %d", anilist_id, episode)
+            logger.warning(
+                "Failed to update progress for anime_id=%d ep=%d. "
+                "Check logs above for specific error.",
+                anilist_id,
+                episode,
+            )
             return False
+
+        # Check if anime is already completed
+        entry = anilist_client.get_media_list_entry(anilist_id)
+        if entry and entry.status == "COMPLETED":
+            logger.info(
+                "Anime anime_id=%d is already COMPLETED on AniList",
+                anilist_id,
+            )
+            print(f"✅ Anime já está marcado como COMPLETO no AniList (ID: {anilist_id})")
+        else:
+            logger.info(
+                "✅ Successfully synced anime_id=%d progress to episode %d",
+                anilist_id,
+                episode,
+            )
+            print(f"✅ Progresso sincronizado com AniList (ID: {anilist_id})")
 
         # Check if last episode - mark as completed
         if episode == num_episodes and num_episodes > 0:
             entry = anilist_client.get_media_list_entry(anilist_id)
             if entry and entry.status == "CURRENT":
                 logger.info("Marking anime %d as COMPLETED", anilist_id)
+                print("✅ Anime marcado como COMPLETO no AniList")
                 anilist_client.change_status(anilist_id, Status.COMPLETED)
 
         return True

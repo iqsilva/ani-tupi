@@ -177,7 +177,9 @@ def add_to_queue(
         logger.debug(f"Updated queue entry for {anime_title} ep {episode_number}")
     else:
         queue.entries.append(entry)
-        logger.info(f"Queued sync for {anime_title} ep {episode_number} ({len(queue.entries)} total)")
+        logger.info(
+            f"Queued sync for {anime_title} ep {episode_number} ({len(queue.entries)} total)"
+        )
 
     # Save updated queue
     _save_queue(queue)
@@ -221,6 +223,7 @@ def retry_offline_syncs() -> dict[str, int]:
                 entry.anilist_id,
                 entry.episode_number,
                 entry.episode_number,  # num_episodes (for completion check)
+                entry.anime_title,
             )
 
             if success:
@@ -237,9 +240,13 @@ def retry_offline_syncs() -> dict[str, int]:
                         service = LocalAnimeService()
                         deleted = service.delete_episode(entry.anime_title, entry.episode_number)
                         if deleted:
-                            logger.info(f"🗑️  Deleted {entry.anime_title} ep {entry.episode_number} after sync")
+                            logger.info(
+                                f"🗑️  Deleted {entry.anime_title} ep {entry.episode_number} after sync"
+                            )
                     except Exception as e:
-                        logger.error(f"Failed to delete {entry.anime_title} ep {entry.episode_number}: {e}")
+                        logger.error(
+                            f"Failed to delete {entry.anime_title} ep {entry.episode_number}: {e}"
+                        )
 
                 # Don't keep this entry (sync successful)
                 continue
@@ -247,12 +254,18 @@ def retry_offline_syncs() -> dict[str, int]:
             else:
                 # Sync failed, increment retry counter and keep entry
                 entry.retry_count += 1
-                entry.last_error = "Sync returned False"
+                entry.last_error = (
+                    "Sync failed (check logs for details). "
+                    "Common issues: wrong AniList ID, anime already COMPLETED, "
+                    "episode number exceeds total"
+                )
                 failed_count += 1
                 entries_to_keep.append(entry)
                 logger.warning(
                     f"❌ Offline sync failed for {entry.anime_title} ep {entry.episode_number} "
-                    f"(retry {entry.retry_count}/{settings.offline_sync.max_retry_count})"
+                    f"anime_id={entry.anilist_id} "
+                    f"(retry {entry.retry_count}/{settings.offline_sync.max_retry_count}). "
+                    f"Check logs above for error details."
                 )
 
         except Exception as e:

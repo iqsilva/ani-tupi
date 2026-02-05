@@ -326,6 +326,10 @@ class OfflineSyncConfig(BaseModel):
         default=True,
         description="Automatically delete local episode files after successful sync",
     )
+    delete_after_watch: bool = Field(
+        default=True,
+        description="Delete local files after watching (regardless of AniList sync)",
+    )
 
 
 class MangaSettings(BaseModel):

@@ -134,13 +134,20 @@ def handle_post_playback_confirmation(
     confirmed = confirm == "✅ Sim, assisti até o final"
 
     if confirmed:
-        # Save history (not for local, handled separately)
-        if not is_local:
-            save_history(anime_title, episode_number - 1, anilist_id, source)
+        # Save history for both remote and local episodes
+        save_history(
+            anime_title,
+            episode_number - 1,
+            anilist_id,
+            source or "local",
+            total_episodes=num_episodes,
+        )
 
         # AniList sync
         if anilist_id:
-            success = sync_progress_to_anilist(anilist_id, episode_number, num_episodes)
+            success = sync_progress_to_anilist(
+                anilist_id, episode_number, num_episodes, anime_title
+            )
             if success:
                 print("✅ Progresso salvo no AniList!")
 
@@ -172,6 +179,20 @@ def handle_post_playback_confirmation(
                     is_local=is_local,
                     file_path=file_path,
                 )
+        else:
+            # No AniList ID found - still handle local file deletion if configured
+            if is_local and file_path:
+                from models.config import settings
+                from services.local_anime_service import LocalAnimeService
+
+                if settings.offline_sync.delete_after_watch:
+                    try:
+                        service = LocalAnimeService()
+                        deleted = service.delete_episode(anime_title, episode_number)
+                        if deleted:
+                            print(f"🗑️  Arquivo local deletado (episódio {episode_number})")
+                    except Exception as e:
+                        print(f"⚠️  Erro ao deletar arquivo: {e}")
 
     return confirmed
 

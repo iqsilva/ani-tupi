@@ -18,6 +18,7 @@ from utils.persistence import JSONStore
 from utils.title_utils import clean_title_for_display
 from utils.exceptions import PersistenceError
 from utils.logging import get_logger
+from utils.anilist_discovery import get_anilist_id_with_interactive_fallback
 from models.models import Status
 
 logger = get_logger(__name__)
@@ -81,6 +82,26 @@ def load_history() -> tuple[str, int, int | None, str | None] | None:
             entry = anilist_client.get_media_list_entry(anilist_id)
             if entry and entry.progress:
                 anilist_episode_idx = entry.progress - 1  # Convert to 0-based index
+        elif saved_source == "local":
+            # For local episodes without AniList ID, try interactive discovery
+            # This gets the user involved to confirm the correct anime on AniList
+            with loading(f"Buscando '{anime}' no AniList..."):
+                anilist_id = get_anilist_id_with_interactive_fallback(
+                    anime,
+                    strict_threshold=95,
+                )
+
+            if anilist_id:
+                from services.anilist_service import anilist_client
+
+                anime_info = anilist_client.get_anime_by_id(anilist_id)
+                if anime_info:
+                    anilist_title = anime_info.title.romaji
+
+                # Get progress from AniList
+                entry = anilist_client.get_media_list_entry(anilist_id)
+                if entry and entry.progress:
+                    anilist_episode_idx = entry.progress - 1
 
         # Use maximum progress from both sources, never go backwards
         if anilist_episode_idx > local_episode_idx:
@@ -91,21 +112,34 @@ def load_history() -> tuple[str, int, int | None, str | None] | None:
             # Keep "Local" as default if both are equal or local is higher
 
         # Search for episodes to offer -1/0/+1 options
-        # Clean title to improve search (remove Dublado, Legendado, etc)
-        search_title = clean_title_for_display(anime)
-        rep.clear_search_results()
-
-        if search_title != anime:
-            with loading(f"Buscando '{search_title}' (título simplificado)..."):
-                search_results = rep.search_anime(search_title)
+        # For local episodes, don't search scrapers - use AniList if available
+        if saved_source == "local" and anilist_id:
+            # Local episode with AniList ID: use AniList as source of episodes
+            search_title = anilist_title or anime
+            # Don't search scrapers, just prepare to show AniList info
+            search_results = None  # Will handle differently below
         else:
-            with loading(f"Buscando '{anime}'..."):
-                search_results = rep.search_anime(anime)
+            # Streaming episode or local without AniList ID: search scrapers normally
+            search_title = clean_title_for_display(anime) if saved_source != "local" else anime
+            rep.clear_search_results()
+
+            if search_title != anime:
+                with loading(f"Buscando '{search_title}' (título simplificado)..."):
+                    search_results = rep.search_anime(search_title)
+            else:
+                with loading(f"Buscando '{anime}'..."):
+                    search_results = rep.search_anime(anime)
 
         # Check if multiple anime results (different sources/versions)
-        anime_titles = search_results.get_anime_titles()
-        selected_anime_title = None
-        episode_list = []
+        if search_results is None:
+            # Local episode with AniList ID - use AniList as source
+            selected_anime_title = anilist_title or anime
+            episode_list = []  # Will load episodes on demand
+            anime_titles = []  # Skip scraper-based episode loading
+        else:
+            anime_titles = search_results.get_anime_titles()
+            selected_anime_title = None
+            episode_list = []
 
         if len(anime_titles) > 1:
             # Multiple results - validate which sources have episodes
@@ -177,8 +211,8 @@ def load_history() -> tuple[str, int, int | None, str | None] | None:
         # Update anime reference to selected one
         anime = selected_anime_title
 
-        if not episode_list:
-            # Anime found in search but no episodes available
+        if not episode_list and search_results is not None:
+            # Anime found in search but no episodes available (and not local with AniList ID)
             was_found = len(anime_titles) > 0
 
             if was_found:

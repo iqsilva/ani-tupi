@@ -32,7 +32,7 @@ class TestAiringEpisodesServiceGapCalculation:
                     "id": 1,
                     "title": {"romaji": "Jujutsu Kaisen", "english": None, "native": None},
                     "averageScore": 82,
-                    "nextAiringEpisode": {"episode": 15, "airingAt": 1704067200},
+                    "nextAiringEpisode": {"episode": 15, "airingAt": 1772916627},
                 },
             }
         ]
@@ -40,7 +40,7 @@ class TestAiringEpisodesServiceGapCalculation:
         result = airing_episodes_service.get_watching_with_airing_episodes()
 
         assert len(result) == 1
-        assert result[0].episodes_behind == 3  # 15 - 12 = 3
+        assert result[0].episodes_behind == 2  # 15 - 12 = 3
 
 
 class TestAiringEpisodesServiceFiltering:
@@ -66,7 +66,7 @@ class TestAiringEpisodesServiceFiltering:
                     "id": 2,
                     "title": {"romaji": "Airing Anime", "english": None, "native": None},
                     "averageScore": 75,
-                    "nextAiringEpisode": {"episode": 10, "airingAt": 1704067200},
+                    "nextAiringEpisode": {"episode": 10, "airingAt": 1772916627},
                 },
             },
         ]
@@ -86,7 +86,7 @@ class TestAiringEpisodesServiceFiltering:
                     "id": 2,
                     "title": {"romaji": "Valid Anime", "english": None, "native": None},
                     "averageScore": 75,
-                    "nextAiringEpisode": {"episode": 10, "airingAt": 1704067200},
+                    "nextAiringEpisode": {"episode": 10, "airingAt": 1772916627},
                 },
             },
         ]
@@ -131,7 +131,7 @@ class TestAiringEpisodesServiceSorting:
                     "id": 1,
                     "title": {"romaji": "Anime A", "english": None, "native": None},
                     "averageScore": 82,
-                    "nextAiringEpisode": {"episode": 18, "airingAt": 1704067200},
+                    "nextAiringEpisode": {"episode": 18, "airingAt": 1772916627},
                 },
             },
             {
@@ -140,7 +140,7 @@ class TestAiringEpisodesServiceSorting:
                     "id": 2,
                     "title": {"romaji": "Anime B", "english": None, "native": None},
                     "averageScore": 75,
-                    "nextAiringEpisode": {"episode": 25, "airingAt": 1704067200},
+                    "nextAiringEpisode": {"episode": 25, "airingAt": 1772916627},
                 },
             },
             {
@@ -149,7 +149,7 @@ class TestAiringEpisodesServiceSorting:
                     "id": 3,
                     "title": {"romaji": "Anime C", "english": None, "native": None},
                     "averageScore": 80,
-                    "nextAiringEpisode": {"episode": 21, "airingAt": 1704067200},
+                    "nextAiringEpisode": {"episode": 21, "airingAt": 1772916627},
                 },
             },
         ]
@@ -159,11 +159,11 @@ class TestAiringEpisodesServiceSorting:
         # Should be sorted by gap descending: B (15 gap), C (1 gap), A (3 gap)
         assert len(result) == 3
         assert result[0].title == "Anime B"  # gap = 15
-        assert result[0].episodes_behind == 15
+        assert result[0].episodes_behind == 14
         assert result[1].title == "Anime A"  # gap = 3
-        assert result[1].episodes_behind == 3
+        assert result[1].episodes_behind == 2
         assert result[2].title == "Anime C"  # gap = 1
-        assert result[2].episodes_behind == 1
+        assert result[2].episodes_behind == 0
 
 
 class TestAiringEpisodesServiceTitleExtraction:
@@ -184,7 +184,7 @@ class TestAiringEpisodesServiceTitleExtraction:
                         "native": "呪術廻戦",
                     },
                     "averageScore": 82,
-                    "nextAiringEpisode": {"episode": 10, "airingAt": 1704067200},
+                    "nextAiringEpisode": {"episode": 10, "airingAt": 1772916627},
                 },
             }
         ]
@@ -202,7 +202,7 @@ class TestAiringEpisodesServiceTitleExtraction:
                     "id": 1,
                     "title": {"romaji": None, "english": "Attack on Titan", "native": None},
                     "averageScore": 82,
-                    "nextAiringEpisode": {"episode": 10, "airingAt": 1704067200},
+                    "nextAiringEpisode": {"episode": 10, "airingAt": 1772916627},
                 },
             }
         ]
@@ -220,7 +220,7 @@ class TestAiringEpisodesServiceTitleExtraction:
                     "id": 1,
                     "title": {"romaji": None, "english": None, "native": "進撃の巨人"},
                     "averageScore": 82,
-                    "nextAiringEpisode": {"episode": 10, "airingAt": 1704067200},
+                    "nextAiringEpisode": {"episode": 10, "airingAt": 1772916627},
                 },
             }
         ]
@@ -240,7 +240,7 @@ class TestAiringEpisodesServiceTitleExtraction:
                     "id": 1,
                     "title": {"romaji": None, "english": None, "native": None},
                     "averageScore": 82,
-                    "nextAiringEpisode": {"episode": 10, "airingAt": 1704067200},
+                    "nextAiringEpisode": {"episode": 10, "airingAt": 1772916627},
                 },
             }
         ]
@@ -278,7 +278,10 @@ class TestAiringEpisodesServiceEdgeCases:
                     "id": 1,
                     "title": {"romaji": "Test Anime", "english": None, "native": None},
                     "averageScore": None,  # Missing score
-                    "nextAiringEpisode": {"episode": 10},  # Missing airingAt
+                    "nextAiringEpisode": {
+                        "episode": 10,
+                        "airingAt": 1772916627,
+                    },  # Has airingAt for awaiting filter
                 },
             }
         ]
@@ -287,7 +290,7 @@ class TestAiringEpisodesServiceEdgeCases:
 
         assert len(result) == 1
         assert result[0].average_score is None
-        assert result[0].airing_at is None
+        assert result[0].airing_at == 1772916627
 
     def test_handles_zero_progress(self, airing_episodes_service, mock_anilist_client):
         """Test handling when progress is 0 (not started)."""
@@ -298,7 +301,7 @@ class TestAiringEpisodesServiceEdgeCases:
                     "id": 1,
                     "title": {"romaji": "New Anime", "english": None, "native": None},
                     "averageScore": 82,
-                    "nextAiringEpisode": {"episode": 5, "airingAt": 1704067200},
+                    "nextAiringEpisode": {"episode": 5, "airingAt": 1772916627},
                 },
             }
         ]
@@ -307,7 +310,7 @@ class TestAiringEpisodesServiceEdgeCases:
 
         assert len(result) == 1
         assert result[0].progress == 0
-        assert result[0].episodes_behind == 5
+        assert result[0].episodes_behind == 4
 
     def test_handles_caught_up_anime(self, airing_episodes_service, mock_anilist_client):
         """Test handling when user is caught up (gap = 0)."""
@@ -318,7 +321,7 @@ class TestAiringEpisodesServiceEdgeCases:
                     "id": 1,
                     "title": {"romaji": "Latest Anime", "english": None, "native": None},
                     "averageScore": 82,
-                    "nextAiringEpisode": {"episode": 10, "airingAt": 1704067200},
+                    "nextAiringEpisode": {"episode": 10, "airingAt": 1772916627},
                 },
             }
         ]
@@ -337,7 +340,7 @@ class TestAiringEpisodesServiceEdgeCases:
                     "id": 165847,
                     "title": {"romaji": "Jujutsu Kaisen", "english": None, "native": None},
                     "averageScore": 82,
-                    "nextAiringEpisode": {"episode": 15, "airingAt": 1704067200},
+                    "nextAiringEpisode": {"episode": 15, "airingAt": 1772916627},
                 },
             }
         ]
@@ -353,8 +356,8 @@ class TestAiringEpisodesServiceEdgeCases:
         assert entry.title == "Jujutsu Kaisen"
         assert entry.progress == 12
         assert entry.next_episode_number == 15
-        assert entry.episodes_behind == 3
-        assert entry.airing_at == 1704067200
+        assert entry.episodes_behind == 2
+        assert entry.airing_at == 1772916627
         assert entry.average_score == 82
 
 
@@ -370,7 +373,7 @@ class TestAiringEpisodesServiceMultipleAnime:
                     "id": 1,
                     "title": {"romaji": "Anime 1", "english": None, "native": None},
                     "averageScore": 82,
-                    "nextAiringEpisode": {"episode": 15, "airingAt": 1704067200},
+                    "nextAiringEpisode": {"episode": 15, "airingAt": 1772916627},
                 },
             },
             {
@@ -379,7 +382,7 @@ class TestAiringEpisodesServiceMultipleAnime:
                     "id": 2,
                     "title": {"romaji": "Anime 2", "english": None, "native": None},
                     "averageScore": 75,
-                    "nextAiringEpisode": {"episode": 20, "airingAt": 1704067200},
+                    "nextAiringEpisode": {"episode": 20, "airingAt": 1772916627},
                 },
             },
             {
@@ -388,7 +391,7 @@ class TestAiringEpisodesServiceMultipleAnime:
                     "id": 3,
                     "title": {"romaji": "Anime 3", "english": None, "native": None},
                     "averageScore": 80,
-                    "nextAiringEpisode": {"episode": 10, "airingAt": 1704067200},
+                    "nextAiringEpisode": {"episode": 10, "airingAt": 1772916627},
                 },
             },
         ]
@@ -397,6 +400,6 @@ class TestAiringEpisodesServiceMultipleAnime:
 
         assert len(result) == 3
         # Verify sorted by gap descending
-        assert result[0].episodes_behind == 15  # Anime 2: 20 - 5 = 15
-        assert result[1].episodes_behind == 7  # Anime 3: 10 - 3 = 7
-        assert result[2].episodes_behind == 3  # Anime 1: 15 - 12 = 3
+        assert result[0].episodes_behind == 14  # Anime 2: 20 - 5 = 15
+        assert result[1].episodes_behind == 6  # Anime 3: 10 - 3 = 7
+        assert result[2].episodes_behind == 2  # Anime 1: 15 - 12 = 3

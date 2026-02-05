@@ -3,6 +3,7 @@
 Mixin class providing anime trending, lists, search, sync, and relations.
 """
 
+import logging
 from models.models import (
     AniListAnime,
     AniListMediaListEntry,
@@ -11,6 +12,8 @@ from models.models import (
     AniListRelationNode,
     Status,
 )
+
+logger = logging.getLogger(__name__)
 
 
 class AnimeOperationsMixin:
@@ -199,13 +202,41 @@ class AnimeOperationsMixin:
             # Check if mutation succeeded
             if result and "SaveMediaListEntry" in result:
                 return True
+            logger.warning(
+                "SaveMediaListEntry mutation failed for anime_id=%d, episode=%d. Result: %s",
+                anime_id,
+                episode,
+                result,
+            )
             return False
         except Exception as e:
-            # Log error for debugging (might be COMPLETED status issue)
-            error_msg = str(e).lower()
-            if "completed" in error_msg or "finished" in error_msg:
-                # Silently handle COMPLETED status - user needs to change status manually
-                return False
+            # Log error for debugging
+            error_msg = str(e)
+            error_lower = error_msg.lower()
+
+            # Check for specific error conditions
+            if "completed" in error_lower or "finished" in error_lower:
+                logger.info(
+                    "Anime anime_id=%d is already COMPLETED on AniList. Ignoring sync request.",
+                    anime_id,
+                )
+                # Return True because this is not an error - anime is already complete
+                return True
+            elif "progress" in error_lower and "exceed" in error_lower:
+                logger.warning(
+                    "Cannot update anime_id=%d ep=%d: "
+                    "Episode number exceeds total episodes. "
+                    "Check if anilist_id is correct.",
+                    anime_id,
+                    episode,
+                )
+            else:
+                logger.error(
+                    "Failed to update progress for anime_id=%d ep=%d: %s",
+                    anime_id,
+                    episode,
+                    error_msg,
+                )
             return False
 
     def search_anime(self, query_text: str) -> list[AniListAnime]:

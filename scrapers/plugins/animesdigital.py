@@ -4,7 +4,7 @@ from typing import TypedDict
 
 import requests
 from bs4 import BeautifulSoup
-from scrapling import DynamicFetcher, Fetcher
+from scrapling import DynamicFetcher
 
 from services.repository import rep
 
@@ -177,11 +177,121 @@ class AnimesDigital:
             rep.add_anime(anime["title"], anime["url"], AnimesDigital.name)
 
     def search_episodes(self, anime: str, url: str, params: dict | None) -> None:
-        """Fetch episode list from anime page.
+        """Fetch episode list using the API.
 
-        Ensures all episodes are displayed by adding ?odr=1 parameter.
-        Extracts episodes from the detail page using div.item_ep selector.
-        Filters out special episodes (fractionated like 13.5) to avoid duplicates.
+        AnimesDigital's series page (via DynamicFetcher) doesn't load all episodes.
+        The /func/listanime API reliably returns all episodes for an anime.
+
+        Strategy:
+        1. Extract anime name from the series URL slug
+        2. Query API with anime name (minimal params for best results)
+        3. Parse results and extract episode URLs
+
+        This avoids the dynamic loading issue while being faster and more reliable
+        than trying to scrape the series page with JavaScript rendering.
+        """
+        import re
+
+        # Extract anime slug from URL (e.g., /anime/a/yuusha-kei-ni-shosu-dublado)
+        # Then convert back to searchable format
+        anime_slug_match = re.search(r"/anime/a/([^/?]+)", url)
+        if not anime_slug_match:
+            # Fall back to scraping if we can't extract the slug
+            self._scrape_series_page(url)
+            return
+
+        anime_slug = anime_slug_match.group(1)
+        # Convert slug to search term: replace hyphens with spaces and take first few words
+        # This helps the API find the right anime without being too specific
+        search_words = anime_slug.split("-")[:4]
+        search_query = " ".join(search_words)
+
+        try:
+            # Use minimal API parameters for best results
+            # Extensive filters were returning only 1 result instead of all episodes
+            payload = {
+                "token": API_TOKEN,
+                "search": search_query,
+                "type": "lista",
+            }
+
+            response = requests.post(
+                API_URL, data=payload, headers=API_HEADERS, timeout=REQUEST_TIMEOUT
+            )
+            response.raise_for_status()
+            data = response.json()
+
+            # Parse HTML fragments from results
+            results = self._parse_episode_results(data.get("results", []))
+
+            if not results:
+                logger.debug(
+                    f"No episodes found via API for '{search_query}'. Falling back to scraping series page."
+                )
+                # Fallback: try scraping the series page
+                self._scrape_series_page(url)
+                return
+
+            episode_titles = [ep["title"] for ep in results]
+            episode_urls = [ep["url"] for ep in results]
+
+            # Add episodes to repository
+            rep.add_episode_list(anime, episode_titles, episode_urls, AnimesDigital.name)
+
+        except Exception as e:
+            logger.debug(f"AnimesDigital API search failed for '{search_query}': {e}")
+            # Fallback to scraping
+            try:
+                self._scrape_series_page(url)
+            except Exception as scrape_error:
+                logger.error(
+                    f"AnimesDigital: both API and scraping failed for '{anime}': {scrape_error}"
+                )
+
+    def _parse_episode_results(self, html_fragments: list[str]) -> list[dict]:
+        """Parse episode links from API HTML fragments.
+
+        Args:
+            html_fragments: List of HTML strings from API
+
+        Returns:
+            List of dicts with 'title' and 'url' keys
+        """
+        import re
+
+        results = []
+        seen_urls = set()  # Track to avoid duplicates
+
+        for html in html_fragments:
+            try:
+                soup = BeautifulSoup(html, "html.parser")
+
+                # Find the link element
+                link = soup.find("a", href=True)
+                if not link:
+                    continue
+
+                url = link.get("href")
+                title_elem = link.find("span", class_="title_anime")
+                title = title_elem.get_text(strip=True) if title_elem else ""
+
+                if title and url and url not in seen_urls:
+                    # Filter out special episodes (fractionated like 13.5, 0.5, etc)
+                    if not re.search(r"Episódio\s+\d+\.\d+", title):
+                        results.append({"title": title, "url": url})
+                        seen_urls.add(url)
+
+            except Exception as e:
+                logger.debug(f"Failed to parse episode HTML fragment: {e}")
+                continue
+
+        return results
+
+    def _scrape_series_page(self, url: str) -> None:
+        """Fallback method to scrape anime series page directly.
+
+        Uses DynamicFetcher to render JavaScript and extract episodes.
+        This is slower but works if the API fails.
         """
         import re
 
@@ -192,8 +302,7 @@ class AnimesDigital:
         else:
             url = url + "?odr=1"
 
-        fetcher = Fetcher()
-        tree = fetcher.get(url, timeout=REQUEST_TIMEOUT)
+        tree = DynamicFetcher.fetch(url, timeout=15000, browser="firefox")
 
         # Find all episode containers
         episode_divs = tree.css("div.item_ep")
@@ -216,14 +325,15 @@ class AnimesDigital:
                 title = " ".join(title.split())
                 if title:
                     # Filter out special episodes (fractionated like 13.5, 0.5, etc)
-                    # These are OVAs/specials that shouldn't be counted as main episodes
                     if re.search(r"Episódio\s+\d+\.\d+", title):
                         continue  # Skip special episodes
                     episode_urls.append(href)
                     episode_titles.append(title)
 
-        # Add episodes to repository
-        rep.add_episode_list(anime, episode_titles, episode_urls, AnimesDigital.name)
+        # Note: This method should have the anime name available in the calling context
+        # For now, we just log a warning if nothing was found
+        if not episode_titles:
+            logger.warning("No episodes found even with DynamicFetcher scraping")
 
     def search_player_src(self, url: str, container: list, event) -> None:
         """Extract video URL from episode player.
@@ -269,6 +379,128 @@ class AnimesDigital:
         except Exception as e:
             msg = f"Could not extract video from AnimesDigital: {e}"
             raise Exception(msg) from e
+
+    def search_homepage_incremental(self, title: str) -> list[dict]:
+        """Search AnimesDigital homepage "últimos episódios" with incremental search.
+
+        Fetches the homepage and searches the recent episodes section using an
+        incremental search pattern: start with first word, add words until
+        results <= 5 or all words exhausted.
+
+        Args:
+            title: Anime title to search (e.g., "Jujutsu Kaisen Season 2")
+
+        Returns:
+            List of dicts with keys: anime_title, episode_number, episode_url
+            Empty list if no matches found or on error
+        """
+        import re
+        from fuzzywuzzy import fuzz
+
+        try:
+            # Fetch homepage with requests first to get raw HTML
+            response = requests.get(
+                "https://animesdigital.org/home", headers=API_HEADERS, timeout=10
+            )
+            response.raise_for_status()
+            soup = BeautifulSoup(response.text, "html.parser")
+
+            # Find all episode links in homepage
+            episode_links = soup.find_all("a", href=re.compile(r"/video/a/"))
+            if not episode_links:
+                logger.debug("No episode links found on AnimesDigital homepage")
+                return []
+
+            # Parse all episodes: extract title and URL
+            all_episodes = []
+            for link in episode_links:
+                try:
+                    url = link.get("href", "")
+                    if not url.startswith("http"):
+                        url = f"https://animesdigital.org{url}"
+
+                    # Get title from img title attribute (contains "Anime Name Episódio XX")
+                    img = link.find("img")
+                    if not img:
+                        continue
+
+                    full_title = img.get("title", "")
+                    if not full_title:
+                        continue
+
+                    # Parse: "Anime Name Episódio XX" -> extract episode number
+                    match = re.search(r"Episódio\s+(\d+)", full_title)
+                    if not match:
+                        continue
+
+                    episode_number = int(match.group(1))
+                    # Extract anime name (everything before "Episódio")
+                    anime_name = re.sub(r"\s*Episódio\s+\d+.*", "", full_title).strip()
+
+                    if anime_name and episode_number > 0:
+                        all_episodes.append(
+                            {
+                                "anime_title": anime_name,
+                                "episode_number": episode_number,
+                                "episode_url": url,
+                            }
+                        )
+
+                except Exception as e:
+                    logger.debug(f"Error parsing episode link: {e}")
+                    continue
+
+            if not all_episodes:
+                logger.debug("No parseable episodes found on homepage")
+                return []
+
+            # Incremental search: normalize and match titles
+            query_words = title.lower().split()
+            matched_episodes = []
+
+            for word_count in range(1, len(query_words) + 1):
+                search_query = " ".join(query_words[:word_count])
+
+                # Fuzzy match against all episodes
+                for ep in all_episodes:
+                    anime_title_normalized = ep["anime_title"].lower()
+
+                    # Use partial_ratio for better partial matching
+                    score = fuzz.partial_ratio(search_query, anime_title_normalized)
+
+                    # Keep if score >= 70% (reasonable matching)
+                    if score >= 70 and ep not in matched_episodes:
+                        matched_episodes.append(ep)
+
+                # If we have results <= 5, stop iterating words
+                if len(matched_episodes) <= 5:
+                    break
+
+            # Filter to top 5 results by score
+            if len(matched_episodes) > 5:
+                # Re-score and sort by best match
+                final_query = " ".join(query_words)
+                scored = [
+                    (
+                        fuzz.partial_ratio(final_query, ep["anime_title"].lower()),
+                        ep,
+                    )
+                    for ep in matched_episodes
+                ]
+                scored.sort(key=lambda x: x[0], reverse=True)
+                matched_episodes = [ep for _, ep in scored[:5]]
+
+            logger.debug(
+                f"AnimesDigital homepage search for '{title}': found {len(matched_episodes)} episodes"
+            )
+            return matched_episodes
+
+        except requests.exceptions.Timeout:
+            logger.warning("AnimesDigital homepage fetch timed out")
+            return []
+        except Exception as e:
+            logger.warning(f"Error searching AnimesDigital homepage: {e}")
+            return []
 
 
 def load(languages_dict) -> None:

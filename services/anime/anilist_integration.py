@@ -495,9 +495,61 @@ def anilist_anime_flow(
             episode_idx = option_to_idx[choice]
             # Check if episode is unavailable (marked as None)
             if episode_idx is None:
-                print(f"\n⏳ Episódio {max_progress + 1} ainda não disponível nos scrapers.")
-                input("\nPressione Enter para voltar...")
-                return
+                # Try incremental search on AnimesDigital homepage for awaiting episodes
+                print(f"\n🔍 Buscando episódio {max_progress + 1} no AnimesDigital...")
+
+                from scrapers.plugins.animesdigital import AnimesDigital
+
+                scraper = AnimesDigital()
+
+                try:
+                    with loading("Procurando novo episódio..."):
+                        # Try incremental search on homepage
+                        results = scraper.search_homepage_incremental(selected_anime)
+
+                    if results:
+                        # Filter to the episode we want (max_progress + 1)
+                        target_ep_num = max_progress + 1
+                        matching_episodes = [
+                            ep for ep in results if ep["episode_number"] == target_ep_num
+                        ]
+
+                        if matching_episodes:
+                            # Found the episode! Use it
+                            episode = matching_episodes[0]
+                            print(f"✅ Episódio {target_ep_num} encontrado no AnimesDigital!")
+                            print(f"   URL: {episode['episode_url'][:80]}...")
+
+                            # Set episode_idx to the target episode (use a special marker to indicate it's from homepage)
+                            # We'll handle this in the playback flow
+                            episode_idx = target_ep_num - 1  # Convert to 0-indexed
+
+                            # Store the direct episode URL for use in playback
+                            # We'll pass this through the playback context
+                            if not hasattr(anilist_anime_flow, "_awaiting_episode_urls"):
+                                anilist_anime_flow._awaiting_episode_urls = {}
+                            anilist_anime_flow._awaiting_episode_urls[selected_anime] = {
+                                target_ep_num: episode["episode_url"]
+                            }
+                        else:
+                            # Episode not found in homepage results
+                            print(f"\n❌ Episódio {target_ep_num} não encontrado no AnimesDigital.")
+                            input("\nPressione Enter para voltar...")
+                            return
+                    else:
+                        # No results from incremental search
+                        print(
+                            f"\n❌ Episódio {max_progress + 1} ainda não disponível nos scrapers ou no AnimesDigital."
+                        )
+                        input("\nPressione Enter para voltar...")
+                        return
+
+                except Exception as e:
+                    # Fallback if search fails
+                    print(f"\n⚠️  Erro ao buscar no AnimesDigital: {e}")
+                    print(f"Episódio {max_progress + 1} ainda não disponível nos scrapers.")
+                    input("\nPressione Enter para voltar...")
+                    return
     else:
         # No progress or progress out of bounds - show full episode list
         selected_episode = menu_navigate(episode_list, msg="Escolha o episódio.")
