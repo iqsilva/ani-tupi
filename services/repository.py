@@ -671,6 +671,8 @@ class Repository:
     def get_episode_url_and_source(self, anime: str, episode_num: int) -> tuple[str, str] | None:
         """Get episode URL and source name for a specific episode.
 
+        Respects the priority order configured in settings.plugins.priority_order.
+
         Args:
             anime: Anime title
             episode_num: Episode number (1-indexed)
@@ -682,11 +684,25 @@ class Repository:
         if episode_num < 1:
             return None
 
+        # Get available sources for this episode with their priorities
+        available_sources = []
         for urls, source in self.anime_episodes_urls[anime]:
             if len(urls) >= episode_num:
-                return (urls[episode_num - 1], source)
+                available_sources.append((urls[episode_num - 1], source))
 
-        return None
+        if not available_sources:
+            return None
+
+        # Sort by priority order from settings
+        priority_order = settings.plugins.priority_order
+        available_sources.sort(
+            key=lambda x: (
+                priority_order.index(x[1]) if x[1] in priority_order else len(priority_order)
+            )
+        )
+
+        # Return the highest priority source
+        return available_sources[0]
 
     def get_episode_url(self, anime: str, episode_idx: int) -> str | None:
         """Get episode URL for a specific episode (0-indexed).
@@ -708,7 +724,8 @@ class Repository:
     def get_next_available_episode(self, anime: str, from_episode: int) -> tuple[int, str] | None:
         """Get next available episode from a given episode number.
 
-        Searches all sources for the next available episode after the given one.
+        Searches all sources for the next available episode after the given one,
+        respecting the priority order configured in settings.plugins.priority_order.
 
         Args:
             anime: Anime title
@@ -720,22 +737,28 @@ class Repository:
         if from_episode < 1:
             from_episode = 1
 
-        # Search all sources to find the highest available episode
-        max_episode = 0
-        best_url = None
-
+        # Find available episodes after from_episode
+        available_sources = []
         for urls, source in self.anime_episodes_urls.get(anime, []):
             # Check if this source has more episodes after from_episode
             if len(urls) > from_episode:
                 # Has next episode
-                max_episode = max(max_episode, len(urls))
-                if not best_url:
-                    best_url = urls[from_episode]  # Get next episode (0-indexed)
+                available_sources.append((urls[from_episode], source))
 
-        if best_url:
-            return (from_episode + 1, best_url)  # Return 1-indexed episode number
+        if not available_sources:
+            return None
 
-        return None
+        # Sort by priority order from settings
+        priority_order = settings.plugins.priority_order
+        available_sources.sort(
+            key=lambda x: (
+                priority_order.index(x[1]) if x[1] in priority_order else len(priority_order)
+            )
+        )
+
+        # Return the highest priority source's next episode
+        best_url = available_sources[0][0]
+        return (from_episode + 1, best_url)  # Return 1-indexed episode number
 
     def search_player(self, anime: str, episode_num: int) -> None:
         """Search for video URLs with caching.
