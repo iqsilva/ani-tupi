@@ -201,14 +201,18 @@ class AnimesDigital:
             return
 
         anime_slug = anime_slug_match.group(1)
+        # Remove audio type suffix (dublado/legendado) if present
+        # e.g., "yuusha-kei-ni-shosu-dublado" -> "yuusha-kei-ni-shosu"
+        anime_slug_clean = re.sub(r"-(dublado|legendado)$", "", anime_slug)
+
         # Convert slug to search term: replace hyphens with spaces and take first few words
         # This helps the API find the right anime without being too specific
-        search_words = anime_slug.split("-")[:4]
+        search_words = anime_slug_clean.split("-")[:4]
         search_query = " ".join(search_words)
 
         try:
-            # Use minimal API parameters for best results
-            # Extensive filters were returning only 1 result instead of all episodes
+            # Search for episodes using API
+            # API returns what it finds (usually dubbed versions are more complete)
             payload = {
                 "token": API_TOKEN,
                 "search": search_query,
