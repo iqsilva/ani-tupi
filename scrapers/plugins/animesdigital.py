@@ -47,7 +47,7 @@ class AnimesDigital:
     name = "animesdigital"
 
     def _search_api(
-        self, query: str, page: int = 1, limit: int = 30, audio_type: str = "legendado"
+        self, query: str, page: int = 1, limit: int = 90, audio_type: str = "legendado"
     ) -> tuple[list[AnimeResult], dict]:
         """Search anime using the JSON API.
 
@@ -153,26 +153,18 @@ class AnimesDigital:
         /func/listanime endpoint. Much faster than browser automation.
         """
         search_configs = [
-            ("legendado", "subtitled"),
-            ("dublado", "dubbed"),
+            "legendado",
+            "dublado",
         ]
 
         all_anime = []
 
         try:
-            for audio_type, audio_name in search_configs:
-                logger.info(f"🔍 Searching {audio_name} anime for '{query}'")
-
-                results, metadata = self._search_api(query, audio_type=audio_type)
+            for audio_type in search_configs:
+                results, _ = self._search_api(query, audio_type=audio_type)
 
                 if not results:
-                    logger.debug(f"No {audio_name} results found for '{query}'")
                     continue
-
-                logger.info(
-                    f"✅ Found {len(results)} {audio_name} results for '{query}' "
-                    f"({metadata.get('total_results')} total)"
-                )
 
                 all_anime.extend(results)
 
