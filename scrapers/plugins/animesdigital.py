@@ -205,9 +205,9 @@ class AnimesDigital:
         # e.g., "yuusha-kei-ni-shosu-dublado" -> "yuusha-kei-ni-shosu"
         anime_slug_clean = re.sub(r"-(dublado|legendado)$", "", anime_slug)
 
-        # Convert slug to search term: replace hyphens with spaces and take first few words
-        # This helps the API find the right anime without being too specific
-        search_words = anime_slug_clean.split("-")[:2]
+        # Convert slug to search term: replace hyphens with spaces
+        # Keep season/number information (e.g., "jujutsu-kaisen-3" -> "jujutsu kaisen 3")
+        search_words = anime_slug_clean.split("-")[:4]
         search_query = " ".join(search_words)
 
         try:
@@ -261,10 +261,18 @@ class AnimesDigital:
         try:
             homepage_episodes = self.search_homepage_incremental(anime)
             if homepage_episodes:
-                # Get current episodes from repository
-                current_episodes = rep.get_episode_list(anime)
+                # Get current AnimesDigital episodes (not from other sources!)
+                animesdigital_urls = []
+                for urls_list, source in rep.anime_episodes_urls.get(anime, []):
+                    if source == AnimesDigital.name:
+                        animesdigital_urls = list(urls_list)
+                        break
 
-                # Extract all URLs currently in repository for this anime
+                print(
+                    f"[DEBUG homepage merge] AnimesDigital has {len(animesdigital_urls)} episodes"
+                )
+
+                # Extract all URLs currently in repository for this anime (all sources)
                 current_urls = set()
                 for urls_list, source in rep.anime_episodes_urls.get(anime, []):
                     current_urls.update(urls_list)
@@ -279,30 +287,39 @@ class AnimesDigital:
                     logger.debug(
                         f"Found {len(new_episodes)} new episodes from homepage for '{anime}'"
                     )
-                    # Add them to repository
-                    # Use full anime title if available from homepage result
+                    # Build episode titles and URLs from homepage results
                     titles = []
+                    urls = []
                     for ep in new_episodes:
-                        # Try to get full title from anime_title in homepage result
+                        # Get full title from homepage result
                         if ep.get("anime_title"):
-                            # Format: "Anime Title Episódio XX"
                             title = f"{ep['anime_title']} Episódio {ep['episode_number']}"
                         else:
-                            # Fallback: just episode number
                             title = f"Episódio {ep['episode_number']}"
                         titles.append(title)
-                    urls = [ep["episode_url"] for ep in new_episodes]
+                        urls.append(ep["episode_url"])
 
-                    if current_episodes:
-                        # Merge with existing episodes
-                        all_titles = list(current_episodes) + titles
-                        # Flatten current URLs from repository
-                        all_urls = []
-                        for urls_list, source in rep.anime_episodes_urls.get(anime, []):
-                            all_urls.extend(urls_list)
-                        all_urls.extend(urls)
+                    if animesdigital_urls:
+                        print(
+                            f"[DEBUG homepage merge] Merging {len(titles)} new episodes with {len(animesdigital_urls)} existing"
+                        )
+                        # Merge: Generate titles for all AnimesDigital episodes (existing + new)
+                        all_titles = []
+                        for i in range(len(animesdigital_urls)):
+                            all_titles.append(f"{anime} Episódio {i + 1}")
+                        # Add new titles from homepage
+                        all_titles.extend(titles)
+
+                        # Combine URLs: existing AnimesDigital + new from homepage
+                        all_urls = animesdigital_urls + urls
+
+                        print(f"[DEBUG homepage merge] Adding {len(all_titles)} total episodes")
                         rep.add_episode_list(anime, all_titles, all_urls, AnimesDigital.name)
                     else:
+                        # No existing AnimesDigital episodes, just add the homepage episodes
+                        print(
+                            f"[DEBUG homepage merge] No existing episodes, adding {len(titles)} from homepage"
+                        )
                         rep.add_episode_list(anime, titles, urls, AnimesDigital.name)
 
         except Exception as e:

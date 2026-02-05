@@ -774,19 +774,11 @@ class Repository:
                 if source != "cache":
                     selected_urls.append((urls[episode_num - 1], source))
 
-        # DEBUG: Show collected sources before sorting
-        print(f"   [DEBUG search_player] Anime: {anime}, Episode: {episode_num}")
-        print(f"   [DEBUG search_player] Sources before sort: {[s for _, s in selected_urls]}")
-
         # Sort selected_urls by priority BEFORE processing
         # This ensures highest-priority sources are tried first
         priority_order = settings.plugins.priority_order or []
         priority_map = {name: idx for idx, name in enumerate(priority_order)}
         selected_urls.sort(key=lambda x: priority_map.get(x[1], len(priority_order)))
-
-        # DEBUG: Show sources after sorting
-        print(f"   [DEBUG search_player] Sources after sort: {[s for _, s in selected_urls]}")
-        print(f"   [DEBUG search_player] Priority map: {priority_map}")
 
         # Defensive check: No sources have this episode available
         if not selected_urls:
