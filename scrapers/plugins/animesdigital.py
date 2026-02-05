@@ -233,7 +233,10 @@ class AnimesDigital:
                     f"No episodes found via API for '{search_query}'. Falling back to scraping series page."
                 )
                 # Fallback: try scraping the series page
-                self._scrape_series_page(anime, url)
+                try:
+                    self._scrape_series_page(anime, url)
+                except Exception as e:
+                    logger.debug(f"Series page scraping failed: {e}")
                 # Don't return here - continue to homepage search for newly-published episodes
 
             episode_titles = [ep["title"] for ep in results]
@@ -355,6 +358,8 @@ class AnimesDigital:
             url: Series URL
         """
         import re
+        from concurrent.futures import ThreadPoolExecutor
+        import asyncio
 
         # Ensure ?odr=1 parameter is present to show all episodes
         if "?" in url:
@@ -363,7 +368,20 @@ class AnimesDigital:
         else:
             url = url + "?odr=1"
 
-        tree = DynamicFetcher.fetch(url, timeout=15000, browser="firefox")
+        # Run DynamicFetcher in a thread pool to avoid asyncio loop conflicts
+        try:
+            loop = asyncio.get_running_loop()
+            # We're inside an async context, use executor
+            with ThreadPoolExecutor(max_workers=1) as executor:
+                tree = loop.run_until_complete(
+                    loop.run_in_executor(
+                        executor,
+                        lambda: DynamicFetcher.fetch(url, timeout=15000, browser="firefox"),
+                    )
+                )
+        except RuntimeError:
+            # No event loop running, call directly
+            tree = DynamicFetcher.fetch(url, timeout=15000, browser="firefox")
 
         # Find all episode containers
         episode_divs = tree.css("div.item_ep")

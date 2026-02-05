@@ -774,6 +774,20 @@ class Repository:
                 if source != "cache":
                     selected_urls.append((urls[episode_num - 1], source))
 
+        # DEBUG: Show collected sources before sorting
+        print(f"   [DEBUG search_player] Anime: {anime}, Episode: {episode_num}")
+        print(f"   [DEBUG search_player] Sources before sort: {[s for _, s in selected_urls]}")
+
+        # Sort selected_urls by priority BEFORE processing
+        # This ensures highest-priority sources are tried first
+        priority_order = settings.plugins.priority_order or []
+        priority_map = {name: idx for idx, name in enumerate(priority_order)}
+        selected_urls.sort(key=lambda x: priority_map.get(x[1], len(priority_order)))
+
+        # DEBUG: Show sources after sorting
+        print(f"   [DEBUG search_player] Sources after sort: {[s for _, s in selected_urls]}")
+        print(f"   [DEBUG search_player] Priority map: {priority_map}")
+
         # Defensive check: No sources have this episode available
         if not selected_urls:
             active_sources = self.get_active_sources()
@@ -853,7 +867,7 @@ class Repository:
             )
 
             with ThreadPoolExecutor(max_workers=cpu_count()) as executor:
-                # Try sources in configured priority order
+                # Try sources in configured priority order (SEQUENTIALLY to respect priority)
                 for source_name in sorted_sources:
                     if container:
                         # Already found a video, stop searching
@@ -864,35 +878,37 @@ class Repository:
                         priority_order
                     )
 
-                    # Create tasks for this source
-                    source_tasks = [
-                        loop.run_in_executor(
-                            executor,
-                            safe_plugin_call,
-                            self.sources[source].search_player_src,
-                            url,
-                            source,
-                            is_priority,
-                        )
-                        for url, source in source_urls
-                    ]
-
-                    # Wait for this source (with timeout for high-priority sources)
-                    timeout = 15 if is_priority else None
-                    pending = set(source_tasks)
-
-                    while pending and not container:
-                        try:
-                            done, pending = await asyncio.wait(
-                                pending, return_when=asyncio.FIRST_COMPLETED, timeout=timeout
-                            )
-                        except asyncio.TimeoutError:
-                            # Timeout reached, stop waiting for this source
-                            break
-
-                        # If found a video, break immediately
+                    # For each source, try each URL in sequence
+                    for url, source in source_urls:
                         if container:
+                            # Already found a video, stop searching
                             break
+
+                        try:
+                            # Submit task for this URL and wait for result
+                            task = loop.run_in_executor(
+                                executor,
+                                safe_plugin_call,
+                                self.sources[source].search_player_src,
+                                url,
+                                source,
+                                is_priority,
+                            )
+
+                            # Wait with timeout (longer for priority sources)
+                            timeout = 15 if is_priority else 10
+                            await asyncio.wait_for(task, timeout=timeout)
+
+                            # If we got here and container has content, we found a video
+                            if container:
+                                break
+
+                        except asyncio.TimeoutError:
+                            # This source timed out, try next
+                            continue
+                        except Exception:
+                            # This source failed, try next
+                            continue
 
                 # Get video URL if found, otherwise return None
                 video_url = container[0] if container else None
