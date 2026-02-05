@@ -23,6 +23,18 @@
     rm -rf ~/.local/state/ani-tupi/cache
     echo "✅ Full cache directory removed!"
 
+# Clear watch history
+@clear-history:
+    rm -f ~/.local/state/ani-tupi/history.json
+    echo "✅ Watch history cleared!"
+
+# Clear everything (cache + history + mappings)
+@clear-all:
+    just clear-cache-full
+    just clear-history
+    rm -f ~/.local/state/ani-tupi/anilist_mappings.json
+    echo "✅ AniList mappings cleared!"
+
 # Run tests
 @test:
     uv run pytest

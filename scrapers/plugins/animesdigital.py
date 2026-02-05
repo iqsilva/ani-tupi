@@ -197,7 +197,7 @@ class AnimesDigital:
         anime_slug_match = re.search(r"/anime/a/([^/?]+)", url)
         if not anime_slug_match:
             # Fall back to scraping if we can't extract the slug
-            self._scrape_series_page(url)
+            self._scrape_series_page(anime, url)
             return
 
         anime_slug = anime_slug_match.group(1)
@@ -207,7 +207,7 @@ class AnimesDigital:
 
         # Convert slug to search term: replace hyphens with spaces and take first few words
         # This helps the API find the right anime without being too specific
-        search_words = anime_slug_clean.split("-")[:4]
+        search_words = anime_slug_clean.split("-")[:2]
         search_query = " ".join(search_words)
 
         try:
@@ -233,8 +233,8 @@ class AnimesDigital:
                     f"No episodes found via API for '{search_query}'. Falling back to scraping series page."
                 )
                 # Fallback: try scraping the series page
-                self._scrape_series_page(url)
-                return
+                self._scrape_series_page(anime, url)
+                # Don't return here - continue to homepage search for newly-published episodes
 
             episode_titles = [ep["title"] for ep in results]
             episode_urls = [ep["url"] for ep in results]
@@ -246,11 +246,64 @@ class AnimesDigital:
             logger.debug(f"AnimesDigital API search failed for '{search_query}': {e}")
             # Fallback to scraping
             try:
-                self._scrape_series_page(url)
+                self._scrape_series_page(anime, url)
             except Exception as scrape_error:
                 logger.error(
                     f"AnimesDigital: both API and scraping failed for '{anime}': {scrape_error}"
                 )
+                return
+
+        # After finding episodes via API or series page, supplement with homepage search
+        # for newly-published episodes that may not yet be indexed on the series page
+        try:
+            homepage_episodes = self.search_homepage_incremental(anime)
+            if homepage_episodes:
+                # Get current episodes from repository
+                current_episodes = rep.get_episode_list(anime)
+
+                # Extract all URLs currently in repository for this anime
+                current_urls = set()
+                for urls_list, source in rep.anime_episodes_urls.get(anime, []):
+                    current_urls.update(urls_list)
+
+                # Add new episodes from homepage if not already present
+                new_episodes = []
+                for ep in homepage_episodes:
+                    if ep["episode_url"] not in current_urls:
+                        new_episodes.append(ep)
+
+                if new_episodes:
+                    logger.debug(
+                        f"Found {len(new_episodes)} new episodes from homepage for '{anime}'"
+                    )
+                    # Add them to repository
+                    # Use full anime title if available from homepage result
+                    titles = []
+                    for ep in new_episodes:
+                        # Try to get full title from anime_title in homepage result
+                        if ep.get("anime_title"):
+                            # Format: "Anime Title Episódio XX"
+                            title = f"{ep['anime_title']} Episódio {ep['episode_number']}"
+                        else:
+                            # Fallback: just episode number
+                            title = f"Episódio {ep['episode_number']}"
+                        titles.append(title)
+                    urls = [ep["episode_url"] for ep in new_episodes]
+
+                    if current_episodes:
+                        # Merge with existing episodes
+                        all_titles = list(current_episodes) + titles
+                        # Flatten current URLs from repository
+                        all_urls = []
+                        for urls_list, source in rep.anime_episodes_urls.get(anime, []):
+                            all_urls.extend(urls_list)
+                        all_urls.extend(urls)
+                        rep.add_episode_list(anime, all_titles, all_urls, AnimesDigital.name)
+                    else:
+                        rep.add_episode_list(anime, titles, urls, AnimesDigital.name)
+
+        except Exception as e:
+            logger.debug(f"Homepage search failed for '{anime}': {e}")
 
     def _parse_episode_results(self, html_fragments: list[str]) -> list[dict]:
         """Parse episode links from API HTML fragments.
@@ -291,11 +344,15 @@ class AnimesDigital:
 
         return results
 
-    def _scrape_series_page(self, url: str) -> None:
+    def _scrape_series_page(self, anime: str, url: str) -> None:
         """Fallback method to scrape anime series page directly.
 
         Uses DynamicFetcher to render JavaScript and extract episodes.
         This is slower but works if the API fails.
+
+        Args:
+            anime: Anime title (needed to add episodes to repository)
+            url: Series URL
         """
         import re
 
@@ -334,10 +391,11 @@ class AnimesDigital:
                     episode_urls.append(href)
                     episode_titles.append(title)
 
-        # Note: This method should have the anime name available in the calling context
-        # For now, we just log a warning if nothing was found
-        if not episode_titles:
-            logger.warning("No episodes found even with DynamicFetcher scraping")
+        # Add episodes to repository if found
+        if episode_titles:
+            rep.add_episode_list(anime, episode_titles, episode_urls, AnimesDigital.name)
+        else:
+            logger.warning(f"No episodes found for '{anime}' even with DynamicFetcher scraping")
 
     def search_player_src(self, url: str, container: list, event) -> None:
         """Extract video URL from episode player.
@@ -403,8 +461,12 @@ class AnimesDigital:
 
         try:
             # Fetch homepage with requests first to get raw HTML
+            # Use normal browser headers (not API headers) to get full HTML
+            browser_headers = {
+                "User-Agent": "Mozilla/5.0 (X11; Linux x86_64; rv:146.0) Gecko/20100101 Firefox/146.0",
+            }
             response = requests.get(
-                "https://animesdigital.org/home", headers=API_HEADERS, timeout=10
+                "https://animesdigital.org/home", headers=browser_headers, timeout=10
             )
             response.raise_for_status()
             soup = BeautifulSoup(response.text, "html.parser")
@@ -440,6 +502,8 @@ class AnimesDigital:
                     episode_number = int(match.group(1))
                     # Extract anime name (everything before "Episódio")
                     anime_name = re.sub(r"\s*Episódio\s+\d+.*", "", full_title).strip()
+                    # Remove "Assistir" prefix if present
+                    anime_name = re.sub(r"^Assistir\s+", "", anime_name).strip()
 
                     if anime_name and episode_number > 0:
                         all_episodes.append(
