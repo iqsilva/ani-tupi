@@ -1,3 +1,12 @@
+"""AnimesDigital scraper plugin.
+
+CRITICAL REQUIREMENT: When fetching episode lists from AnimesDigital series pages,
+the ?odr=1 parameter MUST be present in the URL. Without this parameter,
+episodes will not be displayed on the page and cannot be fetched.
+
+The parameter enables proper episode ordering from 1 to end.
+"""
+
 import json
 import logging
 from typing import TypedDict
@@ -415,6 +424,10 @@ class AnimesDigital:
         Uses DynamicFetcher to render JavaScript and extract episodes.
         This is slower but works if the API fails.
 
+        CRITICAL: The ?odr=1 parameter is REQUIRED. Without it, episodes
+        disappear from the AnimesDigital series page and cannot be fetched.
+        This parameter enables episode ordering from 1 to end.
+
         Args:
             anime: Anime title (needed to add episodes to repository)
             url: Series URL
@@ -423,7 +436,8 @@ class AnimesDigital:
         from concurrent.futures import ThreadPoolExecutor
         import asyncio
 
-        # Ensure ?odr=1 parameter is present to show all episodes
+        # REQUIRED: ?odr=1 parameter MUST be present to show all episodes
+        # Without this parameter, the series page will NOT display episodes
         if "?" in url:
             if "odr=" not in url:
                 url = url + "&odr=1"
