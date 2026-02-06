@@ -565,7 +565,13 @@ def _continue_manga_flow(
             chapter_labels.insert(0, resume_label)
         elif not any("Retomar" in label for label in chapter_labels):
             # Fallback to first chapter if no exact match found
-            chapter_labels[0] = f"⮕ Retomar ({resume_source}) - {chapter_labels[0]}"
+            # IMPORTANT: Keep chapters and chapter_labels in sync!
+            resume_label = f"⮕ Retomar ({resume_source}) - {chapter_labels[0]}"
+            recommended_chapter = chapters.pop(0)
+            chapter_labels.pop(0)
+
+            chapters.insert(0, recommended_chapter)
+            chapter_labels.insert(0, resume_label)
 
     # Chapter selection loop
     current_index = 0
@@ -960,7 +966,10 @@ def _handle_download_for_later(
         print("❌ Nenhum capítulo disponível")
         return
 
-    all_chapters.reverse()  # Sort ascending
+    # Note: chapters are already in ascending order if passed from _continue_manga_flow
+    # Only reverse if they were freshly fetched (likely in descending order from scraper)
+    if chapters is None:
+        all_chapters.reverse()  # Sort ascending from scraper's descending order
 
     # Get last read chapter
     last_chapter = history.get_last_chapter(selected_manga.title)

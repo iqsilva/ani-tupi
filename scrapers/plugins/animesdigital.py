@@ -313,23 +313,24 @@ class AnimesDigital:
                 return
 
         # After finding episodes via API or series page, supplement with homepage search
-        # for newly-published episodes that may not yet be indexed on the series page
+        # Merge all episodes from both sources, removing duplicates by URL
         try:
+            # Get current AnimesDigital episodes from API/series page search
+            animesdigital_urls = []
+            for urls_list, source in rep.anime_episodes_urls.get(anime, []):
+                if source == AnimesDigital.name:
+                    animesdigital_urls = list(urls_list)
+                    break
+
+            # Search homepage for matching episodes
             homepage_episodes = self.search_homepage_incremental(anime)
             if homepage_episodes:
-                # Get current AnimesDigital episodes (not from other sources!)
-                animesdigital_urls = []
-                for urls_list, source in rep.anime_episodes_urls.get(anime, []):
-                    if source == AnimesDigital.name:
-                        animesdigital_urls = list(urls_list)
-                        break
-
-                # Extract all URLs currently in repository for this anime (all sources)
+                # Create a set of all current URLs (all sources) for deduplication
                 current_urls = set()
                 for urls_list, source in rep.anime_episodes_urls.get(anime, []):
                     current_urls.update(urls_list)
 
-                # Add new episodes from homepage if not already present
+                # Find new episodes from homepage that aren't already indexed
                 new_episodes = []
                 for ep in homepage_episodes:
                     if ep["episode_url"] not in current_urls:
@@ -339,33 +340,34 @@ class AnimesDigital:
                     logger.debug(
                         f"Found {len(new_episodes)} new episodes from homepage for '{anime}'"
                     )
-                    # Build episode titles and URLs from homepage results
-                    titles = []
-                    urls = []
+                    # Build episode titles and URLs from new homepage results
+                    new_titles = []
+                    new_urls = []
                     for ep in new_episodes:
                         # Get full title from homepage result
                         if ep.get("anime_title"):
                             title = f"{ep['anime_title']} Episódio {ep['episode_number']}"
                         else:
                             title = f"Episódio {ep['episode_number']}"
-                        titles.append(title)
-                        urls.append(ep["episode_url"])
+                        new_titles.append(title)
+                        new_urls.append(ep["episode_url"])
 
                     if animesdigital_urls:
-                        # Merge: Generate titles for all AnimesDigital episodes (existing + new)
+                        # Merge: Keep all existing AnimesDigital episodes + add new ones from homepage
                         all_titles = []
+                        # Add existing episodes
                         for i in range(len(animesdigital_urls)):
                             all_titles.append(f"{anime} Episódio {i + 1}")
-                        # Add new titles from homepage
-                        all_titles.extend(titles)
+                        # Add new episodes from homepage
+                        all_titles.extend(new_titles)
 
                         # Combine URLs: existing AnimesDigital + new from homepage
-                        all_urls = animesdigital_urls + urls
+                        all_urls = animesdigital_urls + new_urls
 
                         rep.add_episode_list(anime, all_titles, all_urls, AnimesDigital.name)
                     else:
                         # No existing AnimesDigital episodes, just add the homepage episodes
-                        rep.add_episode_list(anime, titles, urls, AnimesDigital.name)
+                        rep.add_episode_list(anime, new_titles, new_urls, AnimesDigital.name)
 
         except Exception as e:
             logger.debug(f"Homepage search failed for '{anime}': {e}")
@@ -573,11 +575,17 @@ class AnimesDigital:
 
             # Parse all episodes: extract title and URL
             all_episodes = []
+            seen_urls = set()  # Track URLs to avoid duplicates
             for link in episode_links:
                 try:
                     url = link.get("href", "")
                     if not url.startswith("http"):
                         url = f"https://animesdigital.org{url}"
+
+                    # Skip if we've already seen this URL
+                    if url in seen_urls:
+                        continue
+                    seen_urls.add(url)
 
                     # Get title from img title attribute (contains "Anime Name Episódio XX")
                     img = link.find("img")
@@ -617,40 +625,63 @@ class AnimesDigital:
                 return []
 
             # Incremental search: normalize and match titles
+            # Strategy: keep adding words until we find exact/near-exact matches
             query_words = title.lower().split()
             matched_episodes = []
+            best_matches = []  # Track the highest-scoring matches
 
             for word_count in range(1, len(query_words) + 1):
                 search_query = " ".join(query_words[:word_count])
+                current_matches = []
 
-                # Fuzzy match against all episodes
+                # Score all episodes against current search query
                 for ep in all_episodes:
                     anime_title_normalized = ep["anime_title"].lower()
 
-                    # Use partial_ratio for better partial matching
-                    score = fuzz.partial_ratio(search_query, anime_title_normalized)
+                    # Use different matching strategies based on search length:
+                    # - Single word: use partial_ratio (matches "jujutsu" in "Jujutsu Kaisen...")
+                    # - Multiple words: use ratio which handles partial sequences better
+                    if word_count == 1:
+                        # Single word: be lenient to catch keywords
+                        score = fuzz.partial_ratio(search_query, anime_title_normalized)
+                        threshold = 70
+                    else:
+                        # Multiple words: use ratio for partial title matching
+                        # Also try partial_ratio and keep the best score
+                        ratio_score = fuzz.ratio(search_query, anime_title_normalized)
+                        partial_score = fuzz.partial_ratio(search_query, anime_title_normalized)
+                        score = max(ratio_score, partial_score)
+                        threshold = 65  # Slightly lower to catch good partial matches
 
-                    # Keep if score >= 70% (reasonable matching)
-                    if score >= 70 and ep not in matched_episodes:
-                        matched_episodes.append(ep)
+                    if score >= threshold:
+                        current_matches.append((score, ep))
 
-                # If we have results <= 5, stop iterating words
-                if len(matched_episodes) <= 5:
-                    break
+                if current_matches:
+                    # Sort by score (best matches first)
+                    current_matches.sort(key=lambda x: x[0], reverse=True)
+                    # Update best matches - keep replacing until we stabilize
+                    best_matches = current_matches
 
-            # Filter to top 5 results by score
-            if len(matched_episodes) > 5:
-                # Re-score and sort by best match
-                final_query = " ".join(query_words)
-                scored = [
-                    (
-                        fuzz.partial_ratio(final_query, ep["anime_title"].lower()),
-                        ep,
-                    )
-                    for ep in matched_episodes
-                ]
-                scored.sort(key=lambda x: x[0], reverse=True)
-                matched_episodes = [ep for _, ep in scored[:5]]
+                    # If top match has very high confidence or we've used all words, stop
+                    # Single word: need >90%, Multiple words: need >95%
+                    top_score = best_matches[0][0]
+                    stop_threshold = 90 if word_count == 1 else 95
+                    if top_score > stop_threshold or word_count == len(query_words):
+                        break
+
+            # Extract top 5 episodes from best matches
+            # But also filter out weak matches: require final full-title match >= 75%
+            matched_episodes = []
+            final_query = " ".join(query_words).lower()
+            for _, ep in best_matches[:5]:
+                # Re-score with full query to avoid weak partial matches
+                final_score = max(
+                    fuzz.ratio(final_query, ep["anime_title"].lower()),
+                    fuzz.partial_ratio(final_query, ep["anime_title"].lower()),
+                )
+                # Only keep if final score is acceptable (75%+)
+                if final_score >= 75:
+                    matched_episodes.append(ep)
 
             # Sort by episode number to ensure correct order (1, 2, 3, ...)
             matched_episodes.sort(key=lambda ep: ep["episode_number"])
