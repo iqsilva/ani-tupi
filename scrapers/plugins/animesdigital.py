@@ -368,7 +368,7 @@ class AnimesDigital:
             html_fragments: List of HTML strings from API
 
         Returns:
-            List of dicts with 'title' and 'url' keys
+            List of dicts with 'title' and 'url' keys, sorted by episode number
         """
         import re
 
@@ -391,12 +391,21 @@ class AnimesDigital:
                 if title and url and url not in seen_urls:
                     # Filter out special episodes (fractionated like 13.5, 0.5, etc)
                     if not re.search(r"Episódio\s+\d+\.\d+", title):
-                        results.append({"title": title, "url": url})
+                        # Extract episode number for sorting
+                        ep_match = re.search(r"Episódio\s+(\d+)", title)
+                        ep_number = int(ep_match.group(1)) if ep_match else float("inf")
+                        results.append({"title": title, "url": url, "_ep_number": ep_number})
                         seen_urls.add(url)
 
             except Exception as e:
                 logger.debug(f"Failed to parse episode HTML fragment: {e}")
                 continue
+
+        # Sort by episode number to ensure correct order (1, 2, 3, ...)
+        results.sort(key=lambda x: x["_ep_number"])
+        # Remove temporary sort key
+        for r in results:
+            del r["_ep_number"]
 
         return results
 
@@ -628,6 +637,9 @@ class AnimesDigital:
                 ]
                 scored.sort(key=lambda x: x[0], reverse=True)
                 matched_episodes = [ep for _, ep in scored[:5]]
+
+            # Sort by episode number to ensure correct order (1, 2, 3, ...)
+            matched_episodes.sort(key=lambda ep: ep["episode_number"])
 
             logger.debug(
                 f"AnimesDigital homepage search for '{title}': found {len(matched_episodes)} episodes"
