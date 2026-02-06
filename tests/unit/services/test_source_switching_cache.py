@@ -1,11 +1,11 @@
-"""Unit tests for source switching with cache.
+"""Unit tests for source switching with incremental search.
 
-Tests that source switching respects the cache-first approach and doesn't
-unnecessarily re-search scrapers when results are available in cache.
+Tests that source switching performs a new incremental search,
+allowing user to discover different sources and versions of the anime.
 """
 
 import pytest
-from unittest.mock import Mock, patch
+from unittest.mock import Mock, patch, MagicMock
 from services.anime.source_management import switch_anime_source
 
 
@@ -22,21 +22,14 @@ def setup_mocks():
     # Setup repository mock
     mock_rep.anime_episodes_urls = {}
     mock_rep.save_episode_state.return_value = {"urls": [], "titles": []}
-    mock_rep.load_from_cache = Mock()
-    mock_rep.search_anime = Mock()
-    mock_rep.get_search_metadata.return_value = Mock(used_query="test query")
-    mock_rep.get_anime_titles_with_sources.return_value = ["Test Anime [animefire]"]
+    mock_rep.clear_search_results = Mock()
+    mock_rep.search_episodes = Mock()
     mock_rep.get_episode_list.return_value = ["Episódio 1"]
-
-    # Patch cache
-    mock_cache_patch = patch("services.anime.source_management.get_cache")
-    mock_get_cache = mock_cache_patch.start()
-    patches.append(mock_cache_patch)
 
     # Patch title normalization
     mock_norm_patch = patch("services.anime.source_management.normalize_anime_title")
     mock_normalize = mock_norm_patch.start()
-    mock_normalize.return_value = ["test"]  # Single variant for simplicity
+    mock_normalize.return_value = ["test anime"]  # Single variant for simplicity
     patches.append(mock_norm_patch)
 
     # Patch AniList search title loader
@@ -59,6 +52,19 @@ def setup_mocks():
     mock_menu.side_effect = ["Test Anime [animefire]", "Episódio 1"]
     patches.append(mock_menu_patch)
 
+    # Patch incremental_search_anime
+    mock_incremental_patch = patch("services.anime.source_management.incremental_search_anime")
+    mock_incremental = mock_incremental_patch.start()
+    # Create mock state with navigation support
+    mock_state = MagicMock()
+    mock_state.get_current.return_value = MagicMock(
+        query="test anime", results=["Test Anime [animefire]"]
+    )
+    mock_state.has_previous.return_value = False
+    mock_state.has_next.return_value = False
+    mock_incremental.return_value = (mock_state, ["Test Anime [animefire]"])
+    patches.append(mock_incremental_patch)
+
     # Patch history file access to avoid progress detection
     mock_open_patch = patch("builtins.open", side_effect=FileNotFoundError)
     mock_open_patch.start()
@@ -72,11 +78,11 @@ def setup_mocks():
 
     yield {
         "rep": mock_rep,
-        "get_cache": mock_get_cache,
         "normalize": mock_normalize,
         "load_anilist": mock_load_anilist,
         "loading": mock_loading,
         "menu": mock_menu,
+        "incremental": mock_incremental,
     }
 
     # Cleanup
@@ -85,64 +91,51 @@ def setup_mocks():
 
 
 class TestSourceSwitchingCache:
-    """Test source switching cache behavior."""
+    """Test source switching behavior (now using incremental search)."""
 
-    def test_uses_cache_when_available(self, setup_mocks):
-        """When switching source, should use cache if results are cached."""
+    def test_performs_incremental_search(self, setup_mocks):
+        """When switching source, should perform a NEW incremental search."""
         mocks = setup_mocks
-        # Setup: Cache returns data
-        cache_data = Mock(episode_count=12, episode_urls=["url1", "url2"])
-        mocks["get_cache"].return_value = cache_data
 
         # Call switch_anime_source
         switch_anime_source("Current Anime", Mock())
 
-        # Verify cache was checked
-        mocks["get_cache"].assert_called()
+        # Verify incremental_search_anime was called
+        mocks["incremental"].assert_called()
 
-        # Verify load_from_cache was called when cache was available
-        mocks["rep"].load_from_cache.assert_called()
+        # Verify it was called with the normalized title
+        call_args = mocks["incremental"].call_args[0]
+        assert call_args[0] == "test anime"  # Should be normalized
 
-        # Verify search_anime was called with verbose=False (background search for sources)
-        # This indicates cache was found and we're just discovering sources
-        search_anime_calls = mocks["rep"].search_anime.call_args_list
-        assert len(search_anime_calls) > 0
-        # Check that at least one call has verbose=False
-        verbose_false_called = any(
-            call_obj[1].get("verbose") is False for call_obj in search_anime_calls
-        )
-        assert verbose_false_called, (
-            "search_anime should be called with verbose=False after cache load"
-        )
-
-    def test_searches_scrapers_when_cache_miss(self, setup_mocks):
-        """When cache miss, should use incremental search (3 words + filter)."""
+    def test_normalizes_anilist_title_before_search(self, setup_mocks):
+        """Should normalize AniList title before passing to incremental search."""
         mocks = setup_mocks
-        # Setup: No cache
-        mocks["get_cache"].return_value = None
+        # Setup: AniList provides a search title
+        mocks["load_anilist"].return_value = "Boku no Hero Academia Season 5"
 
-        # Mock incremental_search_anime (imported inside the function)
-        with patch("services.anime.search.incremental_search_anime") as mock_incremental:
-            mock_incremental.return_value = (Mock(), [])  # Returns (state, results)
+        # Call switch_anime_source with anilist_id
+        switch_anime_source("Current Anime", Mock(), anilist_id=12345)
 
-            # Call switch_anime_source
-            switch_anime_source("Current Anime", Mock())
+        # Verify normalize_anime_title was called with the AniList title
+        mocks["normalize"].assert_called()
+        call_args = mocks["normalize"].call_args[0]
+        assert "Boku no Hero Academia Season 5" in call_args
 
-            # Verify cache was checked
-            mocks["get_cache"].assert_called()
+        # Verify incremental_search_anime was called with normalized version
+        mocks["incremental"].assert_called()
 
-            # Verify load_from_cache was NOT called
-            mocks["rep"].load_from_cache.assert_not_called()
+    def test_clears_search_results_before_new_search(self, setup_mocks):
+        """Should clear previous search results before starting new search."""
+        mocks = setup_mocks
 
-            # Verify incremental_search_anime was called (not simple search)
-            mock_incremental.assert_called()
+        # Call switch_anime_source
+        switch_anime_source("Current Anime", Mock())
+
+        # Verify clear_search_results was called
+        mocks["rep"].clear_search_results.assert_called()
 
     def test_returns_selected_anime_and_episode_idx(self, setup_mocks):
         """Should return the selected anime title and episode index."""
-        mocks = setup_mocks
-        # Setup: Anime found with episode selected
-        mocks["get_cache"].return_value = None
-
         # Call switch_anime_source
         result = switch_anime_source("Current Anime", Mock())
 
@@ -152,3 +145,27 @@ class TestSourceSwitchingCache:
         assert result[0] is not None  # Anime title
         assert isinstance(result[1], int)  # Episode index
         assert result[1] >= 0
+
+    def test_loads_episodes_from_new_source(self, setup_mocks):
+        """Should load episodes from the newly selected source."""
+        mocks = setup_mocks
+
+        # Call switch_anime_source
+        switch_anime_source("Current Anime", Mock())
+
+        # Verify search_episodes was called with selected anime
+        mocks["rep"].search_episodes.assert_called()
+
+    def test_returns_none_when_no_results(self, setup_mocks):
+        """Should return (None, None) when search returns no results."""
+        mocks = setup_mocks
+        # Setup: Incremental search returns empty results
+        mock_state = MagicMock()
+        mock_state.get_current.return_value = None
+        mocks["incremental"].return_value = (mock_state, [])
+
+        # Call switch_anime_source
+        result = switch_anime_source("Current Anime", Mock())
+
+        # Verify it returns (None, None)
+        assert result == (None, None)

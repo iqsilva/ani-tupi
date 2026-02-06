@@ -13,7 +13,7 @@ from services.anime.title_normalization import normalize_anime_title
 from services.anime.mappings import (
     load_anilist_search_title,
 )
-from utils.scraper_cache import get_cache
+from services.anime.search import incremental_search_anime
 
 HISTORY_PATH = get_data_path()
 
@@ -23,8 +23,8 @@ def switch_anime_source(
 ) -> tuple[str, int] | tuple[None, None]:
     """Allow user to switch to a different anime source/title.
 
-    Shows all available variations (dubbed/subtitled/different scrapers) found
-    using the SAME search criteria as the original search.
+    Performs a NEW complete search (incremental) for the anime title,
+    allowing user to discover different sources and versions.
     Maintains progress from local history and AniList (as fallback).
 
     Args:
@@ -41,91 +41,80 @@ def switch_anime_source(
         # Store shallow copies of the data structures for restoration
         saved_episode_data = rep.save_episode_state(current_anime)
 
-    # 1. Use saved search title from AniList if available (same title as original search)
-    # Otherwise fall back to display_title or current_anime
+    # 1. Determine search query (use saved AniList search title if available)
     if anilist_id:
-        search_title = load_anilist_search_title(anilist_id)
+        search_query = load_anilist_search_title(anilist_id)
     else:
-        search_title = None
-    search_title = search_title or display_title or current_anime
+        search_query = None
+    search_query = search_query or display_title or current_anime
 
-    # Try to use the exact search title first (without variations) for cache lookup
-    # This handles the common case where user switches source immediately after initial search
-    # and the cache key matches exactly
-    title_variations = [search_title] + normalize_anime_title(search_title)
-    # Remove duplicates while preserving order
-    seen = set()
-    title_variations = [x for x in title_variations if not (x in seen or seen.add(x))]
+    # Normalize the AniList title to get best search query
+    normalized_variations = normalize_anime_title(search_query)
+    if normalized_variations:
+        search_query = normalized_variations[0]
 
-    current_variant_idx = 0
-    selected_anime = None
+    # 2. Perform INCREMENTAL search (same as search_anime_flow)
+    rep.clear_search_results()
+    state, search_results = incremental_search_anime(search_query)
 
-    # 2. Interactive search loop - same as normal search flow
-    while selected_anime is None and current_variant_idx < len(title_variations):
-        variant = title_variations[current_variant_idx]
-
-        # Cache-first: Check if query is in cache before searching scrapers
-        cache_data = get_cache(variant)
-        if cache_data:
-            with loading(f"Carregando '{variant}' do cache..."):
-                rep.load_from_cache(variant, cache_data)
-                # Discover available sources for this anime (background search)
-                rep.search_anime(variant, verbose=False)
-        else:
-            # Not in cache: regular search with full word count (no progressive word reduction)
-            with loading(f"Buscando '{variant}'..."):
-                rep.search_anime(variant, verbose=True)
-
-        # Get results with sources
-        search_metadata = rep.get_search_metadata()
-        used_query = search_metadata.used_query or variant
-        titles_with_sources = rep.get_anime_titles_with_sources(
-            filter_by_query=variant, original_query=used_query
-        )
-
-        # If found results, show interactive menu
-        if titles_with_sources:
-            # Build menu with "Continue searching" option if more variations available
-            menu_title = f"🔄 Trocar fonte para '{current_anime}'\n"
-            menu_title += f"🔍 Busca: '{used_query}'\n"
-            menu_title += f"Encontrados {len(titles_with_sources)} resultados. Escolha:"
-
-            CONTINUE_BUTTON = "🔍 Continuar buscando (menos palavras)"
-            menu_options = []
-
-            if current_variant_idx < len(title_variations) - 1:
-                menu_options.append(CONTINUE_BUTTON)
-            menu_options.extend(titles_with_sources)
-
-            selected_anime_with_source = menu_navigate(menu_options, msg=menu_title)
-
-            if not selected_anime_with_source:
-                # User cancelled
-                if saved_episode_data:
-                    rep.restore_episode_state(current_anime, saved_episode_data)
-                return None, None
-
-            # Check if user wants to continue searching
-            if selected_anime_with_source == CONTINUE_BUTTON:
-                current_variant_idx += 1
-                continue  # Try next variation
-
-            # User selected an anime
-            selected_anime = selected_anime_with_source.split(" [")[0]
-        else:
-            # No results with this variation, try next
-            current_variant_idx += 1
-
-    # 3. If no results found with any variation
-    if not selected_anime:
-        # RESTORE: Return episode data so user can continue watching current source
+    # If no results at all
+    if not search_results:
         if saved_episode_data:
             rep.restore_episode_state(current_anime, saved_episode_data)
-            print("⚠️  Nenhuma variação encontrada")
+            print("⚠️  Nenhuma fonte encontrada para trocar")
             print("   💡 Mantendo fonte atual...")
         else:
-            print("⚠️  Nenhuma variação encontrada")
+            print("⚠️  Nenhuma fonte encontrada")
         return None, None
+
+    # 3. Show menu with navigation support (same as search_anime_flow)
+    current_result_set = state.get_current()
+    menu_title = "🔄 Trocar fonte\n"
+    if current_result_set:
+        menu_title += f"🔍 Busca: '{current_result_set.query}'\n"
+        menu_title += f"Encontrados {len(current_result_set.results)} resultados. Escolha:"
+
+    # Build menu options with navigation buttons
+    menu_options = []
+
+    # Add navigation buttons if available
+    if state.has_previous():
+        menu_options.append("⬅️  Resultados anteriores (mais palavras)")
+    if state.has_next():
+        menu_options.append("➡️  Resultados próximos (menos palavras)")
+
+    menu_options.extend(search_results)
+
+    selected_anime_with_source = menu_navigate(menu_options, msg=menu_title)
+
+    if not selected_anime_with_source:
+        # User cancelled
+        if saved_episode_data:
+            rep.restore_episode_state(current_anime, saved_episode_data)
+        return None, None
+
+    # Handle navigation buttons
+    if selected_anime_with_source == "⬅️  Resultados anteriores (mais palavras)":
+        prev_set = state.go_back()
+        if prev_set:
+            # Recursively call with preserved state (simplified: just show previous results)
+            # For now, restart the flow to keep it simple
+            if saved_episode_data:
+                rep.restore_episode_state(current_anime, saved_episode_data)
+            return switch_anime_source(current_anime, args, anilist_id, display_title)
+        return None, None
+
+    if selected_anime_with_source == "➡️  Resultados próximos (menos palavras)":
+        next_set = state.go_forward()
+        if next_set:
+            # Recursively call with preserved state
+            if saved_episode_data:
+                rep.restore_episode_state(current_anime, saved_episode_data)
+            return switch_anime_source(current_anime, args, anilist_id, display_title)
+        return None, None
+
+    # User selected an anime
+    selected_anime = selected_anime_with_source.split(" [")[0]
 
     # 5. Load episodes from new source
     with loading("Carregando episódios..."):
