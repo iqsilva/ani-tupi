@@ -7,7 +7,91 @@ Assista anime e leia mangá direto do terminal sem anúncios! Interface CLI em p
 ## 📺 Demo no YouTube
 [![Demo](https://img.youtube.com/vi/eug6gKLTD3I/maxresdefault.jpg)](https://youtu.be/eug6gKLTD3I)
 
-## ⭐ Integração com AniList (Recomendado!)
+## 🚀 Instalação Rápida
+
+### Instalação CLI Global (Recomendado)
+
+Instala `ani-tupi` e `manga-tupi` como comandos globais - use em qualquer lugar do sistema!
+
+**Requisito:** Apenas Python 3.12+ (UV é instalado automaticamente pelo script)
+
+```bash
+# Clone o repositório
+git clone https://github.com/levyvix/ani-tupi
+cd ani-tupi
+
+# Execute o instalador
+python3 install-cli.py
+```
+
+**O instalador faz automaticamente:**
+- ✅ Instala UV se não estiver presente
+- ✅ Instala ani-tupi como ferramenta global usando UV
+- ✅ Configura comandos `ani-tupi` e `manga-tupi`
+- ✅ Mostra instruções para adicionar ao PATH se necessário
+
+**Depois de instalado, use:**
+```bash
+ani-tupi                      # Buscar e assistir anime
+ani-tupi --continue-watching  # Continuar último anime
+ani-tupi anilist auth         # Autenticar com AniList.co
+ani-tupi anilist              # Navegar suas listas no AniList
+manga-tupi                    # Ler mangá
+```
+
+### Modo Desenvolvimento
+
+Para desenvolvedores - roda sem instalar globalmente:
+
+```bash
+git clone https://github.com/levyvix/ani-tupi
+cd ani-tupi
+uv sync                # Instala dependências
+uv run ani-tupi        # Executa sem instalar
+uv run main.py --debug # Modo debug
+```
+
+## ✨ Novos Recursos (Fevereiro 2025)
+
+### 🎬 Airing Episodes - Descubra Novos Episódios
+Veja automaticamente quais animes da sua lista AniList têm novos episódios no ar!
+
+- **Tab "🎬 Novos Episódios"** no menu AniList
+- Mostra quanto você está atrasado em cada anime (gap em episódios)
+- Ordena por urgência (animes com maior atraso primeiro)
+- Selecione para assistir diretamente
+
+**Exemplo:**
+```
+Jujutsu Kaisen - Ep 25 aired, você viu 22 (3 atrasado) ⭐82%
+Dandadan - Ep 18 aired, você viu 15 (3 atrasado) ⭐79%
+Blue Lock - Ep 11 aired, você viu 11 (0 atrasado) ⭐75%
+```
+
+### 🏠 Biblioteca Local - Assistir Offline
+Baixe episódios para assistir depois, sem internet!
+
+- **Tab "📂 Biblioteca Local"** no menu principal
+- Organize episódios por anime
+- Range flexível: `5`, `1-12`, `5-`, `-12`
+- Configuração de paralelismo de downloads
+
+**Ambiente:**
+```bash
+export ANI_TUPI__ANIME__DOWNLOAD_DIRECTORY="~/Videos/Anime"
+export ANI_TUPI__ANIME__MAX_PARALLEL_DOWNLOADS=4
+export ANI_TUPI__ANIME__VIDEO_FORMAT="mp4"
+```
+
+### 🔍 Busca Incremental com Histórico
+Resultados mais precisos com busca progressiva!
+
+- Digitar query e ani-tupi refina resultados incrementalmente
+- Mostra historicamente todas as buscas anteriores
+- Menu com navegação por histórico
+- Melhor experiência para títulos longos/ambíguos
+
+### ⭐ Integração com AniList (Recomendado!)
 
 **Sincronize automaticamente seu progresso com [AniList.co](https://anilist.co)!**
 
@@ -119,37 +203,7 @@ uv run playwright install
 
 **Nota:** Zathura é primariamente para Linux. No Windows, o sistema detectará automaticamente outros leitores de PDF instalados (Adobe Reader, SumatraPDF, etc).
 
-## 🚀 Instalação
-
-### Instalação CLI Global (Recomendado)
-
-Instala `ani-tupi` e `manga-tupi` como comandos globais - use em qualquer lugar do sistema!
-
-**Requisito:** Apenas Python 3.12+ (UV é instalado automaticamente pelo script)
-
-```bash
-# Clone o repositório
-git clone https://github.com/levyvix/ani-tupi
-cd ani-tupi
-
-# Execute o instalador
-python3 install-cli.py
-```
-
-**O instalador faz automaticamente:**
-- ✅ Instala UV se não estiver presente
-- ✅ Instala ani-tupi como ferramenta global usando UV
-- ✅ Configura comandos `ani-tupi` e `manga-tupi`
-- ✅ Mostra instruções para adicionar ao PATH se necessário
-
-**Depois de instalado, use:**
-```bash
-ani-tupi                      # Buscar e assistir anime
-ani-tupi --continue-watching  # Continuar último anime
-ani-tupi anilist auth         # Autenticar com AniList.co
-ani-tupi anilist              # Navegar suas listas no AniList
-manga-tupi                    # Ler mangá
-```
+## 📦 Outras Opções de Instalação
 
 ### Instalação Manual
 
@@ -164,18 +218,6 @@ curl -LsSf https://astral.sh/uv/install.sh | sh         # Linux/macOS
 git clone https://github.com/levyvix/ani-tupi
 cd ani-tupi
 uv tool install .
-```
-
-### Modo Desenvolvimento
-
-Para desenvolvedores - roda sem instalar globalmente:
-
-```bash
-git clone https://github.com/levyvix/ani-tupi
-cd ani-tupi
-uv sync                # Instala dependências
-uv run ani-tupi        # Executa sem instalar
-uv run main.py --debug # Modo debug
 ```
 
 ## 💻 Como Usar
@@ -947,9 +989,46 @@ Para questões legais específicas em sua jurisdição, consulte um advogado esp
 - Desenvolvedores do mpv
 - Projeto ani-cli (inspiração)
 
+---
+
 ## 📝 Changelog
 
-### Versão Atual (Dezembro 2025)
+### v0.3.0 (Fevereiro 2025) - Airing Episodes & Local Library
+
+**🎬 Airing Episodes (Novos Episódios)**
+- ✅ Novo tab "🎬 Novos Episódios" no menu AniList
+- ✅ Lista animes em transmissão com gap de episódios
+- ✅ Ordena por urgência (maior atraso primeiro)
+- ✅ Mostra score e quanto você está atrasado
+- ✅ Integração seamless com playback
+
+**📂 Biblioteca Local (Download & Offline)**
+- ✅ Tab "📂 Biblioteca Local" no menu principal
+- ✅ Baixe episódios para assistir depois
+- ✅ Range flexível: `5`, `1-12`, `5-`, `-12`
+- ✅ Downloads paralelos configuráveis (1-16)
+- ✅ Salva progresso local persistentemente
+- ✅ Sincronização com AniList após playback
+
+**🔍 Busca Incremental & Histórico**
+- ✅ Busca progressiva com refinamento automático
+- ✅ Histórico de buscas com navegação
+- ✅ Melhor precisão para títulos ambíguos
+- ✅ Menu inteligente para múltiplos resultados
+
+**🔧 Melhorias de Robustez**
+- ✅ Validação de fontes por prioridade (AnimesDigital > AnimesFire)
+- ✅ Tratamento de falha em fonte fallback
+- ✅ Homepage incremental search para AnimesDigital
+- ✅ Suporte a episodes descobertos dinamicamente
+
+**🐛 Correções**
+- ✅ Fallback source now validates non-empty chapters
+- ✅ AnimesDigital ?odr=1 parameter requirement documented
+- ✅ Episode order sorting and deduplication
+- ✅ Homepage search matching precision
+
+### v0.2.0 (Dezembro 2025) - Refactor & Performance
 
 **🔄 Trocar Fonte Durante Reprodução**
 - ✅ Opção "🔄 Trocar fonte" no menu pós-episódio
