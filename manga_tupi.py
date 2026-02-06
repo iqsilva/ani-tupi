@@ -470,12 +470,14 @@ def _continue_manga_flow(
                             chapters = service.get_chapters(
                                 selected_manga.id, manga_url=manga_url, source=fallback_source
                             )
-                            selected_source = fallback_source
-                            manga_source_preferences.set_preferred_source(
-                                selected_manga.title, fallback_source
-                            )
-                            print(f"✓ Usando fonte alternativa: {fallback_source}")
-                            break
+                            # Only use this source if we got chapters
+                            if chapters:
+                                selected_source = fallback_source
+                                manga_source_preferences.set_preferred_source(
+                                    selected_manga.title, fallback_source
+                                )
+                                print(f"✓ Usando fonte alternativa: {fallback_source}")
+                                break
                     except Exception:
                         continue
             else:
@@ -619,6 +621,7 @@ def _continue_manga_flow(
                 manga_url,
                 selected_source,
                 history,
+                chapters,
             )
 
 
@@ -921,24 +924,37 @@ def _handle_download_for_later(
     manga_url,
     selected_source,
     history,
+    chapters: list | None = None,
 ) -> None:
     """Handle download for later flow.
 
     Downloads chapter(s) without opening reader and returns to menu.
+
+    Args:
+        service: UnifiedMangaService instance
+        selected_manga: Currently selected manga
+        selected_chapter: Currently selected chapter
+        manga_url: Manga URL for scrapers that need it
+        selected_source: Source name (mugiwaras, mangadex, etc.)
+        history: MangaHistory instance
+        chapters: Optional list of already-loaded chapters (avoids re-fetching)
     """
     from services.manga_service import DownloadedChaptersTracker
 
     config = settings.manga
 
-    # Get all chapters for this manga
-    try:
-        with loading(f"Carregando capítulos de {selected_source}..."):
-            all_chapters = service.get_chapters(
-                selected_manga.id, manga_url=manga_url, source=selected_source
-            )
-    except Exception as e:
-        print(f"❌ Erro ao carregar capítulos: {e}")
-        return
+    # Use provided chapters or fetch them
+    if chapters is None:
+        try:
+            with loading(f"Carregando capítulos de {selected_source}..."):
+                all_chapters = service.get_chapters(
+                    selected_manga.id, manga_url=manga_url, source=selected_source
+                )
+        except Exception as e:
+            print(f"❌ Erro ao carregar capítulos: {e}")
+            return
+    else:
+        all_chapters = chapters
 
     if not all_chapters:
         print("❌ Nenhum capítulo disponível")
