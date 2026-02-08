@@ -253,14 +253,14 @@ def anilist_anime_flow(
                         best_score = score
                         best_match = anime_title
 
-                if best_match and best_score >= 70:  # 70% match threshold
+                if best_match and best_score >= 50:  # 50% match threshold (very lenient)
                     selected_anime = best_match
                     print(f"✅ Encontrado: '{selected_anime}' (score: {best_score}%)")
 
-                    # Now search episodes from this source
+                    # Now search episodes (no source filter - any available source is OK)
                     print("📺 Buscando episódios...")
                     with loading("Buscando episódios..."):
-                        rep.search_episodes(selected_anime, source_filter=source)
+                        rep.search_episodes(selected_anime)
                     episode_list = rep.get_episode_list(selected_anime)
                     scraper_episode_count = len(episode_list)
 
@@ -268,7 +268,7 @@ def anilist_anime_flow(
                         print(f"✅ Encontrados {scraper_episode_count} episódios")
                         episodes_already_loaded = True
                     else:
-                        print(f"⚠️  Nenhum episódio encontrado na fonte {source}")
+                        print(f"⚠️  Nenhum episódio encontrado para {selected_anime}")
                 else:
                     # No good match found, fall back to normal search
                     print(f"❌ Não foi possível encontrar '{selected_anime}' na fonte {source}")
