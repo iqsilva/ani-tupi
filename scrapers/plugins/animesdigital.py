@@ -202,6 +202,7 @@ class AnimesDigital:
             "search": search_query,
             "type": "lista",
             "filter_audio": audio_type,
+            "limit": "90",  # Fetch up to 90 episodes in one request (default API returns only 10)
         }
 
         try:
@@ -217,54 +218,80 @@ class AnimesDigital:
             return []
 
     def search_episodes(self, anime: str, url: str, params: dict | None) -> None:
-        """Fetch episode list using the API.
+        """Fetch episode list by scraping the series page directly.
 
-        AnimesDigital's series page (via DynamicFetcher) doesn't load all episodes.
-        The /func/listanime API reliably returns all episodes for an anime.
+        AnimesDigital's series page (with ?odr=1 parameter) loads all episodes
+        via JavaScript rendering. This is the most reliable approach because:
+        1. We scrape the exact series URL, avoiding generic API search issues
+        2. API search can return episodes from multiple series (e.g., "Sakamoto Days"
+           returns both original + "Part 2", causing duplicates)
+        3. DynamicFetcher with ?odr=1 is reliable and consistently finds all episodes
 
         Strategy:
-        1. Extract anime name from the series URL slug
-        2. Try "dublado" first (more complete on AnimesDigital)
-        3. If few episodes, supplement with "legendado"
-        4. Parse results and extract episode URLs
-
-        This avoids the dynamic loading issue while being faster and more reliable
-        than trying to scrape the series page with JavaScript rendering.
+        1. Use DynamicFetcher to scrape the series page directly (primary method)
+        2. If scraping fails or finds few episodes, try API as fallback
+        3. Supplement with homepage search for newly-published episodes
         """
         import re
 
-        # Extract anime slug from URL (e.g., /anime/a/yuusha-kei-ni-shosu-dublado)
-        # Then convert back to searchable format
-        anime_slug_match = re.search(r"/anime/a/([^/?]+)", url)
-        if not anime_slug_match:
-            # Fall back to scraping if we can't extract the slug
-            self._scrape_series_page(anime, url)
-            return
-
-        anime_slug = anime_slug_match.group(1)
-        # Remove audio type suffix (dublado/legendado) if present
-        # e.g., "yuusha-kei-ni-shosu-dublado" -> "yuusha-kei-ni-shosu"
-        anime_slug_clean = re.sub(r"-(dublado|legendado)$", "", anime_slug)
-
-        # Convert slug to search term: replace hyphens with spaces
-        # Keep season/number information (e.g., "jujutsu-kaisen-3" -> "jujutsu kaisen 3")
-        search_words = anime_slug_clean.split("-")[:4]
-        search_query = " ".join(search_words)
-
-        from models.config import settings
-
-        all_results = []
-        found_audio_type = None
-        preferred = settings.search.preferred_audio
-
         try:
+            # Primary: Scrape the series page directly (most accurate)
+            # CRITICAL: ?odr=1 parameter MUST be present to display all episodes
+            logger.debug(f"Scraping AnimesDigital series page for '{anime}'...")
+            self._scrape_series_page(anime, url)
+
+            # Check how many episodes were found
+            animesdigital_urls = []
+            for urls_list, source in rep.anime_episodes_urls.get(anime, []):
+                if source == AnimesDigital.name:
+                    animesdigital_urls = list(urls_list)
+                    break
+
+            episode_count = len(animesdigital_urls)
+            logger.debug(f"Series page scraping found {episode_count} episodes for '{anime}'")
+
+            # If we got episodes from scraping, we're done with primary method
+            if episode_count > 0:
+                # Supplement with homepage search for newly-published episodes
+                try:
+                    homepage_episodes = self.search_homepage_incremental(anime)
+                    if homepage_episodes:
+                        self._merge_homepage_episodes(anime, animesdigital_urls, homepage_episodes)
+                except Exception as e:
+                    logger.debug(f"Homepage search failed for '{anime}': {e}")
+                return
+
+            # If scraping found nothing, fallback to API search
+            logger.debug(
+                f"Series page scraping found no episodes for '{anime}'. Trying API fallback..."
+            )
+
+        except Exception as e:
+            logger.debug(f"Series page scraping failed: {e}")
+
+        # Fallback: Use API search (but be careful of duplicates)
+        try:
+            anime_slug_match = re.search(r"/anime/a/([^/?]+)", url)
+            if not anime_slug_match:
+                logger.error(f"Could not extract anime slug from URL: {url}")
+                return
+
+            anime_slug = anime_slug_match.group(1)
+            anime_slug_clean = re.sub(r"-(dublado|legendado)$", "", anime_slug)
+            search_words = anime_slug_clean.split("-")[:4]
+            search_query = " ".join(search_words)
+
+            from models.config import settings
+
+            all_results = []
+            preferred = settings.search.preferred_audio
+
             # Try preferred audio type first
             preferred_results = self._search_episodes_with_audio(search_query, preferred)
             if preferred_results:
                 all_results = preferred_results
-                found_audio_type = preferred
                 logger.debug(
-                    f"Found {len(preferred_results)} {preferred} episodes for '{search_query}'"
+                    f"API search found {len(preferred_results)} {preferred} episodes for '{search_query}'"
                 )
 
             # If few episodes, supplement with the other audio type
@@ -272,105 +299,83 @@ class AnimesDigital:
                 other_audio = "legendado" if preferred == "dublado" else "dublado"
                 other_results = self._search_episodes_with_audio(search_query, other_audio)
                 if other_results:
-                    # Find which ones are new (not already in preferred)
                     preferred_urls = {r["url"] for r in all_results}
                     new_episodes = [r for r in other_results if r["url"] not in preferred_urls]
                     if new_episodes:
                         all_results.extend(new_episodes)
-                        if not found_audio_type:
-                            found_audio_type = other_audio
                         logger.debug(
                             f"Supplemented with {len(new_episodes)} {other_audio} episodes (total: {len(all_results)})"
                         )
 
-            if not all_results:
-                logger.debug(
-                    f"No episodes found via API for '{search_query}'. Falling back to scraping series page."
-                )
-                # Fallback: try scraping the series page
-                try:
-                    self._scrape_series_page(anime, url)
-                except Exception as e:
-                    logger.debug(f"Series page scraping failed: {e}")
-                # Don't return here - continue to homepage search for newly-published episodes
-
-            episode_titles = [ep["title"] for ep in all_results]
-            episode_urls = [ep["url"] for ep in all_results]
-
-            # Add episodes to repository
-            if episode_titles and episode_urls:
+            if all_results:
+                episode_titles = [ep["title"] for ep in all_results]
+                episode_urls = [ep["url"] for ep in all_results]
                 rep.add_episode_list(anime, episode_titles, episode_urls, AnimesDigital.name)
 
         except Exception as e:
-            logger.debug(f"AnimesDigital API search failed for '{search_query}': {e}")
-            # Fallback to scraping
-            try:
-                self._scrape_series_page(anime, url)
-            except Exception as scrape_error:
-                logger.error(
-                    f"AnimesDigital: both API and scraping failed for '{anime}': {scrape_error}"
-                )
-                return
+            logger.error(f"AnimesDigital: both scraping and API search failed for '{anime}': {e}")
+            return
 
-        # After finding episodes via API or series page, supplement with homepage search
-        # Merge all episodes from both sources, removing duplicates by URL
+        # Supplement with homepage search for newly-published episodes
         try:
-            # Get current AnimesDigital episodes from API/series page search
             animesdigital_urls = []
             for urls_list, source in rep.anime_episodes_urls.get(anime, []):
                 if source == AnimesDigital.name:
                     animesdigital_urls = list(urls_list)
                     break
 
-            # Search homepage for matching episodes
             homepage_episodes = self.search_homepage_incremental(anime)
-            if homepage_episodes:
-                # Create a set of all current URLs (all sources) for deduplication
-                current_urls = set()
-                for urls_list, source in rep.anime_episodes_urls.get(anime, []):
-                    current_urls.update(urls_list)
-
-                # Find new episodes from homepage that aren't already indexed
-                new_episodes = []
-                for ep in homepage_episodes:
-                    if ep["episode_url"] not in current_urls:
-                        new_episodes.append(ep)
-
-                if new_episodes:
-                    logger.debug(
-                        f"Found {len(new_episodes)} new episodes from homepage for '{anime}'"
-                    )
-                    # Build episode titles and URLs from new homepage results
-                    new_titles = []
-                    new_urls = []
-                    for ep in new_episodes:
-                        # Get full title from homepage result
-                        if ep.get("anime_title"):
-                            title = f"{ep['anime_title']} Episódio {ep['episode_number']}"
-                        else:
-                            title = f"Episódio {ep['episode_number']}"
-                        new_titles.append(title)
-                        new_urls.append(ep["episode_url"])
-
-                    if animesdigital_urls:
-                        # Merge: Keep all existing AnimesDigital episodes + add new ones from homepage
-                        all_titles = []
-                        # Add existing episodes
-                        for i in range(len(animesdigital_urls)):
-                            all_titles.append(f"{anime} Episódio {i + 1}")
-                        # Add new episodes from homepage
-                        all_titles.extend(new_titles)
-
-                        # Combine URLs: existing AnimesDigital + new from homepage
-                        all_urls = animesdigital_urls + new_urls
-
-                        rep.add_episode_list(anime, all_titles, all_urls, AnimesDigital.name)
-                    else:
-                        # No existing AnimesDigital episodes, just add the homepage episodes
-                        rep.add_episode_list(anime, new_titles, new_urls, AnimesDigital.name)
+            if homepage_episodes and animesdigital_urls:
+                self._merge_homepage_episodes(anime, animesdigital_urls, homepage_episodes)
 
         except Exception as e:
             logger.debug(f"Homepage search failed for '{anime}': {e}")
+
+    def _merge_homepage_episodes(
+        self, anime: str, current_urls: list[str], homepage_episodes: list[dict]
+    ) -> None:
+        """Merge homepage episodes with existing episodes, avoiding duplicates.
+
+        Args:
+            anime: Anime title
+            current_urls: List of URLs already found
+            homepage_episodes: Episodes from homepage search
+        """
+        try:
+            # Create a set of all current URLs for deduplication
+            current_urls_set = set(current_urls)
+
+            # Find new episodes from homepage that aren't already indexed
+            new_episodes = []
+            for ep in homepage_episodes:
+                if ep["episode_url"] not in current_urls_set:
+                    new_episodes.append(ep)
+
+            if new_episodes:
+                logger.debug(f"Found {len(new_episodes)} new episodes from homepage for '{anime}'")
+
+                # Build episode titles and URLs from new homepage results
+                new_titles = []
+                new_urls = []
+                for ep in new_episodes:
+                    if ep.get("anime_title"):
+                        title = f"{ep['anime_title']} Episódio {ep['episode_number']}"
+                    else:
+                        title = f"Episódio {ep['episode_number']}"
+                    new_titles.append(title)
+                    new_urls.append(ep["episode_url"])
+
+                # Merge: Keep all existing episodes + add new ones from homepage
+                all_titles = []
+                for i in range(len(current_urls)):
+                    all_titles.append(f"{anime} Episódio {i + 1}")
+                all_titles.extend(new_titles)
+
+                all_urls = current_urls + new_urls
+                rep.add_episode_list(anime, all_titles, all_urls, AnimesDigital.name)
+
+        except Exception as e:
+            logger.debug(f"Error merging homepage episodes: {e}")
 
     def _parse_episode_results(self, html_fragments: list[str]) -> list[dict]:
         """Parse episode links from API HTML fragments.
@@ -466,6 +471,7 @@ class AnimesDigital:
 
         episode_titles: list[str] = []
         episode_urls: list[str] = []
+        seen_urls = set()  # Track to avoid duplicates
 
         for ep_div in episode_divs:
             # Find the link inside the episode div for the URL
@@ -484,6 +490,12 @@ class AnimesDigital:
                     # Filter out special episodes (fractionated like 13.5, 0.5, etc)
                     if re.search(r"Episódio\s+\d+\.\d+", title):
                         continue  # Skip special episodes
+
+                    # Skip duplicate URLs (in case DynamicFetcher finds duplicates)
+                    if href in seen_urls:
+                        continue
+
+                    seen_urls.add(href)
                     episode_urls.append(href)
                     episode_titles.append(title)
 
