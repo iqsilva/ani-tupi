@@ -223,10 +223,13 @@ class AnimesDigital:
         AnimesDigital's series page (with ?odr=1 parameter) loads all episodes
         via JavaScript rendering. This is the most reliable approach.
 
+        Then supplements with homepage search to catch newly-published episodes
+        not yet indexed on the series page.
+
         CRITICAL: ?odr=1 parameter MUST be present to display all episodes
         """
         try:
-            # Scrape the series page directly
+            # Step 1: Scrape the series page directly
             logger.debug(f"Scraping AnimesDigital series page for '{anime}'...")
             self._scrape_series_page(anime, url)
 
@@ -242,6 +245,17 @@ class AnimesDigital:
 
             if episode_count == 0:
                 logger.warning(f"No episodes found for '{anime}' in series page scraping")
+
+            # Step 2: Supplement with homepage search for newly-published episodes
+            # Homepage "Últimos Episódios" may have episodes not yet on the series page
+            logger.debug(f"Searching AnimesDigital homepage for new episodes of '{anime}'...")
+            homepage_episodes = self.search_homepage_incremental(anime)
+
+            if homepage_episodes:
+                logger.debug(f"Found {len(homepage_episodes)} episodes on homepage for '{anime}'")
+                self._merge_homepage_episodes(anime, animesdigital_urls, homepage_episodes)
+            else:
+                logger.debug(f"No new episodes found on homepage for '{anime}'")
 
         except Exception as e:
             logger.error(f"AnimesDigital series page scraping failed for '{anime}': {e}")
