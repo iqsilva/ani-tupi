@@ -223,22 +223,46 @@ def anilist_anime_flow(
                     selected_anime = None
             else:
                 # No saved URL, but anime title is valid (was saved before)
-                # Just search for it directly
+                # Search and try to find matching title in results
                 print(f"📺 Procurando '{selected_anime}'...")
                 rep.search_anime(selected_anime, verbose=False)
 
-                # Load episodes from any available source
-                print("   Buscando episódios...")
-                with loading("Buscando episódios..."):
-                    rep.search_episodes(selected_anime)
-                episode_list = rep.get_episode_list(selected_anime)
-                scraper_episode_count = len(episode_list)
+                # Find best match in repository using fuzzy matching
+                from fuzzywuzzy import fuzz
 
-                if episode_list:
-                    print(f"✅ Encontrados {scraper_episode_count} episódios")
-                    episodes_already_loaded = True
+                repo_titles = list(rep.anime_to_urls.keys())
+                if repo_titles:
+                    # Find closest match to saved title
+                    best_match = max(
+                        repo_titles,
+                        key=lambda t: fuzz.token_sort_ratio(selected_anime.lower(), t.lower()),
+                    )
+                    best_score = fuzz.token_sort_ratio(selected_anime.lower(), best_match.lower())
+
+                    if best_score >= 50:  # Reasonable match
+                        selected_anime = best_match
+                        print(f"✅ Encontrado: '{selected_anime}'")
+
+                        # Load episodes from this anime
+                        print("   Buscando episódios...")
+                        with loading("Buscando episódios..."):
+                            rep.search_episodes(selected_anime)
+                        episode_list = rep.get_episode_list(selected_anime)
+                        scraper_episode_count = len(episode_list)
+
+                        if episode_list:
+                            print(f"✅ Encontrados {scraper_episode_count} episódios")
+                            episodes_already_loaded = True
+                        else:
+                            # Episodes not found, fall back to normal search
+                            print("⚠️  Episódios não encontrados, buscando novamente...")
+                            selected_anime = None
+                    else:
+                        # No good match found
+                        print("⚠️  Anime não encontrado, buscando novamente...")
+                        selected_anime = None
                 else:
-                    # Anime title might be outdated, fall back to normal search
+                    # No anime in repository, fall back to normal search
                     print("⚠️  Anime não encontrado, buscando novamente...")
                     selected_anime = None
 
