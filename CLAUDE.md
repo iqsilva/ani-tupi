@@ -193,6 +193,34 @@ ANI_TUPI__LOG_LEVEL=debug
 
 No config files. Centralized in `models/config.py`. Type-safe on boot.
 
+### Source Priority Configuration
+
+By default, ani-tupi uses a single global priority order for all anime sources. However, you can configure separate source priorities for dubbed anime:
+
+**Standard Priority** (used for all anime):
+```bash
+export ANI_TUPI__PLUGINS__PRIORITY_ORDER='["animesdigital", "goyabu", "animefire", "animesonlinecc"]'
+```
+
+**Dubbed Anime Priority** (optional, used when anime title contains "Dublado"):
+```bash
+export ANI_TUPI__PLUGINS__DUBBED_PRIORITY_ORDER='["animesdigital", "animefire", "goyabu"]'
+```
+
+**How It Works**:
+- When an anime title contains "Dublado" (dubbed marker), the `dubbed_priority_order` is used for source selection
+- Non-dubbed anime always use the standard `priority_order`
+- If `dubbed_priority_order` is not configured, all anime use the standard `priority_order`
+- Detection is case-insensitive (matches "DUBLADO", "Dublado", "dublado")
+
+**Example Workflow**:
+1. User searches for "Naruto Dublado" (dubbed version)
+2. System detects "Dublado" in title
+3. Uses `dubbed_priority_order` to select sources
+4. Returns episodes from the highest-priority dubbed source
+
+This is useful when you have preferred sources for high-quality dubs (e.g., AnimesDigital) but want different priorities for subtitled anime.
+
 ## Development Workflow
 
 **Setup**

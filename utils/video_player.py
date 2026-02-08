@@ -1,4 +1,4 @@
-from typing import NamedTuple
+from typing import NamedTuple, Optional
 
 import os
 import platform
@@ -9,6 +9,8 @@ import uuid
 import json
 import time
 from pathlib import Path
+
+from models.models import SkipTimes
 
 
 class VideoPlaybackResult(NamedTuple):
@@ -55,6 +57,7 @@ class VideoPlayer:
         debug: bool = False,
         anilist_id: int | None = None,
         anilist_episodes: int | None = None,
+        skip_times: Optional[SkipTimes] = None,
     ) -> VideoPlaybackResult:
         """Play a single episode with optional IPC support for episode navigation.
 
@@ -106,7 +109,15 @@ class VideoPlayer:
             input_conf_path, _ = self._generate_input_conf()
 
             # Launch MPV with IPC
-            mpv_process = self._launch_mpv_with_ipc(url, socket_path, input_conf_path)
+            mpv_process = self._launch_mpv_with_ipc(
+                url,
+                socket_path,
+                input_conf_path,
+                skip_times,
+                anime_title=anime_title,
+                episode_number=episode_number,
+                source=source,
+            )
 
             # Start monitoring events
             result = self._ipc_event_loop(mpv_process, socket_path, episode_context)
@@ -233,6 +244,75 @@ class VideoPlayer:
             temp_dir = tempfile.gettempdir()
             return str(Path(temp_dir) / f"ani-tupi-mpv-{unique_id}.sock")
 
+    def _get_skip_lua_path(self) -> Path:
+        """Get path to bundled skip.lua script.
+
+        Returns:
+            Path to skip.lua in utils/mpv_scripts/
+        """
+        # Get path relative to this file
+        current_file = Path(__file__)
+        return current_file.parent / "mpv_scripts" / "skip.lua"
+
+    def _create_chapters_file(self, skip_times: "SkipTimes") -> str | None:
+        """Create temporary chapters file for MPV timeline markers.
+
+        Args:
+            skip_times: Skip times for intro/outro
+
+        Returns:
+            Path to temporary chapters file, or None if creation fails
+        """
+        try:
+            # Create chapters in MPV format
+            chapters = []
+
+            if skip_times.op_start is not None and skip_times.op_end is not None:
+                # Add OP markers
+                chapters.append(f"CHAPTER01={self._format_time(skip_times.op_start)}")
+                chapters.append("CHAPTER01NAME=Opening Start")
+                chapters.append(f"CHAPTER02={self._format_time(skip_times.op_end)}")
+                chapters.append("CHAPTER02NAME=Opening End")
+
+            if skip_times.ed_start is not None and skip_times.ed_end is not None:
+                # Add ED markers (chapter numbers continue)
+                chapter_num = 3 if chapters else 1
+                chapters.append(
+                    f"CHAPTER{chapter_num:02d}={self._format_time(skip_times.ed_start)}"
+                )
+                chapters.append(f"CHAPTER{chapter_num:02d}NAME=Ending Start")
+                chapters.append(
+                    f"CHAPTER{chapter_num + 1:02d}={self._format_time(skip_times.ed_end)}"
+                )
+                chapters.append(f"CHAPTER{chapter_num + 1:02d}NAME=Ending End")
+
+            if not chapters:
+                return None
+
+            # Write to temporary file
+            with tempfile.NamedTemporaryFile(
+                mode="w", suffix=".txt", prefix="ani-tupi-chapters-", delete=False, encoding="utf-8"
+            ) as f:
+                f.write("\n".join(chapters))
+                return f.name
+
+        except Exception:
+            return None
+
+    def _format_time(self, seconds: float) -> str:
+        """Format seconds to MPV chapter time format (HH:MM:SS.mmm).
+
+        Args:
+            seconds: Time in seconds
+
+        Returns:
+            Formatted time string
+        """
+        hours = int(seconds // 3600)
+        minutes = int((seconds % 3600) // 60)
+        secs = seconds % 60
+        return f"{hours:02d}:{minutes:02d}:{secs:06.3f}"
+
     def _cleanup_ipc_socket(self, path: str) -> None:
         """Clean up IPC socket file/pipe without errors."""
         if not path:
@@ -332,8 +412,25 @@ shift+t script-message toggle-sub-dub
         url: str,
         socket_path: str,
         input_conf: str,
+        skip_times: Optional[SkipTimes] = None,
+        anime_title: str | None = None,
+        episode_number: int | None = None,
+        source: str | None = None,
     ) -> subprocess.Popen:
-        """Launch MPV process with IPC socket support."""
+        """Launch MPV process with IPC socket support.
+
+        Args:
+            url: Video URL to play
+            socket_path: Path to IPC socket
+            input_conf: Path to input.conf file
+            skip_times: Optional skip times for intro/outro skipping
+            anime_title: Anime title for window title
+            episode_number: Episode number for window title
+            source: Source name for window title
+
+        Returns:
+            MPV subprocess handle
+        """
         mpv_args = [
             "mpv",
             f"--input-ipc-server={socket_path}",
@@ -348,8 +445,45 @@ shift+t script-message toggle-sub-dub
             "--speed=1.8",
             "--ytdl=yes",
             "--ytdl-format=bestvideo[height<=1080]+bestaudio/best",
-            url,
         ]
+
+        # Add custom window title if anime info is available
+        if anime_title and episode_number and source:
+            window_title = f"{anime_title} - Ep {episode_number} - {source}"
+            mpv_args.append(f"--title={window_title}")
+
+        # Add skip.lua script if skip times are available
+        if skip_times:
+            skip_lua_path = self._get_skip_lua_path()
+            print(f"\n🔍 DEBUG: Skip lua path: {skip_lua_path}")
+            print(f"🔍 DEBUG: Skip lua exists: {skip_lua_path.exists()}")
+
+            if skip_lua_path.exists():
+                mpv_args.append(f"--script={skip_lua_path}")
+
+                # Build script-opts string
+                script_opts = []
+                if skip_times.op_start is not None and skip_times.op_end is not None:
+                    script_opts.append(f"skip-op_start={skip_times.op_start}")
+                    script_opts.append(f"skip-op_end={skip_times.op_end}")
+                if skip_times.ed_start is not None and skip_times.ed_end is not None:
+                    script_opts.append(f"skip-ed_start={skip_times.ed_start}")
+                    script_opts.append(f"skip-ed_end={skip_times.ed_end}")
+
+                if script_opts:
+                    script_opts_str = ",".join(script_opts)
+                    mpv_args.append(f"--script-opts={script_opts_str}")
+                    print(f"🔍 DEBUG: Script opts: {script_opts_str}")
+
+                # Create chapters file for visual markers
+                chapters_file = self._create_chapters_file(skip_times)
+                if chapters_file:
+                    mpv_args.append(f"--chapters-file={chapters_file}")
+                    print(f"🔍 DEBUG: Chapters file: {chapters_file}")
+            else:
+                print(f"❌ ERROR: Skip lua script not found at {skip_lua_path}")
+
+        mpv_args.append(url)
 
         try:
             debug_mode = os.environ.get("ANI_TUPI_DEBUG_MPV") == "1"

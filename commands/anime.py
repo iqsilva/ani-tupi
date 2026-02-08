@@ -22,6 +22,7 @@ from services.anime.playback_service import (
     PlaybackContext,
 )
 from services.anime.download_service import AnimeDownloadService
+from services.anime.aniskip_service import AniSkipService
 from ui.components import loading, menu_navigate
 from utils.video_player import VideoPlayer
 from utils.episode_range_parser import parse_episode_range, RangeParseError
@@ -207,6 +208,13 @@ def anime(args) -> None:
     - AniList progress sync
     - Source switching
     """
+    # Determine skip enabled from args or config
+    from models.config import settings
+
+    skip_enabled = (
+        args.skip if hasattr(args, "skip") and args.skip else settings.anime_download.skip_intros
+    )
+
     # Variables for AniList integration and source tracking
     source = None
 
@@ -214,7 +222,7 @@ def anime(args) -> None:
     if args.query or args.continue_watching:
         if args.continue_watching:
             # Prepare playback context from history
-            ctx = prepare_playback_from_history()
+            ctx = prepare_playback_from_history(skip_enabled=skip_enabled)
             if ctx is None:
                 raise Exception("Problema ao conseguir informacoes do anime.")
         else:
@@ -225,7 +233,9 @@ def anime(args) -> None:
                 return
 
             # Prepare playback context from search results
-            ctx = prepare_playback_from_search(selected_anime, episode_idx, source)
+            ctx = prepare_playback_from_search(
+                selected_anime, episode_idx, source, skip_enabled=skip_enabled
+            )
             if ctx is None:
                 return
     else:
@@ -236,7 +246,9 @@ def anime(args) -> None:
             return
 
         # Prepare playback context from search results
-        ctx = prepare_playback_from_search(selected_anime, episode_idx, source)
+        ctx = prepare_playback_from_search(
+            selected_anime, episode_idx, source, skip_enabled=skip_enabled
+        )
         if ctx is None:
             return
 
@@ -281,6 +293,7 @@ def anime(args) -> None:
                 anilist_id=ctx.anilist_id,
                 anilist_title=ctx.anilist_title,
                 total_episodes=ctx.total_episodes_anilist,
+                mal_id=ctx.mal_id,
                 found=True,
                 authenticated=True,
             )
@@ -290,6 +303,31 @@ def anime(args) -> None:
         print(f"\n▶️  Iniciando reprodução do episódio {progress_info.progress_str}...")
         print(f"   Fonte: {source or 'unknown'}")
         print(f"   URL: {player_url[:80]}{'...' if len(player_url) > 80 else ''}\n")
+
+        # Fetch skip times if enabled
+        skip_times = None
+        if ctx.skip_enabled:
+            aniskip = AniSkipService()
+            mal_id = ctx.mal_id
+
+            # If no MAL ID from AniList, try searching by title
+            if not mal_id and ctx.anilist_title:
+                # Extract clean title (before " / " if bilingual format)
+                search_title = ctx.anilist_title.split(" / ")[0].strip()
+                print(f"🔍 Buscando MAL ID para '{search_title}'...")
+                mal_id = aniskip.search_mal_id(search_title)
+                if mal_id:
+                    print(f"✅ MAL ID encontrado: {mal_id}")
+
+            if mal_id:
+                try:
+                    skip_times = aniskip.get_skip_times(mal_id, episode)
+                    if skip_times:
+                        print(
+                            "⏩ Skip times carregados (intro/outro serão pulados automaticamente)"
+                        )
+                except Exception as e:
+                    print(f"⚠️  Falha ao carregar skip times: {e}")
 
         playback_result = player.play_episode(
             url=player_url,
@@ -301,6 +339,7 @@ def anime(args) -> None:
             debug=args.debug,
             anilist_id=ctx.anilist_id,
             anilist_episodes=ctx.total_episodes_anilist,
+            skip_times=skip_times,
         )
 
         exit_code = playback_result.exit_code
@@ -340,6 +379,8 @@ def anime(args) -> None:
             total_episodes_anilist=ctx.total_episodes_anilist,
             num_episodes=ctx.num_episodes,
             episode_list=ctx.episode_list,
+            skip_enabled=ctx.skip_enabled,
+            mal_id=ctx.mal_id,
         )
 
         # Handle post-playback confirmation (includes history, AniList sync, offline queue)

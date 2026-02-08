@@ -45,6 +45,7 @@ class AnimeOperationsMixin:
             Page(page: $page, perPage: $perPage) {
                 media(type: ANIME, sort: TRENDING_DESC, seasonYear: $seasonYear, season: $season) {
                     id
+                    idMal
                     title {
                         romaji
                         english
@@ -107,6 +108,7 @@ class AnimeOperationsMixin:
                         createdAt
                         media {
                             id
+                            idMal
                             title {
                                 romaji
                                 english
@@ -249,6 +251,7 @@ class AnimeOperationsMixin:
             Page(perPage: 10) {
                 media(type: ANIME, search: $search) {
                     id
+                    idMal
                     title {
                         romaji
                         english
@@ -285,6 +288,7 @@ class AnimeOperationsMixin:
         query ($id: Int) {
             Media(id: $id, type: ANIME) {
                 id
+                idMal
                 title {
                     romaji
                     english
@@ -343,6 +347,7 @@ class AnimeOperationsMixin:
                         createdAt
                         media {
                             id
+                            idMal
                             title {
                                 romaji
                                 english
@@ -419,6 +424,8 @@ class AnimeOperationsMixin:
                 id
                 status
                 media {
+                    id
+                    idMal
                     title {
                         romaji
                     }
@@ -454,6 +461,7 @@ class AnimeOperationsMixin:
                         relationType
                         node {
                             id
+                            idMal
                             type
                             title {
                                 romaji
@@ -579,6 +587,7 @@ class AnimeOperationsMixin:
                         progress
                         media {
                             id
+                            idMal
                             title {
                                 romaji
                                 english

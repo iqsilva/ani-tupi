@@ -175,6 +175,14 @@ class PluginSettings(BaseModel):
         ],
         description="Priority order for scraper sources (first = highest priority)",
     )
+    dubbed_priority_order: list[str] | None = Field(
+        default=["animesdigital", "animefire", "goyabu", "animesonlinecc"],
+        description=(
+            "Priority order specifically for dubbed (Dublado) anime. "
+            "If not set, falls back to priority_order. "
+            "Example: ['animesdigital', 'animefire', 'goyabu', 'animesonlinecc']"
+        ),
+    )
 
 
 class PerformanceSettings(BaseModel):
@@ -311,6 +319,10 @@ class AnimeDownloadSettings(BaseModel):
     skip_already_downloaded: bool = Field(
         True,
         description="Skip already-downloaded episodes in batch operations",
+    )
+    skip_intros: bool = Field(
+        False,
+        description="Enable automatic skipping of anime intros (OP) and outros (ED) via AniSkip API",
     )
 
 

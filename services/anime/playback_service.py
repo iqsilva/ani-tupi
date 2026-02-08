@@ -43,6 +43,8 @@ class PlaybackContext:
         total_episodes_anilist: Total episodes from AniList
         num_episodes: Total episodes from scraper
         episode_list: List of episode strings for menu display
+        skip_enabled: Whether to enable intro/outro skipping
+        mal_id: MyAnimeList ID for AniSkip integration (if available)
     """
 
     anime_title: str
@@ -53,6 +55,8 @@ class PlaybackContext:
     total_episodes_anilist: int | None
     num_episodes: int
     episode_list: tuple[str, ...]
+    skip_enabled: bool = False
+    mal_id: int | None = None
 
 
 @dataclass(frozen=True)
@@ -81,6 +85,7 @@ def prepare_playback_from_search(
     selected_anime: str,
     episode_idx: int,
     source: str | None,
+    skip_enabled: bool = False,
 ) -> PlaybackContext | None:
     """Prepare playback context after anime search.
 
@@ -103,6 +108,7 @@ def prepare_playback_from_search(
     anilist_id: int | None = None
     anilist_title: str | None = None
     total_episodes_anilist: int | None = None
+    mal_id: int | None = None
 
     try:
         anilist_result = discover_anilist_info(selected_anime)
@@ -110,6 +116,7 @@ def prepare_playback_from_search(
             anilist_id = anilist_result.anilist_id
             anilist_title = anilist_result.anilist_title
             total_episodes_anilist = anilist_result.total_episodes
+            mal_id = anilist_result.mal_id
     except Exception as e:
         logger.warning("Failed to discover AniList info for '%s': %s", selected_anime, e)
         # Continue without AniList info
@@ -128,10 +135,12 @@ def prepare_playback_from_search(
         total_episodes_anilist=total_episodes_anilist,
         num_episodes=num_episodes,
         episode_list=episode_list,
+        skip_enabled=skip_enabled,
+        mal_id=mal_id,
     )
 
 
-def prepare_playback_from_history() -> PlaybackContext | None:
+def prepare_playback_from_history(skip_enabled: bool = False) -> PlaybackContext | None:
     """Prepare playback context from continue watching history.
 
     This function:
@@ -156,6 +165,7 @@ def prepare_playback_from_history() -> PlaybackContext | None:
     anilist_id: int | None = anilist_id_from_history
     anilist_title: str | None = anilist_title_from_history
     total_episodes_anilist: int | None = None
+    mal_id: int | None = None
 
     try:
         anilist_result = discover_anilist_info(anime_title)
@@ -163,6 +173,7 @@ def prepare_playback_from_history() -> PlaybackContext | None:
             anilist_id = anilist_result.anilist_id
             anilist_title = anilist_result.anilist_title
             total_episodes_anilist = anilist_result.total_episodes
+            mal_id = anilist_result.mal_id
     except Exception as e:
         logger.warning("Failed to discover AniList info for '%s': %s", anime_title, e)
         # Continue with info from history
@@ -181,6 +192,8 @@ def prepare_playback_from_history() -> PlaybackContext | None:
         total_episodes_anilist=total_episodes_anilist,
         num_episodes=num_episodes,
         episode_list=episode_list,
+        skip_enabled=skip_enabled,
+        mal_id=mal_id,
     )
 
 
@@ -515,4 +528,6 @@ def navigate_episodes(
         total_episodes_anilist=ctx.total_episodes_anilist,
         num_episodes=ctx.num_episodes,
         episode_list=ctx.episode_list,
+        skip_enabled=ctx.skip_enabled,
+        mal_id=ctx.mal_id,
     )

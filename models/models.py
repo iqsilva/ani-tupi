@@ -328,6 +328,7 @@ class AniListAnime(BaseModel):
 
     Attributes:
         id: AniList anime ID
+        id_mal: MyAnimeList ID (for AniSkip integration)
         title: Title object with multiple languages
         episodes: Total episodes (None if unknown)
         averageScore: Average score (0-100)
@@ -336,13 +337,32 @@ class AniListAnime(BaseModel):
         type: Media type (ANIME, MANGA)
     """
 
+    model_config = {"populate_by_name": True}
+
     id: int = Field(..., description="AniList anime ID")
+    id_mal: int | None = Field(None, alias="idMal", description="MyAnimeList ID")
     title: AniListTitle = Field(..., description="Title object")
     episodes: int | None = Field(None, description="Total episodes")
     averageScore: int | None = Field(None, ge=0, le=100, description="Average score")
     seasonYear: int | None = Field(None, ge=1900, le=2100, description="Release year")
     season: str | None = Field(None, description="Season (WINTER, SPRING, SUMMER, FALL)")
     type: str | None = Field(None, description="Media type")
+
+
+class SkipTimes(BaseModel):
+    """Skip times for anime intro (OP) and outro (ED) from AniSkip API.
+
+    Attributes:
+        op_start: Opening start time in seconds (None if not available)
+        op_end: Opening end time in seconds (None if not available)
+        ed_start: Ending start time in seconds (None if not available)
+        ed_end: Ending end time in seconds (None if not available)
+    """
+
+    op_start: float | None = Field(None, description="Opening start time (seconds)")
+    op_end: float | None = Field(None, description="Opening end time (seconds)")
+    ed_start: float | None = Field(None, description="Ending start time (seconds)")
+    ed_end: float | None = Field(None, description="Ending end time (seconds)")
 
 
 class AniListManga(BaseModel):
