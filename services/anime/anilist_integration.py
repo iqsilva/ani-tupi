@@ -198,19 +198,19 @@ def anilist_anime_flow(
             return  # User cancelled
 
         if choice == "✅ Continuar com este":
+            # Anime was already saved and validated - use it directly!
             selected_anime = saved_title
             source = saved_source
 
-            # If we have a saved URL, use it directly (fastest path - no searching needed)
             if saved_url and source:
+                # If we have saved URL: use it directly (fastest path)
                 print(f"📺 Carregando '{selected_anime}' da fonte {source}...")
-                # Add the saved anime URL directly to repository
                 rep.add_anime(selected_anime, saved_url, source)
 
                 # Search episodes from this URL
                 print("   Buscando episódios...")
                 with loading("Buscando episódios..."):
-                    rep.search_episodes(selected_anime, source_filter=source)
+                    rep.search_episodes(selected_anime)
                 episode_list = rep.get_episode_list(selected_anime)
                 scraper_episode_count = len(episode_list)
 
@@ -218,64 +218,29 @@ def anilist_anime_flow(
                     print(f"✅ Encontrados {scraper_episode_count} episódios")
                     episodes_already_loaded = True
                 else:
-                    # URL might be outdated, fall through to fuzzy matching
+                    # URL might be outdated, fall back to searching
                     print("⚠️  URL salva desatualizada, buscando novamente...")
                     selected_anime = None
-
-            # If no saved URL, use fuzzy matching to find the anime
-            elif source and not saved_url:
-                print(f"🔍 Procurando '{selected_anime}' na fonte {source}...")
-                # Search for any anime (broad search) to populate repository
+            else:
+                # No saved URL, but anime title is valid (was saved before)
+                # Just search for it directly
+                print(f"📺 Procurando '{selected_anime}'...")
                 rep.search_anime(selected_anime, verbose=False)
 
-                # Find anime from the saved source with fuzzy matching
-                from fuzzywuzzy import fuzz
+                # Load episodes from any available source
+                print("   Buscando episódios...")
+                with loading("Buscando episódios..."):
+                    rep.search_episodes(selected_anime)
+                episode_list = rep.get_episode_list(selected_anime)
+                scraper_episode_count = len(episode_list)
 
-                best_match = None
-                best_score = 0
-
-                # Get all anime from saved source(s)
-                # Handle multiple sources: split by comma if present
-                source_list = [s.strip() for s in source.split(",")] if source else []
-                source_anime = [
-                    title
-                    for title in rep.anime_to_urls.keys()
-                    if any(
-                        any(src.lower() == s.lower() for src in source_list)
-                        for _, s, _ in rep.anime_to_urls[title]
-                    )
-                ]
-
-                # Find best fuzzy match for saved title
-                for anime_title in source_anime:
-                    score = fuzz.token_sort_ratio(selected_anime.lower(), anime_title.lower())
-                    if score > best_score:
-                        best_score = score
-                        best_match = anime_title
-
-                if best_match and best_score >= 50:  # 50% match threshold (very lenient)
-                    selected_anime = best_match
-                    print(f"✅ Encontrado: '{selected_anime}' (score: {best_score}%)")
-
-                    # Now search episodes (no source filter - any available source is OK)
-                    print("📺 Buscando episódios...")
-                    with loading("Buscando episódios..."):
-                        rep.search_episodes(selected_anime)
-                    episode_list = rep.get_episode_list(selected_anime)
-                    scraper_episode_count = len(episode_list)
-
-                    if episode_list:
-                        print(f"✅ Encontrados {scraper_episode_count} episódios")
-                        episodes_already_loaded = True
-                    else:
-                        print(f"⚠️  Nenhum episódio encontrado para {selected_anime}")
+                if episode_list:
+                    print(f"✅ Encontrados {scraper_episode_count} episódios")
+                    episodes_already_loaded = True
                 else:
-                    # No good match found, fall back to normal search
-                    print(f"❌ Não foi possível encontrar '{selected_anime}' na fonte {source}")
+                    # Anime title might be outdated, fall back to normal search
+                    print("⚠️  Anime não encontrado, buscando novamente...")
                     selected_anime = None
-            else:
-                # No saved source, use normal search
-                selected_anime = None
 
     # Only ask for language preference if no saved title or user wants to choose another
     if selected_anime is None and english_title and romaji_title and english_title != romaji_title:
