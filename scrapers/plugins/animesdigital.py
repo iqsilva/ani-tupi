@@ -253,7 +253,11 @@ class AnimesDigital:
 
             if homepage_episodes:
                 logger.debug(f"Found {len(homepage_episodes)} episodes on homepage for '{anime}'")
-                self._merge_homepage_episodes(anime, animesdigital_urls, homepage_episodes)
+                # Max episode on page is the count (episodes are numbered 1 to N sequentially)
+                max_episode_on_page = len(animesdigital_urls)
+                self._merge_homepage_episodes(
+                    anime, animesdigital_urls, homepage_episodes, max_episode_on_page
+                )
             else:
                 logger.debug(f"No new episodes found on homepage for '{anime}'")
 
@@ -261,27 +265,43 @@ class AnimesDigital:
             logger.error(f"AnimesDigital series page scraping failed for '{anime}': {e}")
 
     def _merge_homepage_episodes(
-        self, anime: str, current_urls: list[str], homepage_episodes: list[dict]
+        self,
+        anime: str,
+        current_urls: list[str],
+        homepage_episodes: list[dict],
+        max_episode_on_page: int = 0,
     ) -> None:
         """Merge homepage episodes with existing episodes, avoiding duplicates.
+
+        Only includes homepage episodes with episode_number > max_episode_on_page
+        to ensure homepage supplements with newer episodes only.
 
         Args:
             anime: Anime title
             current_urls: List of URLs already found
             homepage_episodes: Episodes from homepage search
+            max_episode_on_page: Maximum episode number found on series page
         """
         try:
             # Create a set of all current URLs for deduplication
             current_urls_set = set(current_urls)
 
-            # Find new episodes from homepage that aren't already indexed
+            # Find new episodes from homepage that:
+            # 1. Aren't already indexed (URL check)
+            # 2. Have episode number > max on series page (newer episodes only)
             new_episodes = []
             for ep in homepage_episodes:
-                if ep["episode_url"] not in current_urls_set:
+                if (
+                    ep["episode_url"] not in current_urls_set
+                    and ep["episode_number"] > max_episode_on_page
+                ):
                     new_episodes.append(ep)
 
             if new_episodes:
-                logger.debug(f"Found {len(new_episodes)} new episodes from homepage for '{anime}'")
+                logger.debug(
+                    f"Found {len(new_episodes)} new episodes from homepage for '{anime}' "
+                    f"(episode number > {max_episode_on_page})"
+                )
 
                 # Build episode titles and URLs from new homepage results
                 new_titles = []
@@ -302,6 +322,11 @@ class AnimesDigital:
 
                 all_urls = current_urls + new_urls
                 rep.add_episode_list(anime, all_titles, all_urls, AnimesDigital.name)
+            else:
+                logger.debug(
+                    f"No new episodes from homepage for '{anime}' "
+                    f"(all homepage episodes <= {max_episode_on_page})"
+                )
 
         except Exception as e:
             logger.debug(f"Error merging homepage episodes: {e}")
@@ -405,9 +430,9 @@ class AnimesDigital:
         for ep_div in episode_divs:
             # Find the link inside the episode div for the URL
             link = ep_div.css_first("a")
-            href = None
-            if link:
-                href = link.attrib.get("href")
+            if not link:
+                continue
+            href = link.attrib.get("href")
 
             # Get episode title from .title_anime class (avoids metadata like "9 meses atrás")
             title_elem = ep_div.css_first(".title_anime")
@@ -435,49 +460,118 @@ class AnimesDigital:
             logger.warning(f"No episodes found for '{anime}' even with DynamicFetcher scraping")
 
     def search_player_src(self, url: str, container: list, event) -> None:
-        """Extract video URL from episode player.
+        """Extract actual video source URLs from AnimesDigital episode page.
 
-        AnimesDigital loads iframes dynamically via JavaScript.
-        Uses DynamicFetcher to render the page and extract iframe sources.
-        Prioritizes api.anivideo.net iframes which are most reliable.
+        Extracts direct video sources (HLS m3u8, MP4) instead of just iframes.
+        Uses regex to find video URLs and returns the best available source.
+
+        Priority order:
+        1. HLS streams (api.anivideo.net) - adaptive bitrate, best quality
+        2. Decoded MP4 sources - direct playback fallback
+        3. Encoded MP4 sources - obfuscated playback fallback
         """
+        import re
+        import html
+
         try:
-            # Use Firefox for better library compatibility
-            page = DynamicFetcher.fetch(url, timeout=15000, browser="firefox")
+            # Fetch HTML content with requests to get raw HTML for regex extraction
+            browser_headers = {
+                "User-Agent": "Mozilla/5.0 (X11; Linux x86_64; rv:146.0) Gecko/20100101 Firefox/146.0",
+            }
+            response = requests.get(url, headers=browser_headers, timeout=REQUEST_TIMEOUT)
+            response.raise_for_status()
+            html_content = response.text
 
-            # Extract all iframes
-            iframes = page.css("iframe")
+            video_sources = {
+                "hls": None,
+                "mp4_decoded": None,
+                "mp4_encoded": None,
+            }
 
-            if not iframes:
-                raise Exception("No iframe found in AnimesDigital episode page.")
+            # Extract HLS stream (Player FHD - api.anivideo.net)
+            # Pattern: https://api.anivideo.net/videohls.php?d=...
+            hls_match = re.search(
+                r'https://api\.anivideo\.net/videohls\.php\?d=[^"<>\s]+', html_content
+            )
+            if hls_match:
+                hls_url = hls_match.group(0)
+                # Unescape HTML entities (&amp; → &)
+                hls_url = html.unescape(hls_url)
+                video_sources["hls"] = hls_url
 
-            # Priority 1: Look for api.anivideo.net iframes (most reliable)
-            for iframe in iframes:
-                src = iframe.attrib.get("src")
-                if src and "api.anivideo.net" in src:
-                    if not event.is_set():
-                        container.append(src)
-                        event.set()
-                    return
+            # Extract MP4 sources
+            mp4_matches = re.findall(r'https://[^"<>\s]+\.mp4(?:[^\s"<>]*)?', html_content)
 
-            # Priority 2: Look for m3u8 or mp4 iframes
-            for iframe in iframes:
-                src = iframe.attrib.get("src")
-                if src and ("m3u8" in src or "mp4" in src):
-                    if not event.is_set():
-                        container.append(src)
-                        event.set()
-                    return
+            for mp4_url in mp4_matches:
+                # Check if encoded (animesdigital.org with base64)
+                if "animesdigital.org/" in mp4_url and "aHR0cHM6Ly9" in mp4_url:
+                    video_sources["mp4_encoded"] = mp4_url
 
-            # Priority 3: Use the first iframe as fallback
-            src = iframes[0].attrib.get("src")
-            if src and not event.is_set():
-                container.append(src)
-                event.set()
+                    # Try to decode base64 part
+                    match = re.search(r"animesdigital\.org/([A-Za-z0-9+/]+={0,2})/", mp4_url)
+                    if match:
+                        try:
+                            import base64
+
+                            encoded = match.group(1)
+                            decoded = base64.b64decode(encoded).decode("utf-8")
+                            video_sources["mp4_decoded"] = decoded
+                        except Exception:
+                            pass  # Keep encoded version as fallback
+                    break
+
+            # Select best source and add to container
+            selected_url = None
+            if video_sources["hls"]:
+                selected_url = video_sources["hls"]
+            elif video_sources["mp4_decoded"]:
+                selected_url = video_sources["mp4_decoded"]
+            elif video_sources["mp4_encoded"]:
+                selected_url = video_sources["mp4_encoded"]
+
+            if selected_url:
+                if not event.is_set():
+                    container.append(selected_url)
+                    event.set()
+                return
+
+            # Fallback: Try iframe method if no direct sources found
+            logger.debug("No direct video sources found, falling back to iframe method")
+            self._extract_iframe_src(html_content, container, event)
 
         except Exception as e:
             msg = f"Could not extract video from AnimesDigital: {e}"
             raise Exception(msg) from e
+
+    def _extract_iframe_src(self, html_content: str, container: list, event) -> None:
+        """Fallback method to extract iframe src when direct sources not available.
+
+        Args:
+            html_content: Page HTML content
+            container: List to append video URL to
+            event: Threading event to signal completion
+        """
+        import re
+
+        try:
+            # Look for iframe src patterns
+            iframe_matches = re.findall(r'<iframe[^>]+src=["\']([^"\']+)["\']', html_content)
+
+            for src in iframe_matches:
+                # Prioritize api.anivideo
+                if "api.anivideo" in src:
+                    if not event.is_set():
+                        container.append(src)
+                        event.set()
+                    return
+
+            # Use any iframe as fallback
+            if iframe_matches and not event.is_set():
+                container.append(iframe_matches[0])
+                event.set()
+
+        except Exception as e:
+            logger.debug(f"Could not extract iframe src: {e}")
 
     def search_homepage_incremental(self, title: str) -> list[dict]:
         """Search AnimesDigital homepage "últimos episódios" with incremental search.

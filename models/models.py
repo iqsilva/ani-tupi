@@ -335,6 +335,8 @@ class AniListAnime(BaseModel):
         seasonYear: Year of release
         season: Season (WINTER, SPRING, SUMMER, FALL)
         type: Media type (ANIME, MANGA)
+        status: Media status (FINISHED, RELEASING, NOT_YET_RELEASED, CANCELLED, HIATUS)
+        startDate: Start date object with year, month, day
     """
 
     model_config = {"populate_by_name": True}
@@ -347,6 +349,12 @@ class AniListAnime(BaseModel):
     seasonYear: int | None = Field(None, ge=1900, le=2100, description="Release year")
     season: str | None = Field(None, description="Season (WINTER, SPRING, SUMMER, FALL)")
     type: str | None = Field(None, description="Media type")
+    status: str | None = Field(
+        None, description="Media status (FINISHED, RELEASING, NOT_YET_RELEASED, CANCELLED, HIATUS)"
+    )
+    startDate: dict[str, int | None] | None = Field(
+        None, description="Start date with year, month, day"
+    )
 
 
 class SkipTimes(BaseModel):
@@ -444,12 +452,20 @@ class AniListRelationNode(BaseModel):
         type: Media type (ANIME, MANGA)
         title: Title object
         episodes: Total episodes
+        status: Media status (FINISHED, RELEASING, NOT_YET_RELEASED, CANCELLED, HIATUS)
+        startDate: Start date object with year, month, day
     """
 
     id: int = Field(..., description="AniList ID")
     type: str = Field(..., description="Media type")
     title: AniListTitle = Field(..., description="Title object")
     episodes: int | None = Field(None, description="Total episodes")
+    status: str | None = Field(
+        None, description="Media status (FINISHED, RELEASING, NOT_YET_RELEASED, CANCELLED, HIATUS)"
+    )
+    startDate: dict[str, int | None] | None = Field(
+        None, description="Start date with year, month, day"
+    )
 
 
 class AniListRelationEdge(BaseModel):

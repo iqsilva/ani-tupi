@@ -281,7 +281,7 @@ class AnimeOperationsMixin:
             anime_id: AniList anime ID
 
         Returns:
-            Anime data with id, title, episodes, etc. or None if not found
+            Anime data with id, title, episodes, status, startDate, etc. or None if not found
 
         """
         query = """
@@ -300,6 +300,12 @@ class AnimeOperationsMixin:
                 }
                 averageScore
                 seasonYear
+                status
+                startDate {
+                    year
+                    month
+                    day
+                }
             }
         }
         """
@@ -451,7 +457,7 @@ class AnimeOperationsMixin:
             anime_id: AniList anime ID
 
         Returns:
-            List of relation edges with node metadata (id, title, type)
+            List of relation edges with node metadata (id, title, type, status, startDate)
         """
         query = """
         query ($id: Int) {
@@ -469,6 +475,12 @@ class AnimeOperationsMixin:
                                 native
                             }
                             episodes
+                            status
+                            startDate {
+                                year
+                                month
+                                day
+                            }
                         }
                     }
                 }
