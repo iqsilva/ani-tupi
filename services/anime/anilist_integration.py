@@ -198,29 +198,10 @@ def anilist_anime_flow(
             return  # User cancelled
 
         if choice == "✅ Continuar com este":
-            # Use same search logic as normal flow, skip user selection menu
-            # (user already validated this anime by saving it)
-            print(f"🔍 Procurando '{saved_title}'...")
-
-            # Use incremental search (same as normal flow, no cache)
-            search_state, titles_with_sources = incremental_search_anime(saved_title)
-
-            if titles_with_sources:
-                # Take first result (skip user selection menu)
-                selected_anime_with_source = titles_with_sources[0]
-                print(f"✅ Encontrado: '{selected_anime_with_source}'")
-
-                # Extract anime name and source (same logic as normal flow)
-                selected_anime = selected_anime_with_source.split(" [")[0]
-                source = None
-                if " [" in selected_anime_with_source and selected_anime_with_source.endswith("]"):
-                    source = selected_anime_with_source.split(" [")[1].rstrip("]")
-
-                # Let normal flow load episodes (don't skip)
-            else:
-                # No search results, fall back to normal search
-                print("⚠️  Anime não encontrado, buscando novamente...")
-                selected_anime = None
+            # User already chose this anime - use it directly without searching again
+            selected_anime = saved_title
+            source = saved_source
+            print(f"✅ Usando: {selected_anime}")
 
     # Only ask for language preference if no saved title or user wants to choose another
     if selected_anime is None and english_title and romaji_title and english_title != romaji_title:
