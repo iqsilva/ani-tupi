@@ -557,6 +557,33 @@ class Repository:
 
         return result
 
+    def _detect_source_from_url(self, url: str) -> str | None:
+        """Detect which scraper source a URL belongs to based on domain.
+
+        Args:
+            url: The anime page URL
+
+        Returns:
+            Source name (e.g., "animefire") or None if not detected
+        """
+        url_lower = url.lower()
+
+        # Map domain patterns to scraper sources
+        domain_mappings = {
+            "animefire": "animefire",
+            "animesdigital": "animesdigital",
+            "animesonline": "animesonlinecc",
+            "goyabu": "goyabu",
+        }
+
+        # Check each domain pattern
+        for domain_pattern, source_name in domain_mappings.items():
+            if domain_pattern in url_lower:
+                return source_name
+
+        # If not detected by domain, return None
+        return None
+
     def search_episodes(self, anime: str, source_filter: str | None = None) -> None:
         """Search for episodes from all sources or a specific source.
 
@@ -577,9 +604,28 @@ class Repository:
         # Build threads safely, avoiding potential race conditions
         threads = []
         for url, source, params in urls_and_scrapers:
-            if source in self.sources:
+            # Handle invalid source names (e.g., "animefire, animesdigital")
+            actual_source = source
+
+            # If source is not valid, try to detect from URL
+            if actual_source not in self.sources:
+                # Try to detect the correct source from the URL
+                detected_source = self._detect_source_from_url(url)
+                if detected_source and detected_source in self.sources:
+                    actual_source = detected_source
+                # If still not found, try comma-separated sources
+                elif "," in actual_source:
+                    # Split and try the first valid one
+                    for candidate_source in actual_source.split(","):
+                        candidate_source = candidate_source.strip()
+                        if candidate_source in self.sources:
+                            actual_source = candidate_source
+                            break
+
+            # Only create thread if we have a valid source
+            if actual_source in self.sources:
                 th = Thread(
-                    target=self.sources[source].search_episodes,
+                    target=self.sources[actual_source].search_episodes,
                     args=(anime, url, params),
                 )
                 threads.append(th)

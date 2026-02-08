@@ -19,6 +19,7 @@ from utils.video_player import VideoPlayer
 from services.anime.source_management import switch_anime_source
 from services.anime.mappings import (
     load_anilist_mapping,
+    load_anilist_urls,
     save_anilist_mapping,
     load_language_preference,
     save_language_preference,
@@ -198,16 +199,10 @@ def anilist_anime_flow(
             return  # User cancelled
 
         if choice == "✅ Continuar com este":
-            # User already chose this anime - use it directly
             selected_anime = saved_title
             source = saved_source
             print(f"✅ Usando: {selected_anime}")
-
-            # If no saved URL, need to search again to populate repository mappings
-            # (so rep.search_episodes() knows where to look)
-            if not saved_url:
-                print("📍 Procurando para carregar informações...")
-                rep.search_anime(selected_anime, verbose=False)
+            # Fluxo normal vai procurar episódios (não salva/usa URL)
 
     # Only ask for language preference if no saved title or user wants to choose another
     if selected_anime is None and english_title and romaji_title and english_title != romaji_title:
@@ -398,14 +393,33 @@ def anilist_anime_flow(
 
     # Save the choice for next time (with original search title for "Trocar fonte")
     if anilist_id:
-        # Get anime URL from repository IMMEDIATELY after user selects
+        # Get anime URLs from repository IMMEDIATELY after user selects
         anime_url = None
-        if selected_anime in rep.anime_to_urls:
-            # Get URL for the selected source (or any source if source is None/multiple)
-            for url, src, _params in rep.anime_to_urls[selected_anime]:
-                if source is None or src in source.split(","):
+        anime_urls = {}  # source -> URL mapping for all available sources
+
+        # Try exact match first
+        repo_title = selected_anime
+        if selected_anime not in rep.anime_to_urls:
+            # If no exact match, find best fuzzy match
+            from fuzzywuzzy import fuzz
+
+            repo_titles = list(rep.anime_to_urls.keys())
+            if repo_titles:
+                best_match = max(
+                    repo_titles,
+                    key=lambda t: fuzz.token_sort_ratio(selected_anime.lower(), t.lower()),
+                )
+                if fuzz.token_sort_ratio(selected_anime.lower(), best_match.lower()) >= 50:
+                    repo_title = best_match
+
+        # Get URLs from repository - collect ALL available sources
+        if repo_title in rep.anime_to_urls:
+            for url, src, _params in rep.anime_to_urls[repo_title]:
+                # Store URL for this source
+                anime_urls[src] = url
+                # Keep first URL as primary (for backwards compatibility)
+                if anime_url is None and (source is None or src in source.split(",")):
                     anime_url = url
-                    break
 
         save_anilist_mapping(
             anilist_id,
@@ -413,6 +427,7 @@ def anilist_anime_flow(
             search_title=anime_title,
             source=source,
             anime_url=anime_url,
+            anime_urls=anime_urls,
         )
 
     # Get episodes (skip if already loaded from "Continuar com este")
@@ -431,10 +446,21 @@ def anilist_anime_flow(
         # (cache only stores episode titles, not the URLs needed for playback)
         rep.search_episodes(selected_anime)
     else:
-        # If we have a saved URL from "Continuar com este", add it to repository first
-        if saved_url and saved_source and selected_anime == saved_title:
-            print(f"📺 Carregando '{selected_anime}' da fonte {saved_source}...")
-            rep.add_anime(selected_anime, saved_url, saved_source)
+        # If we have saved URLs from "Continuar com este", add them to repository first
+        if selected_anime == saved_title:
+            # Load all saved URLs (source -> URL mapping)
+            saved_urls = load_anilist_urls(anilist_id) if anilist_id else {}
+
+            if saved_urls:
+                # Add all saved URLs to repository
+                sources_list = ", ".join(sorted(saved_urls.keys()))
+                print(f"📺 Carregando '{selected_anime}' da fonte {sources_list}...")
+                for src, url in saved_urls.items():
+                    rep.add_anime(selected_anime, url, src)
+            elif saved_url and saved_source:
+                # Fallback for old format with single URL
+                print(f"📺 Carregando '{selected_anime}' da fonte {saved_source}...")
+                rep.add_anime(selected_anime, saved_url, saved_source)
 
         # Fetch from scrapers
         with loading("Carregando episódios..."):

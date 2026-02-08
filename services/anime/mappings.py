@@ -41,6 +41,21 @@ def load_anilist_mapping(
     return mapping, None, None
 
 
+def load_anilist_urls(anilist_id: int) -> dict[str, str]:
+    """Load all saved anime URLs (source -> URL mapping) for an AniList ID.
+
+    Args:
+        anilist_id: The AniList anime ID
+
+    Returns:
+        Dict mapping sources to URLs (e.g., {"animefire": "https://...", "animesdigital": "https://..."})
+    """
+    mapping = _anilist_mappings_store.get(str(anilist_id))
+    if isinstance(mapping, dict):
+        return mapping.get("anime_urls", {})
+    return {}
+
+
 def load_anilist_search_title(anilist_id: int) -> str | None:
     """Load the original search/display title used for an AniList ID.
 
@@ -64,8 +79,9 @@ def save_anilist_mapping(
     source: str | None = None,
     anime_url: str | None = None,
     language_choice: str | None = None,
+    anime_urls: dict[str, str] | None = None,
 ) -> None:
-    """Save scraper title choice, search title, source, URL, and language preference for an AniList ID.
+    """Save scraper title choice, search title, source, URL(s), and language preference for an AniList ID.
 
     Args:
         anilist_id: The AniList ID
@@ -74,6 +90,7 @@ def save_anilist_mapping(
         source: The scraper source (e.g., "animefire", "animesdigital")
         anime_url: The anime page URL from the scraper (e.g., https://animefire.io/animes/...)
         language_choice: The language chosen ("romaji" or "english")
+        anime_urls: Dict mapping sources to URLs (e.g., {"animefire": "https://...", "animesdigital": "https://..."})
     """
     try:
         mapping_id = str(anilist_id)
@@ -83,6 +100,14 @@ def save_anilist_mapping(
             # Migrate old format to new format
             existing = {"scraper_title": existing}
 
+        # Merge anime_urls with existing ones if not provided
+        merged_urls = existing.get("anime_urls", {})
+        if anime_urls:
+            merged_urls.update(anime_urls)
+        elif anime_url and source:
+            # If single URL provided, add to urls dict
+            merged_urls[source] = anime_url
+
         _anilist_mappings_store.set(
             mapping_id,
             {
@@ -90,6 +115,7 @@ def save_anilist_mapping(
                 "search_title": search_title or existing.get("search_title"),
                 "source": source or existing.get("source"),
                 "anime_url": anime_url or existing.get("anime_url"),
+                "anime_urls": merged_urls,
                 "language_choice": language_choice or existing.get("language_choice"),
             },
         )
