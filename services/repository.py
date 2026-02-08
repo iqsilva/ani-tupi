@@ -47,6 +47,24 @@ class Repository:
     def register(self, plugin) -> None:
         self.sources[plugin.name] = plugin
 
+    def _get_priority_order(self, anime_title: str) -> list[str]:
+        """Get appropriate priority order based on audio type (dubbed vs subtitled).
+
+        Checks if the anime title contains "Dublado" (dubbed marker) and returns
+        the dubbed-specific priority order if configured, otherwise falls back to
+        the standard priority order.
+
+        Args:
+            anime_title: The anime title (may contain "Dublado" suffix)
+
+        Returns:
+            Appropriate priority_order list for this audio type
+        """
+        is_dubbed = "dublado" in anime_title.lower()
+        if is_dubbed and settings.plugins.dubbed_priority_order:
+            return settings.plugins.dubbed_priority_order
+        return settings.plugins.priority_order
+
     def get_active_sources(self) -> list[str]:
         """Get list of currently registered plugin names.
 
@@ -576,7 +594,11 @@ class Repository:
     def add_episode_list(
         self, anime: str, title_list: list[str], url_list: list[str], source: str
     ) -> None:
-        """Add episode list with validation.
+        """Add or replace episode list with validation.
+
+        If an entry for (anime, source) already exists, replace it.
+        Otherwise, add a new entry. This prevents duplicate entries
+        when merging episodes from multiple methods (e.g., scraping + homepage).
 
         Args:
             anime: Anime title
@@ -595,8 +617,21 @@ class Repository:
             source=source,
         )
 
-        self.anime_episodes_titles[anime].append(episode_data.episode_titles)
-        self.anime_episodes_urls[anime].append((episode_data.episode_urls, source))
+        # Check if entry for (anime, source) already exists
+        existing_index = None
+        for i, (urls, existing_source) in enumerate(self.anime_episodes_urls[anime]):
+            if existing_source == source:
+                existing_index = i
+                break
+
+        if existing_index is not None:
+            # Replace existing entry
+            self.anime_episodes_titles[anime][existing_index] = episode_data.episode_titles
+            self.anime_episodes_urls[anime][existing_index] = (episode_data.episode_urls, source)
+        else:
+            # Add new entry
+            self.anime_episodes_titles[anime].append(episode_data.episode_titles)
+            self.anime_episodes_urls[anime].append((episode_data.episode_urls, source))
 
     def get_episode_list(self, anime: str):
         episodes = self.anime_episodes_titles[anime]
@@ -671,7 +706,8 @@ class Repository:
     def get_episode_url_and_source(self, anime: str, episode_num: int) -> tuple[str, str] | None:
         """Get episode URL and source name for a specific episode.
 
-        Respects the priority order configured in settings.plugins.priority_order.
+        Respects the priority order configured in settings, using dubbed-specific
+        priority if the anime title contains "Dublado".
 
         Args:
             anime: Anime title
@@ -693,8 +729,8 @@ class Repository:
         if not available_sources:
             return None
 
-        # Sort by priority order from settings
-        priority_order = settings.plugins.priority_order
+        # Get appropriate priority order based on anime type
+        priority_order = self._get_priority_order(anime)
         available_sources.sort(
             key=lambda x: (
                 priority_order.index(x[1]) if x[1] in priority_order else len(priority_order)
@@ -725,7 +761,8 @@ class Repository:
         """Get next available episode from a given episode number.
 
         Searches all sources for the next available episode after the given one,
-        respecting the priority order configured in settings.plugins.priority_order.
+        respecting the priority order configured in settings, using dubbed-specific
+        priority if the anime title contains "Dublado".
 
         Args:
             anime: Anime title
@@ -748,8 +785,8 @@ class Repository:
         if not available_sources:
             return None
 
-        # Sort by priority order from settings
-        priority_order = settings.plugins.priority_order
+        # Get appropriate priority order based on anime type
+        priority_order = self._get_priority_order(anime)
         available_sources.sort(
             key=lambda x: (
                 priority_order.index(x[1]) if x[1] in priority_order else len(priority_order)
@@ -776,7 +813,7 @@ class Repository:
 
         # Sort selected_urls by priority BEFORE processing
         # This ensures highest-priority sources are tried first
-        priority_order = settings.plugins.priority_order or []
+        priority_order = self._get_priority_order(anime) or []
         priority_map = {name: idx for idx, name in enumerate(priority_order)}
         selected_urls.sort(key=lambda x: priority_map.get(x[1], len(priority_order)))
 
@@ -845,7 +882,7 @@ class Repository:
                     # Don't re-raise - let other sources try
 
             # Organize URLs by source following priority order
-            priority_order = settings.plugins.priority_order or []
+            priority_order = self._get_priority_order(anime) or []
             priority_map = {name: idx for idx, name in enumerate(priority_order)}
 
             # Group URLs by source
