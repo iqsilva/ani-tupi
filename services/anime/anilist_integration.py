@@ -198,73 +198,29 @@ def anilist_anime_flow(
             return  # User cancelled
 
         if choice == "✅ Continuar com este":
-            # Anime was already saved and validated - use it directly!
-            selected_anime = saved_title
-            source = saved_source
+            # Use same search logic as normal flow, skip user selection menu
+            # (user already validated this anime by saving it)
+            print(f"🔍 Procurando '{saved_title}'...")
 
-            if saved_url and source:
-                # If we have saved URL: use it directly (fastest path)
-                print(f"📺 Carregando '{selected_anime}' da fonte {source}...")
-                rep.add_anime(selected_anime, saved_url, source)
+            # Use incremental search (same as normal flow, no cache)
+            search_state, titles_with_sources = incremental_search_anime(saved_title)
 
-                # Search episodes from this URL
-                print("   Buscando episódios...")
-                with loading("Buscando episódios..."):
-                    rep.search_episodes(selected_anime)
-                episode_list = rep.get_episode_list(selected_anime)
-                scraper_episode_count = len(episode_list)
+            if titles_with_sources:
+                # Take first result (skip user selection menu)
+                selected_anime_with_source = titles_with_sources[0]
+                print(f"✅ Encontrado: '{selected_anime_with_source}'")
 
-                if episode_list:
-                    print(f"✅ Encontrados {scraper_episode_count} episódios")
-                    episodes_already_loaded = True
-                else:
-                    # URL might be outdated, fall back to searching
-                    print("⚠️  URL salva desatualizada, buscando novamente...")
-                    selected_anime = None
+                # Extract anime name and source (same logic as normal flow)
+                selected_anime = selected_anime_with_source.split(" [")[0]
+                source = None
+                if " [" in selected_anime_with_source and selected_anime_with_source.endswith("]"):
+                    source = selected_anime_with_source.split(" [")[1].rstrip("]")
+
+                # Let normal flow load episodes (don't skip)
             else:
-                # No saved URL, but anime title is valid (was saved before)
-                # Search and try to find matching title in results
-                print(f"📺 Procurando '{selected_anime}'...")
-                rep.search_anime(selected_anime, verbose=False)
-
-                # Find best match in repository using fuzzy matching
-                from fuzzywuzzy import fuzz
-
-                repo_titles = list(rep.anime_to_urls.keys())
-                if repo_titles:
-                    # Find closest match to saved title
-                    best_match = max(
-                        repo_titles,
-                        key=lambda t: fuzz.token_sort_ratio(selected_anime.lower(), t.lower()),
-                    )
-                    best_score = fuzz.token_sort_ratio(selected_anime.lower(), best_match.lower())
-
-                    if best_score >= 50:  # Reasonable match
-                        selected_anime = best_match
-                        print(f"✅ Encontrado: '{selected_anime}'")
-
-                        # Load episodes from this anime
-                        print("   Buscando episódios...")
-                        with loading("Buscando episódios..."):
-                            rep.search_episodes(selected_anime)
-                        episode_list = rep.get_episode_list(selected_anime)
-                        scraper_episode_count = len(episode_list)
-
-                        if episode_list:
-                            print(f"✅ Encontrados {scraper_episode_count} episódios")
-                            episodes_already_loaded = True
-                        else:
-                            # Episodes not found, fall back to normal search
-                            print("⚠️  Episódios não encontrados, buscando novamente...")
-                            selected_anime = None
-                    else:
-                        # No good match found
-                        print("⚠️  Anime não encontrado, buscando novamente...")
-                        selected_anime = None
-                else:
-                    # No anime in repository, fall back to normal search
-                    print("⚠️  Anime não encontrado, buscando novamente...")
-                    selected_anime = None
+                # No search results, fall back to normal search
+                print("⚠️  Anime não encontrado, buscando novamente...")
+                selected_anime = None
 
     # Only ask for language preference if no saved title or user wants to choose another
     if selected_anime is None and english_title and romaji_title and english_title != romaji_title:
