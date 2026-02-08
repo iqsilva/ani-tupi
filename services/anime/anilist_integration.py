@@ -24,6 +24,7 @@ from services.anime.mappings import (
     save_language_preference,
 )
 from services.anime.search import incremental_search_anime
+from services.anime.aniskip_service import AniSkipService
 
 # Use centralized path function from config
 HISTORY_PATH = get_data_path()
@@ -137,6 +138,11 @@ def anilist_anime_flow(
         total_episodes: Total number of episodes from AniList (None if unknown)
 
     """
+    # Determine skip enabled from args or config
+    skip_enabled = (
+        args.skip if hasattr(args, "skip") and args.skip else settings.anime_download.skip_intros
+    )
+
     # Use display_title if provided, otherwise fall back to anime_title
     if not display_title:
         display_title = anime_title
@@ -145,9 +151,11 @@ def anilist_anime_flow(
     anime_info = anilist_client.get_anime_by_id(anilist_id)
     english_title = None
     romaji_title = None
+    mal_id = None
     if anime_info:
         english_title = anime_info.title.english
         romaji_title = anime_info.title.romaji
+        mal_id = anime_info.id_mal
 
     loader.load_plugins({"pt-br"})  # type: ignore
 
@@ -165,7 +173,9 @@ def anilist_anime_flow(
         print(f"ℹ️  Fontes ativas: {', '.join(active_sources)}")
 
     # Check if we have a saved title choice from before (ASK BEFORE SEARCHING)
-    saved_title, saved_source = load_anilist_mapping(anilist_id) if anilist_id else (None, None)
+    saved_title, saved_source, saved_url = (
+        load_anilist_mapping(anilist_id) if anilist_id else (None, None, None)
+    )
     selected_anime = None
     source = None
 
@@ -187,9 +197,85 @@ def anilist_anime_flow(
         if choice == "✅ Continuar com este":
             selected_anime = saved_title
             source = saved_source
-            # Discover available sources for this anime (background search)
-            # This is needed to populate the repository so we can fetch episodes
-            rep.search_anime(selected_anime, verbose=False)
+
+            # If we have a saved URL, use it directly (fastest path - no searching needed)
+            if saved_url and source:
+                print(f"📺 Carregando '{selected_anime}' da fonte {source}...")
+                # Add the saved anime URL directly to repository
+                rep.add_anime(selected_anime, saved_url, source)
+
+                # Search episodes from this URL
+                print("   Buscando episódios...")
+                with loading("Buscando episódios..."):
+                    rep.search_episodes(selected_anime, source_filter=source)
+                episode_list = rep.get_episode_list(selected_anime)
+                scraper_episode_count = len(episode_list)
+
+                if episode_list:
+                    print(f"✅ Encontrados {scraper_episode_count} episódios")
+                    skip_episode_fetch = True
+                else:
+                    # URL might be outdated, fall through to fuzzy matching
+                    print("⚠️  URL salva desatualizada, buscando novamente...")
+                    selected_anime = None
+                    skip_episode_fetch = False
+
+            # If no saved URL, use fuzzy matching to find the anime
+            elif source and not saved_url:
+                print(f"🔍 Procurando '{selected_anime}' na fonte {source}...")
+                # Search for any anime (broad search) to populate repository
+                first_word = selected_anime.split()[0] if selected_anime else ""
+                if first_word:
+                    _search_state, _titles = incremental_search_anime(first_word)
+                else:
+                    rep.search_anime(selected_anime[:15], verbose=False)  # Search first 15 chars
+
+                # Find anime from the saved source with fuzzy matching
+                from fuzzywuzzy import fuzz
+
+                best_match = None
+                best_score = 0
+
+                # Get all anime from saved source
+                source_anime = [
+                    title
+                    for title in rep.anime_to_urls.keys()
+                    if any(source.lower() == s.lower() for _, s, _ in rep.anime_to_urls[title])
+                ]
+
+                # Find best fuzzy match for saved title
+                for anime_title in source_anime:
+                    score = fuzz.token_sort_ratio(selected_anime.lower(), anime_title.lower())
+                    if score > best_score:
+                        best_score = score
+                        best_match = anime_title
+
+                if best_match and best_score >= 70:  # 70% match threshold
+                    selected_anime = best_match
+                    print(f"✅ Encontrado: '{selected_anime}' (score: {best_score}%)")
+
+                    # Now search episodes from this source
+                    print("📺 Buscando episódios...")
+                    with loading("Buscando episódios..."):
+                        rep.search_episodes(selected_anime, source_filter=source)
+                    episode_list = rep.get_episode_list(selected_anime)
+                    scraper_episode_count = len(episode_list)
+
+                    if episode_list:
+                        print(f"✅ Encontrados {scraper_episode_count} episódios")
+                        skip_episode_fetch = True
+                    else:
+                        print(f"⚠️  Nenhum episódio encontrado na fonte {source}")
+                        skip_episode_fetch = False
+                else:
+                    # No good match found, fall back to normal search
+                    print(f"❌ Não foi possível encontrar '{selected_anime}' na fonte {source}")
+                    selected_anime = None
+                    skip_episode_fetch = False
+            else:
+                # No saved source, use normal search
+                selected_anime = None
+                skip_episode_fetch = False
 
     # Only ask for language preference if no saved title or user wants to choose another
     if selected_anime is None and english_title and romaji_title and english_title != romaji_title:
@@ -224,7 +310,14 @@ def anilist_anime_flow(
     search_state = None
     titles_with_sources = None
     used_query = None
-    source = None
+    # Note: Don't reset 'source' here - it's set in "Continuar com este" block above
+    # Only reset if selected_anime is None
+    if selected_anime is None:
+        source = None
+    skip_episode_fetch = False
+    if selected_anime is None:
+        episode_list = None
+        scraper_episode_count = None
 
     if selected_anime is None:
         # Cache-first: Check if anime_title is in cache before searching
@@ -377,30 +470,48 @@ def anilist_anime_flow(
 
     # Save the choice for next time (with original search title for "Trocar fonte")
     if anilist_id:
-        save_anilist_mapping(anilist_id, selected_anime, search_title=anime_title, source=source)
+        # Get anime URL from repository
+        anime_url = None
+        if selected_anime in rep.anime_to_urls:
+            for url, src, _params in rep.anime_to_urls[selected_anime]:
+                if src == source:
+                    anime_url = url
+                    break
 
-    # Get episodes (check cache first)
-    cache_data = get_cache(selected_anime)
-    scraper_episode_count = None
+        save_anilist_mapping(
+            anilist_id,
+            selected_anime,
+            search_title=anime_title,
+            source=source,
+            anime_url=anime_url,
+        )
 
-    if cache_data:
-        # Use cached data for episode list
-        episode_list = cache_data.episode_urls
-        scraper_episode_count = cache_data.episode_count
-        print(f"ℹ️  Usando cache ({scraper_episode_count} eps disponíveis)")
-
-        # Still need to populate repository for video URL search
-        # (cache only stores episode titles, not the URLs needed for playback)
-        rep.search_episodes(selected_anime)
+    # Get episodes (check cache first, unless we already fetched fresh from saved source)
+    if skip_episode_fetch:
+        # Already fetched fresh episodes above when "Continuar com este" was selected
+        print(f"ℹ️  Carregado {scraper_episode_count} eps da fonte salva ({source})")
     else:
-        # Fetch from scrapers
-        with loading("Carregando episódios..."):
-            rep.search_episodes(selected_anime)
-        episode_list = rep.get_episode_list(selected_anime)
-        scraper_episode_count = len(episode_list)
+        cache_data = get_cache(selected_anime)
+        scraper_episode_count = None
 
-        # Save to cache
-        set_cache(selected_anime, scraper_episode_count, episode_list)
+        if cache_data:
+            # Use cached data for episode list
+            episode_list = cache_data.episode_urls
+            scraper_episode_count = cache_data.episode_count
+            print(f"ℹ️  Usando cache ({scraper_episode_count} eps disponíveis)")
+
+            # Still need to populate repository for video URL search
+            # (cache only stores episode titles, not the URLs needed for playback)
+            rep.search_episodes(selected_anime)
+        else:
+            # Fetch from scrapers
+            with loading("Carregando episódios..."):
+                rep.search_episodes(selected_anime)
+            episode_list = rep.get_episode_list(selected_anime)
+            scraper_episode_count = len(episode_list)
+
+            # Save to cache
+            set_cache(selected_anime, scraper_episode_count, episode_list)
 
     # Check local history for this anime (use max of AniList and local)
     local_progress = 0
@@ -657,6 +768,34 @@ def anilist_anime_flow(
         print(f"   Fonte: {source or 'unknown'}")
         print(f"   URL: {player_url[:80]}{'...' if len(player_url) > 80 else ''}\n")
 
+        # Fetch skip times if enabled and MAL ID available
+        skip_times = None
+        if skip_enabled:
+            aniskip = AniSkipService()
+
+            # If no MAL ID from AniList, try searching by title
+            if not mal_id:
+                # Extract clean title (before " / " if bilingual format)
+                search_title = anime_title.split(" / ")[0].strip()
+                print(f"🔍 Buscando MAL ID para '{search_title}'...")
+                mal_id = aniskip.search_mal_id(search_title)
+                if mal_id:
+                    print(f"✅ MAL ID encontrado: {mal_id}")
+
+            if mal_id:
+                try:
+                    skip_times = aniskip.get_skip_times(mal_id, episode)
+                    if skip_times:
+                        print(
+                            "⏩ Skip times carregados (intro/outro serão pulados automaticamente)"
+                        )
+                    else:
+                        print(f"ℹ️  Sem skip times disponíveis (MAL ID: {mal_id}, Ep: {episode})")
+                except Exception as e:
+                    print(f"⚠️  Falha ao carregar skip times: {e}")
+            else:
+                print("ℹ️  MAL ID não encontrado (skip desabilitado para este anime)")
+
         result = player.play_episode(
             url=player_url,
             anime_title=selected_anime,
@@ -667,6 +806,7 @@ def anilist_anime_flow(
             debug=args.debug,
             anilist_id=anilist_id,
             anilist_episodes=total_episodes,
+            skip_times=skip_times,
         )
 
         print("\n📊 Reprodução encerrada:")

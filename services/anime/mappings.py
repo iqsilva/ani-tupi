@@ -18,20 +18,25 @@ HISTORY_PATH = get_data_path()
 _anilist_mappings_store = JSONStore(HISTORY_PATH / "anilist_mappings.json")
 
 
-def load_anilist_mapping(anilist_id: int) -> tuple[str | None, str | None]:
-    """Load saved scraper title and source for an AniList ID.
+def load_anilist_mapping(anilist_id: int) -> tuple[str | None, str | None, str | None]:
+    """Load saved scraper title, source, and URL for an AniList ID.
 
     Args:
         anilist_id: The AniList anime ID
 
     Returns:
-        Tuple of (scraper_title, source) or (None, None) if not found
+        Tuple of (scraper_title, source, anime_url) or (None, None, None) if not found
     """
     mapping = _anilist_mappings_store.get(str(anilist_id))
     # Handle both old format (string) and new format (dict)
     if isinstance(mapping, dict):
-        return mapping.get("scraper_title"), mapping.get("source")
-    return mapping, None
+        return (
+            mapping.get("scraper_title"),
+            mapping.get("source"),
+            mapping.get("anime_url"),
+        )
+    # Old format only has title, no source or URL
+    return mapping, None, None
 
 
 def load_anilist_search_title(anilist_id: int) -> str | None:
@@ -55,15 +60,17 @@ def save_anilist_mapping(
     scraper_title: str,
     search_title: str | None = None,
     source: str | None = None,
+    anime_url: str | None = None,
     language_choice: str | None = None,
 ) -> None:
-    """Save scraper title choice, search title, source, and language preference for an AniList ID.
+    """Save scraper title choice, search title, source, URL, and language preference for an AniList ID.
 
     Args:
         anilist_id: The AniList ID
         scraper_title: The selected anime title from scraper
         search_title: The original search/display title used to find it
         source: The scraper source (e.g., "animefire", "animesdigital")
+        anime_url: The anime page URL from the scraper (e.g., https://animefire.io/animes/...)
         language_choice: The language chosen ("romaji" or "english")
     """
     try:
@@ -80,6 +87,7 @@ def save_anilist_mapping(
                 "scraper_title": scraper_title,
                 "search_title": search_title or existing.get("search_title"),
                 "source": source or existing.get("source"),
+                "anime_url": anime_url or existing.get("anime_url"),
                 "language_choice": language_choice or existing.get("language_choice"),
             },
         )
