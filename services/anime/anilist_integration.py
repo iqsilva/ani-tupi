@@ -199,10 +199,15 @@ def anilist_anime_flow(
 
         if choice == "✅ Continuar com este":
             # User already chose this anime - use it directly
-            # Fluxo normal vai buscar episódios em todas as fontes e respeitar prioridade
             selected_anime = saved_title
             source = saved_source
             print(f"✅ Usando: {selected_anime}")
+
+            # If no saved URL, need to search again to populate repository mappings
+            # (so rep.search_episodes() knows where to look)
+            if not saved_url:
+                print("📍 Procurando para carregar informações...")
+                rep.search_anime(selected_anime, verbose=False)
 
     # Only ask for language preference if no saved title or user wants to choose another
     if selected_anime is None and english_title and romaji_title and english_title != romaji_title:
