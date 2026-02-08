@@ -18,7 +18,9 @@ HISTORY_PATH = get_data_path()
 _anilist_mappings_store = JSONStore(HISTORY_PATH / "anilist_mappings.json")
 
 
-def load_anilist_mapping(anilist_id: int) -> tuple[str | None, str | None, str | None]:
+def load_anilist_mapping(
+    anilist_id: int,
+) -> tuple[str | None, str | None, str | None]:
     """Load saved scraper title, source, and URL for an AniList ID.
 
     Args:

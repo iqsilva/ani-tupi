@@ -198,7 +198,8 @@ def anilist_anime_flow(
             return  # User cancelled
 
         if choice == "✅ Continuar com este":
-            # User already chose this anime - use it directly without searching again
+            # User already chose this anime - use it directly
+            # Fluxo normal vai buscar episódios em todas as fontes e respeitar prioridade
             selected_anime = saved_title
             source = saved_source
             print(f"✅ Usando: {selected_anime}")
@@ -392,11 +393,12 @@ def anilist_anime_flow(
 
     # Save the choice for next time (with original search title for "Trocar fonte")
     if anilist_id:
-        # Get anime URL from repository
+        # Get anime URL from repository IMMEDIATELY after user selects
         anime_url = None
         if selected_anime in rep.anime_to_urls:
+            # Get URL for the selected source (or any source if source is None/multiple)
             for url, src, _params in rep.anime_to_urls[selected_anime]:
-                if src == source:
+                if source is None or src in source.split(","):
                     anime_url = url
                     break
 
