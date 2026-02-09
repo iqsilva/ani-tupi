@@ -51,3 +51,7 @@ build/
 .opencode/
 .claude/
 openspec/
+
+
+# hidden dir
+.playwright-cli
