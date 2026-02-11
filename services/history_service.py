@@ -301,23 +301,13 @@ def load_history() -> tuple[str, int, int | None, str | None] | None:
                 # Go back to history menu
                 return load_history()
 
-        # Offer -1/0/+1 options (previous, current, next)
+        # Offer -1/0/+1 options (next, current, previous)
         last_ep_num = last_episode_idx + 1
         options = []
         option_to_idx = {}
 
-        # Previous episode (-1)
-        if last_episode_idx > 0:
-            prev_ep = f"◀️  Episódio {last_ep_num - 1} (anterior)"
-            options.append(prev_ep)
-            option_to_idx[prev_ep] = last_episode_idx - 1
-
-        # Current episode (0) - show source of progress
-        current_ep = f"▶️  Episódio {last_ep_num} ({progress_source})"
-        options.append(current_ep)
-        option_to_idx[current_ep] = last_episode_idx
-
-        # Next episode (+1)
+        # Next episode (+1) - SHOW FIRST
+        next_ep = None
         if last_episode_idx < len(episode_list) - 1:
             # Next episode exists in the list
             next_ep = f"⏭️  Episódio {last_ep_num + 1} (próximo)"
@@ -328,6 +318,17 @@ def load_history() -> tuple[str, int, int | None, str | None] | None:
             next_ep = f"⏭️  Episódio {last_ep_num + 1} (aguardando)"
             options.append(next_ep)
             option_to_idx[next_ep] = None  # Mark as unavailable
+
+        # Current episode (0) - show source of progress
+        current_ep = f"▶️  Episódio {last_ep_num} ({progress_source})"
+        options.append(current_ep)
+        option_to_idx[current_ep] = last_episode_idx
+
+        # Previous episode (-1)
+        if last_episode_idx > 0:
+            prev_ep = f"◀️  Episódio {last_ep_num - 1} (anterior)"
+            options.append(prev_ep)
+            option_to_idx[prev_ep] = last_episode_idx - 1
 
         # Add option to choose any episode
         options.append("📋 Escolher outro episódio")
