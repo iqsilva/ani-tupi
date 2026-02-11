@@ -168,22 +168,22 @@ def switch_anime_source(
         options = []
         option_to_idx = {}
 
-        # Next episode (+1) - SHOW FIRST
-        if max_progress < len(episode_list):
-            next_ep = f"⏭️  Episódio {max_progress + 1} (próximo)"
-            options.append(next_ep)
-            option_to_idx[next_ep] = max_progress
+        # Previous episode (-1)
+        if max_progress > 1:
+            prev_ep = f"◀️  Episódio {max_progress - 1} (anterior)"
+            options.append(prev_ep)
+            option_to_idx[prev_ep] = max_progress - 2
 
         # Current episode
         current_ep = f"▶️  Episódio {max_progress} ({progress_source})"
         options.append(current_ep)
         option_to_idx[current_ep] = max_progress - 1
 
-        # Previous episode (-1)
-        if max_progress > 1:
-            prev_ep = f"◀️  Episódio {max_progress - 1} (anterior)"
-            options.append(prev_ep)
-            option_to_idx[prev_ep] = max_progress - 2
+        # Next episode (+1)
+        if max_progress < len(episode_list):
+            next_ep = f"⏭️  Episódio {max_progress + 1} (próximo)"
+            options.append(next_ep)
+            option_to_idx[next_ep] = max_progress
 
         # Add option to choose any episode
         options.append("📋 Escolher outro episódio")

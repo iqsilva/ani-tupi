@@ -578,7 +578,18 @@ def anilist_anime_flow(
         elif max_progress == local_progress:
             progress_source = "Local"
 
-        # Next episode (+1) - SHOW FIRST
+        # Previous episode (-1)
+        if max_progress > 1:
+            prev_ep = f"◀️  Episódio {max_progress - 1} (anterior)"
+            options.append(prev_ep)
+            option_to_idx[prev_ep] = max_progress - 2
+
+        # Current episode (max progress)
+        current_ep = f"▶️  Episódio {max_progress} ({progress_source})"
+        options.append(current_ep)
+        option_to_idx[current_ep] = max_progress - 1
+
+        # Next episode (+1)
         if max_progress < len(episode_list):
             # Next episode exists in the list (available in scrapers)
             next_ep = f"⏭️  Episódio {max_progress + 1} (próximo)"
@@ -590,17 +601,6 @@ def anilist_anime_flow(
             options.append(next_ep)
             option_to_idx[next_ep] = None  # Mark as unavailable
         # If neither condition is true, anime is complete (don't show next episode)
-
-        # Current episode (max progress)
-        current_ep = f"▶️  Episódio {max_progress} ({progress_source})"
-        options.append(current_ep)
-        option_to_idx[current_ep] = max_progress - 1
-
-        # Previous episode (-1)
-        if max_progress > 1:
-            prev_ep = f"◀️  Episódio {max_progress - 1} (anterior)"
-            options.append(prev_ep)
-            option_to_idx[prev_ep] = max_progress - 2
 
         # Add option to choose any episode
         options.append("📋 Escolher outro episódio")
