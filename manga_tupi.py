@@ -18,15 +18,10 @@ from services.manga_service import (
 )
 from services.manga.anilist_lists import handle_anilist_list
 from ui.components import loading, menu_navigate
-from utils.image_viewers import find_image_viewer, open_image_viewer
 from utils.manga_reader import is_zathura_running, open_pdf_reader
 from utils.pdf_converter import create_pdf_from_images
 from utils.manga_source_preferences import manga_source_preferences
 from utils.manga_selection_preferences import manga_selection_preferences
-
-# Backward compatibility aliases
-_find_image_viewer = find_image_viewer
-open_viewer = open_image_viewer
 
 
 def _show_manga_main_menu() -> str | None:
