@@ -53,16 +53,24 @@ class EpisodeData(BaseModel):
         episode_titles: List of episode titles
         episode_urls: List of episode URLs (must be http/https)
         source: Plugin source name
+        episode_skip_available: List of booleans indicating which episodes have skip times
+            (True = has skip times, False = no skip times). Length must equal num episodes.
+            Optional: defaults to empty list (skip times not fetched yet).
 
     Validation:
         - episode_titles and episode_urls must have same length
         - All episode URLs must be valid http(s) URLs
+        - episode_skip_available (if provided) must match episode count
     """
 
     anime_title: str = Field(..., min_length=1, description="Anime title")
     episode_titles: list[str] = Field(..., description="Episode titles")
     episode_urls: list[str] = Field(..., description="Episode URLs (must be http/https)")
     source: str = Field(..., min_length=1, description="Plugin source name")
+    episode_skip_available: list[bool] = Field(
+        default_factory=list,
+        description="Which episodes have skip times (True/False per episode)",
+    )
 
     @field_validator("episode_urls", mode="before")
     @classmethod
@@ -80,6 +88,14 @@ class EpisodeData(BaseModel):
             raise ValueError(
                 f"Mismatched episodes: {len(self.episode_titles)} titles "
                 f"vs {len(self.episode_urls)} URLs"
+            )
+        # Validate skip list length if provided
+        if self.episode_skip_available and len(self.episode_skip_available) != len(
+            self.episode_titles
+        ):
+            raise ValueError(
+                f"Skip list length {len(self.episode_skip_available)} "
+                f"doesn't match episodes {len(self.episode_titles)}"
             )
         return self
 

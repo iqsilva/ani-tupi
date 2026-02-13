@@ -455,10 +455,9 @@ shift+t script-message toggle-sub-dub
         # Add skip.lua script if skip times are available
         if skip_times:
             skip_lua_path = self._get_skip_lua_path()
-            print(f"\n🔍 DEBUG: Skip lua path: {skip_lua_path}")
-            print(f"🔍 DEBUG: Skip lua exists: {skip_lua_path.exists()}")
 
             if skip_lua_path.exists():
+                print(f"   📝 Carregando script de skip: {skip_lua_path.name}")
                 mpv_args.append(f"--script={skip_lua_path}")
 
                 # Build script-opts string
@@ -473,15 +472,15 @@ shift+t script-message toggle-sub-dub
                 if script_opts:
                     script_opts_str = ",".join(script_opts)
                     mpv_args.append(f"--script-opts={script_opts_str}")
-                    print(f"🔍 DEBUG: Script opts: {script_opts_str}")
+                    print("   🎬 Script configurado com os tempos de skip")
 
                 # Create chapters file for visual markers
                 chapters_file = self._create_chapters_file(skip_times)
                 if chapters_file:
                     mpv_args.append(f"--chapters-file={chapters_file}")
-                    print(f"🔍 DEBUG: Chapters file: {chapters_file}")
+                    print("   📌 Marcadores de tempo adicionados à timeline")
             else:
-                print(f"❌ ERROR: Skip lua script not found at {skip_lua_path}")
+                print(f"   ⚠️  Script de skip não encontrado em {skip_lua_path}")
 
         mpv_args.append(url)
 

@@ -7,9 +7,11 @@ import json
 import os
 import webbrowser
 
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from services.anilist_service import anilist_client
 from services.anime_service import anilist_anime_flow
 from services.anime.airing_episodes_service import AiringEpisodesService
+from services.anime.aniskip_service import AniSkipService
 from models.config import get_data_path, settings
 from ui.components import loading, menu_navigate
 from models.models import AniListTitle
@@ -68,6 +70,125 @@ def _get_episode_count(anime_id: int, media_episodes: int | None) -> int | None:
 
     # Truly unknown episode count
     return None
+
+
+def _get_aniskip_icon(display_title: str, mal_id: int | None = None, timeout: float = 1.5) -> str:
+    """Get skip icon if anime has auto-skip data available.
+
+    Uses persistent cache (7 day TTL) and quick timeout to avoid blocking UI.
+
+    Args:
+        display_title: Display title of the anime
+        mal_id: Optional MyAnimeList ID (speeds up lookup if provided)
+        timeout: Max time to wait for API response in seconds
+
+    Returns:
+        Icon string "⏭️ " if skip data available, empty string otherwise
+    """
+    cache = get_cache()
+
+    try:
+        # Check cache first (7 day TTL = 604800 seconds)
+        cache_key = f"aniskip:{mal_id or display_title.lower()}"
+        cached_result = cache.get(cache_key)
+        if cached_result is not None:
+            return "⏭️ " if cached_result else ""
+
+        aniskip = AniSkipService()
+        found_mal_id = mal_id
+
+        # Search for mal_id if not provided (with timeout)
+        if not found_mal_id:
+            try:
+                found_mal_id = aniskip.search_mal_id(display_title)
+            except Exception:
+                # Timeout or error - cache as "no skip data" and return
+                cache.set(cache_key, False, ttl=604800)
+                return ""
+
+        if found_mal_id:
+            try:
+                skip_times = aniskip.get_skip_times(found_mal_id, 1)
+                has_skip = bool(skip_times)
+                # Cache result for 7 days
+                cache.set(cache_key, has_skip, ttl=604800)
+                return "⏭️ " if has_skip else ""
+            except Exception:
+                # Timeout or error - cache as "no skip data"
+                cache.set(cache_key, False, ttl=604800)
+                return ""
+
+        # MAL ID not found - cache as "no skip data"
+        cache.set(cache_key, False, ttl=604800)
+        return ""
+
+    except Exception:
+        # Any other error - silently fail without blocking UI
+        pass
+    return ""
+
+
+def _get_aniskip_icons_batch(
+    anime_list: list[tuple[str, int | None]],
+    max_workers: int = 2,
+    timeout_per_task: float = 1.0,
+    use_progress_bar: bool = True,
+) -> dict[str, str]:
+    """Get skip icons for multiple anime in parallel.
+
+    Uses ThreadPoolExecutor to parallelize API calls with no global timeout.
+    Each individual task has a timeout to avoid hanging.
+
+    Args:
+        anime_list: List of (display_title, mal_id) tuples
+        max_workers: Max parallel threads (default 2 to avoid rate limiting)
+        timeout_per_task: Max time per individual task in seconds
+        use_progress_bar: Whether to show tqdm progress bar (default True)
+
+    Returns:
+        Dictionary mapping display_title -> icon string (may be incomplete)
+    """
+    result = {}
+
+    if not anime_list:
+        return result
+
+    from tqdm import tqdm
+
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        # Submit all tasks without waiting for all to complete
+        future_to_title = {
+            executor.submit(_get_aniskip_icon, title, mal_id): title for title, mal_id in anime_list
+        }
+
+        # Collect results as they complete with progress bar
+        # NO global timeout to avoid exceptions
+        # Just iterate through all futures with individual timeouts
+        futures_iter = as_completed(future_to_title)
+
+        # Wrap with tqdm for progress bar
+        if use_progress_bar:
+            futures_iter = tqdm(
+                futures_iter,
+                total=len(future_to_title),
+                desc=f"Carregando skip times ({len(anime_list)} animes)",
+                unit="anime",
+                bar_format="{desc}: {bar}| {n_fmt}/{total_fmt}",
+                leave=False,  # Remove bar after completion
+            )
+
+        for future in futures_iter:
+            title = future_to_title[future]
+            try:
+                # Individual timeout per task
+                icon = future.result(timeout=timeout_per_task)
+                result[title] = icon
+            except Exception:
+                # If any individual request times out or errors, just skip it
+                # This anime will show without the icon
+                result[title] = ""
+
+    return result
 
 
 def _start_watching_anime(search_title: str, anime_id: int, display_title: str) -> None:
@@ -385,6 +506,22 @@ def _show_anime_list(list_type: str) -> tuple[str, int] | None:
         options = []
         anime_map = {}  # option -> (display_title, search_title, id, progress, episodes)
 
+        # Pre-fetch skip icons in parallel with tqdm progress bar
+        anime_skip_data = []
+        for item in anime_list:
+            if hasattr(item, "media"):
+                media = item.media
+            else:
+                media = item
+            if media and media.id_mal:
+                anime_skip_data.append((anilist_client.format_title(media.title), media.id_mal))
+
+        skip_icons_map = {}
+        if anime_skip_data:
+            # tqdm progress bar will show internally
+            skip_icons_map = _get_aniskip_icons_batch(anime_skip_data, use_progress_bar=True)
+
+        # Now build menu with pre-loaded skip icons
         for item in anime_list:
             # Handle different response formats
             if hasattr(item, "media"):  # User list format (AniListMediaListEntry)
@@ -416,6 +553,11 @@ def _show_anime_list(list_type: str) -> tuple[str, int] | None:
             score = media.averageScore
             if score:
                 display += f" ⭐{score}%"
+
+            # Add skip icon if available (from pre-fetched data)
+            skip_icon = skip_icons_map.get(display_title, "")
+            if skip_icon:
+                display = f"{skip_icon}{display}"
 
             options.append(display)
             anime_map[display] = (
@@ -521,6 +663,12 @@ def _show_recent_history() -> None:
 
                 episode_num = episode_idx + 1
                 display = f"{display_name} (Ep {episode_num})"
+
+                # Add skip icon if available
+                skip_icon = _get_aniskip_icon(display_name)
+                if skip_icon:
+                    display = f"{skip_icon}{display}"
+
                 options.append(display)
                 # Store anime_name, anilist_id, and episode_idx
                 anime_map[display] = (anime_name, anilist_id, episode_idx)
@@ -628,6 +776,11 @@ def _search_and_add_anime(is_logged_in: bool) -> tuple[str, int] | None:
         display = f"{display_title} ({year}, {episodes} eps)"
         if score:
             display += f" ⭐{score}%"
+
+        # Add skip icon if available (with cache optimization)
+        skip_icon = _get_aniskip_icon(display_title, anime.id_mal)
+        if skip_icon:
+            display = f"{skip_icon}{display}"
 
         options.append(display)
         search_title = get_search_title(anime.title, display_title)
@@ -832,6 +985,11 @@ def _show_airing_episodes() -> None:
 
             if entry.average_score:
                 display += f" ⭐{entry.average_score}%"
+
+            # Add skip icon if available
+            skip_icon = _get_aniskip_icon(entry.title)
+            if skip_icon:
+                display = f"{skip_icon}{display}"
 
             options.append(display)
             anime_map[display] = entry

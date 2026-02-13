@@ -68,6 +68,25 @@ def mock_choose_status():
 
 
 @pytest.fixture
+def mock_get_aniskip_icon():
+    """Mock _get_aniskip_icon function to return empty string by default."""
+    with patch("ui.anilist_menus._get_aniskip_icon") as mock_icon:
+        # Return empty string (no icon) by default to maintain test compatibility
+        mock_icon.return_value = ""
+        yield mock_icon
+
+
+@pytest.fixture
+def mock_cache():
+    """Mock cache for aniskip tests."""
+    with patch("ui.anilist_menus.get_cache") as mock_get_cache:
+        mock_cache_obj = Mock()
+        mock_cache_obj.get.return_value = None  # Cache miss by default
+        mock_get_cache.return_value = mock_cache_obj
+        yield mock_cache_obj
+
+
+@pytest.fixture
 def mock_input():
     """Mock builtins.input function."""
     with patch("builtins.input") as mock_inp:
@@ -238,6 +257,7 @@ class TestSearchAndAddAnimeLoggedIn:
         mock_loading,
         mock_anilist_main_menu,
         mock_input,
+        mock_get_aniskip_icon,
         sample_anime,
     ):
         """When user clicks "▶️ Assistir agora" (first option), should watch immediately."""
@@ -270,6 +290,7 @@ class TestSearchAndAddAnimeLoggedIn:
         mock_loading,
         mock_anilist_main_menu,
         mock_input,
+        mock_get_aniskip_icon,
         sample_anime,
     ):
         """When user adds to list then chooses watch, should add then watch."""
@@ -306,6 +327,7 @@ class TestSearchAndAddAnimeLoggedIn:
         mock_loading,
         mock_anilist_main_menu,
         mock_input,
+        mock_get_aniskip_icon,
         sample_anime,
     ):
         """When user adds to list but chooses not to watch, should NOT start playback."""
@@ -342,6 +364,7 @@ class TestSearchAndAddAnimeLoggedIn:
         mock_loading,
         mock_anilist_main_menu,
         mock_input,
+        mock_get_aniskip_icon,
         sample_anime,
     ):
         """When user clicks back from action menu, should return to main menu."""
@@ -384,6 +407,7 @@ class TestSearchAndAddAnimeNotLoggedIn:
         mock_loading,
         mock_anilist_main_menu,
         mock_input,
+        mock_get_aniskip_icon,
         sample_anime,
     ):
         """For non-logged-in users, should call _start_watching_anime directly."""
@@ -453,6 +477,7 @@ class TestCompleteSearchToPlaybackFlow:
         mock_loading,
         mock_anilist_main_menu,
         mock_input,
+        mock_get_aniskip_icon,
         sample_anime,
         sample_media_list_entry,
     ):
@@ -489,6 +514,7 @@ class TestCompleteSearchToPlaybackFlow:
         mock_loading,
         mock_anilist_main_menu,
         mock_input,
+        mock_get_aniskip_icon,
         sample_anime,
     ):
         """End-to-end: Search → Select → Watch (no prior progress)."""
@@ -523,6 +549,7 @@ class TestCompleteSearchToPlaybackFlow:
         mock_loading,
         mock_anilist_main_menu,
         mock_input,
+        mock_get_aniskip_icon,
         sample_anime,
     ):
         """End-to-end: Search → Select → Add → Watch (complete flow)."""
@@ -636,6 +663,7 @@ class TestEdgeCases:
         mock_loading,
         mock_anilist_main_menu,
         mock_input,
+        mock_get_aniskip_icon,
         sample_anime,
     ):
         """When user cancels status selection, should show action menu again."""
@@ -670,6 +698,7 @@ class TestEdgeCases:
         mock_loading,
         mock_anilist_main_menu,
         mock_input,
+        mock_get_aniskip_icon,
         sample_anime,
     ):
         """When AniList entry has progress=0, should pass 0 not None."""
@@ -714,6 +743,7 @@ class TestStatusMapping:
         mock_loading,
         mock_anilist_main_menu,
         mock_input,
+        mock_get_aniskip_icon,
         sample_anime,
     ):
         """Test that all status options map to correct AniList status codes."""
@@ -912,3 +942,149 @@ class TestGetEpisodeCount:
 
         # Verify TTL
         mock_cache.set.assert_called_once_with("anilist_episodes:123", 12, ttl=604800)
+
+
+# ============================================================================
+# UNIT TESTS: _get_aniskip_icon
+# ============================================================================
+
+
+class TestGetAniSkipIcon:
+    """Tests for _get_aniskip_icon function."""
+
+    @patch("ui.anilist_menus.AniSkipService")
+    def test_returns_icon_when_skip_data_available_with_mal_id(
+        self, mock_aniskip_class, mock_cache
+    ):
+        """Should return icon when skip data exists and MAL ID is provided."""
+        from ui.anilist_menus import _get_aniskip_icon
+        from models.models import SkipTimes
+
+        # Setup
+        mock_aniskip = Mock()
+        mock_aniskip_class.return_value = mock_aniskip
+        mock_aniskip.get_skip_times.return_value = SkipTimes(
+            op_start=0.0, op_end=90.0, ed_start=None, ed_end=None
+        )
+
+        # Execute
+        result = _get_aniskip_icon("Dandadan", mal_id=12345)
+
+        # Verify
+        assert result == "⏭️ "
+        # Should use mal_id directly without calling search_mal_id
+        mock_aniskip.search_mal_id.assert_not_called()
+        mock_aniskip.get_skip_times.assert_called_once_with(12345, 1)
+
+    @patch("ui.anilist_menus.AniSkipService")
+    def test_returns_icon_when_skip_data_available_by_title(self, mock_aniskip_class, mock_cache):
+        """Should return icon when skip data exists and MAL ID is searched by title."""
+        from ui.anilist_menus import _get_aniskip_icon
+        from models.models import SkipTimes
+
+        # Setup
+        mock_aniskip = Mock()
+        mock_aniskip_class.return_value = mock_aniskip
+        mock_aniskip.search_mal_id.return_value = 12345
+        mock_aniskip.get_skip_times.return_value = SkipTimes(
+            op_start=0.0, op_end=90.0, ed_start=None, ed_end=None
+        )
+
+        # Execute
+        result = _get_aniskip_icon("Dandadan")
+
+        # Verify
+        assert result == "⏭️ "
+        mock_aniskip.search_mal_id.assert_called_once_with("Dandadan")
+        mock_aniskip.get_skip_times.assert_called_once_with(12345, 1)
+
+    @patch("ui.anilist_menus.AniSkipService")
+    def test_returns_empty_when_no_skip_data_with_mal_id(self, mock_aniskip_class, mock_cache):
+        """Should return empty string when no skip data exists with MAL ID."""
+        from ui.anilist_menus import _get_aniskip_icon
+
+        # Setup
+        mock_aniskip = Mock()
+        mock_aniskip_class.return_value = mock_aniskip
+        mock_aniskip.get_skip_times.return_value = None
+
+        # Execute
+        result = _get_aniskip_icon("UnknownAnime", mal_id=99999)
+
+        # Verify
+        assert result == ""
+        mock_aniskip.get_skip_times.assert_called_once_with(99999, 1)
+
+    @patch("ui.anilist_menus.AniSkipService")
+    def test_returns_empty_when_no_skip_data_by_title(self, mock_aniskip_class, mock_cache):
+        """Should return empty string when no skip data exists and MAL ID not found."""
+        from ui.anilist_menus import _get_aniskip_icon
+
+        # Setup
+        mock_aniskip = Mock()
+        mock_aniskip_class.return_value = mock_aniskip
+        mock_aniskip.search_mal_id.return_value = None
+
+        # Execute
+        result = _get_aniskip_icon("UnknownAnime")
+
+        # Verify
+        assert result == ""
+        mock_aniskip.search_mal_id.assert_called_once_with("UnknownAnime")
+        mock_aniskip.get_skip_times.assert_not_called()
+
+    @patch("ui.anilist_menus.AniSkipService")
+    def test_returns_empty_on_api_error_with_mal_id(self, mock_aniskip_class, mock_cache):
+        """Should silently return empty string on API errors with MAL ID."""
+        from ui.anilist_menus import _get_aniskip_icon
+
+        # Setup
+        mock_aniskip = Mock()
+        mock_aniskip_class.return_value = mock_aniskip
+        mock_aniskip.get_skip_times.side_effect = Exception("API Error")
+
+        # Execute
+        result = _get_aniskip_icon("Dandadan", mal_id=12345)
+
+        # Verify: should not raise, just return empty
+        assert result == ""
+        # Should have cached the error
+        mock_cache.set.assert_called_once()
+
+    @patch("ui.anilist_menus.AniSkipService")
+    def test_returns_empty_on_api_error_by_title(self, mock_aniskip_class, mock_cache):
+        """Should silently return empty string on API errors when searching by title."""
+        from ui.anilist_menus import _get_aniskip_icon
+
+        # Setup
+        mock_aniskip = Mock()
+        mock_aniskip_class.return_value = mock_aniskip
+        mock_aniskip.search_mal_id.side_effect = Exception("API Error")
+
+        # Execute
+        result = _get_aniskip_icon("Dandadan")
+
+        # Verify: should not raise, just return empty
+        assert result == ""
+        # Should have cached the error
+        mock_cache.set.assert_called_once()
+
+    @patch("ui.anilist_menus.AniSkipService")
+    def test_icon_shows_for_ending_skip_times(self, mock_aniskip_class, mock_cache):
+        """Should return icon even if only ending (ED) skip times are available."""
+        from ui.anilist_menus import _get_aniskip_icon
+        from models.models import SkipTimes
+
+        # Setup: Only ED (ending) skip times, no OP (opening)
+        mock_aniskip = Mock()
+        mock_aniskip_class.return_value = mock_aniskip
+        mock_aniskip.search_mal_id.return_value = 12345
+        mock_aniskip.get_skip_times.return_value = SkipTimes(
+            op_start=None, op_end=None, ed_start=1320.0, ed_end=1420.0
+        )
+
+        # Execute
+        result = _get_aniskip_icon("Dandadan")
+
+        # Verify
+        assert result == "⏭️ "

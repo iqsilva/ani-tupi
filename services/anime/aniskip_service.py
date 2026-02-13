@@ -5,6 +5,7 @@ Skip times are identified by MyAnimeList (MAL) ID and episode number.
 """
 
 import logging
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Optional
 
 import httpx
@@ -114,6 +115,61 @@ class AniSkipService:
                 f"AniSkip API request failed for MAL ID {mal_id}, Episode {episode}: {e}"
             )
             return None
+
+    def get_skip_available_batch(
+        self, mal_id: int, max_episode: int, episodes_to_check: list[int] | None = None
+    ) -> dict[int, bool]:
+        """Check which episodes have skip times available.
+
+        Performs parallel requests to AniSkip API for specified episodes.
+        Results are cached, so subsequent calls are fast.
+
+        Args:
+            mal_id: MyAnimeList anime ID
+            max_episode: Maximum episode number (for validation, not used if episodes_to_check provided)
+            episodes_to_check: List of specific episode numbers to check (1-indexed).
+                              If None, checks all episodes from 1 to max_episode.
+                              Use this to limit checks to just next/current/previous for performance.
+
+        Returns:
+            Dict mapping episode number -> True (has skip) or False (no skip)
+            Example: {1: True, 2: False, 3: True, ...}
+
+        Note:
+            - Uses ThreadPoolExecutor for parallel requests (faster)
+            - Gracefully handles API failures (treats as "no skip times")
+            - Results are cached in memory (subsequent calls use cache)
+            - Max workers: 4 (respectful to API)
+            - Passing episodes_to_check=[] returns empty dict instantly (no API calls)
+        """
+        results = {}
+
+        # Determine which episodes to check
+        if episodes_to_check is not None:
+            episodes = episodes_to_check
+        else:
+            episodes = list(range(1, max_episode + 1))
+
+        # If no episodes to check, return empty dict
+        if not episodes:
+            return results
+
+        # Use ThreadPoolExecutor for parallel requests
+        with ThreadPoolExecutor(max_workers=4) as executor:
+            # Submit all requests
+            futures = {executor.submit(self.get_skip_times, mal_id, ep): ep for ep in episodes}
+
+            # Collect results as they complete
+            for future in as_completed(futures):
+                ep = futures[future]
+                try:
+                    skip_times = future.result()
+                    results[ep] = skip_times is not None
+                except Exception as e:
+                    logger.warning(f"Error checking skip times for episode {ep}: {e}")
+                    results[ep] = False
+
+        return results
 
     def _parse_skip_times(self, results: list[dict]) -> Optional[SkipTimes]:
         """Parse skip times from API results.

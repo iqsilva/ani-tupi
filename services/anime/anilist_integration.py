@@ -562,6 +562,35 @@ def anilist_anime_flow(
     # Use maximum of AniList and local progress (never go backwards)
     max_progress = max(anilist_progress, local_progress)
 
+    # Fetch skip times if MAL ID is available
+    # OPTIMIZATION: Only fetch próximo/atual/anterior initially (faster)
+    # Full list fetched only when user selects "Escolher outro episódio"
+    episode_skip_available: dict[int, bool] = {}
+    aniskip_service: AniSkipService | None = None
+
+    if mal_id and scraper_episode_count and len(episode_list) > 0:
+        try:
+            aniskip_service = AniSkipService()
+            # Only check próximo, atual, anterior for initial menu (very fast)
+            episodes_to_check = []
+            if max_progress < len(episode_list):
+                episodes_to_check.append(max_progress + 1)  # Próximo
+            if max_progress > 0:
+                episodes_to_check.append(max_progress)  # Atual
+            if max_progress > 1:
+                episodes_to_check.append(max_progress - 1)  # Anterior
+
+            if episodes_to_check:
+                with loading("Carregando informações de skip times..."):
+                    episode_skip_available = aniskip_service.get_skip_available_batch(
+                        mal_id, len(episode_list), episodes_to_check=episodes_to_check
+                    )
+        except Exception as e:
+            import logging
+
+            logging.debug(f"Failed to fetch skip times for MAL ID {mal_id}: {e}")
+            # Continue without skip times - it's non-critical
+
     # If user has progress (from AniList or local), offer to continue from there
     if max_progress > 0 and max_progress <= len(episode_list):
         # Offer -1/0/+1 options (previous, current, next)
@@ -582,7 +611,10 @@ def anilist_anime_flow(
         next_ep = None
         if max_progress < len(episode_list):
             # Next episode exists in the list (available in scrapers)
-            next_ep = f"⏭️  Episódio {max_progress + 1} (próximo)"
+            next_ep_label = f"⏭️  Episódio {max_progress + 1} (próximo)"
+            if episode_skip_available.get(max_progress + 1, False):
+                next_ep_label += " ⏭️"
+            next_ep = next_ep_label
             options.append(next_ep)
             option_to_idx[next_ep] = max_progress
         elif total_episodes and max_progress < total_episodes:
@@ -592,13 +624,19 @@ def anilist_anime_flow(
             option_to_idx[next_ep] = None  # Mark as unavailable
 
         # Current episode (max progress)
-        current_ep = f"▶️  Episódio {max_progress} ({progress_source})"
+        current_ep_label = f"▶️  Episódio {max_progress} ({progress_source})"
+        if episode_skip_available.get(max_progress, False):
+            current_ep_label += " ⏭️"
+        current_ep = current_ep_label
         options.append(current_ep)
         option_to_idx[current_ep] = max_progress - 1
 
         # Previous episode (-1)
         if max_progress > 1:
-            prev_ep = f"◀️  Episódio {max_progress - 1} (anterior)"
+            prev_ep_label = f"◀️  Episódio {max_progress - 1} (anterior)"
+            if episode_skip_available.get(max_progress - 1, False):
+                prev_ep_label += " ⏭️"
+            prev_ep = prev_ep_label
             options.append(prev_ep)
             option_to_idx[prev_ep] = max_progress - 2
         # If neither condition is true, anime is complete (don't show next episode)
@@ -620,11 +658,32 @@ def anilist_anime_flow(
             return  # User cancelled
 
         if choice == "📋 Escolher outro episódio":
+            # Fetch skip times for ALL episodes (was deferred for performance)
+            if aniskip_service and mal_id and scraper_episode_count and len(episode_list) > 0:
+                try:
+                    with loading(f"Carregando skip times para {len(episode_list)} episódios..."):
+                        full_skip_available = aniskip_service.get_skip_available_batch(
+                            mal_id, len(episode_list)
+                        )
+                    episode_skip_available = full_skip_available
+                except Exception as e:
+                    import logging
+
+                    logging.debug(f"Failed to fetch full skip times: {e}")
+                    # Continue without updated skip times - show menu anyway
+
+            # Format episode list with skip indicators
+            from commands.anime import format_episode_list_with_skip
+
+            formatted_episode_list = format_episode_list_with_skip(
+                tuple(episode_list), episode_skip_available
+            )
+
             # Let user choose from full episode list
-            selected_episode = menu_navigate(episode_list, msg="Escolha o episódio.")
+            selected_episode = menu_navigate(formatted_episode_list, msg="Escolha o episódio.")
             if not selected_episode:
                 return
-            episode_idx = episode_list.index(selected_episode)
+            episode_idx = formatted_episode_list.index(selected_episode)
         elif choice == "🔄 Começar do zero":
             # Confirm before resetting
             confirm_reset = menu_navigate(

@@ -17,9 +17,11 @@ from models.models import Status
 from services.anime.anilist_discovery_service import (
     discover_anilist_info,
 )
+from services.anime.aniskip_service import AniSkipService
 from services.anilist_service import anilist_client
 from services.history_service import load_history
 from services.repository import rep
+from ui.components import loading
 
 
 logger = logging.getLogger(__name__)
@@ -45,6 +47,8 @@ class PlaybackContext:
         episode_list: List of episode strings for menu display
         skip_enabled: Whether to enable intro/outro skipping
         mal_id: MyAnimeList ID for AniSkip integration (if available)
+        episode_skip_available: Dict mapping episode number (1-indexed) to bool
+            indicating whether skip times are available (empty if not fetched)
     """
 
     anime_title: str
@@ -57,6 +61,13 @@ class PlaybackContext:
     episode_list: tuple[str, ...]
     skip_enabled: bool = False
     mal_id: int | None = None
+    episode_skip_available: dict[int, bool] = None  # type: ignore
+
+    def __post_init__(self) -> None:
+        """Ensure episode_skip_available is never None."""
+        if self.episode_skip_available is None:
+            # Use object.__setattr__ because this is a frozen dataclass
+            object.__setattr__(self, "episode_skip_available", {})
 
 
 @dataclass(frozen=True)
@@ -126,6 +137,18 @@ def prepare_playback_from_search(
     episode_list = tuple(episode_list_raw) if episode_list_raw else ()
     num_episodes = len(episode_list)
 
+    # Fetch skip times if MAL ID is available
+    episode_skip_available: dict[int, bool] = {}
+    if mal_id:
+        try:
+            with loading(f"Carregando skip times ({num_episodes} episódios)..."):
+                aniskip = AniSkipService()
+                episode_skip_available = aniskip.get_skip_available_batch(mal_id, num_episodes)
+            logger.debug(f"Fetched skip times for {len(episode_skip_available)} episodes")
+        except Exception as e:
+            logger.warning(f"Failed to fetch skip times for MAL ID {mal_id}: {e}")
+            # Continue without skip times - it's non-critical
+
     return PlaybackContext(
         anime_title=selected_anime,
         episode_idx=episode_idx,
@@ -137,6 +160,7 @@ def prepare_playback_from_search(
         episode_list=episode_list,
         skip_enabled=skip_enabled,
         mal_id=mal_id,
+        episode_skip_available=episode_skip_available,
     )
 
 
@@ -183,6 +207,18 @@ def prepare_playback_from_history(skip_enabled: bool = False) -> PlaybackContext
     episode_list = tuple(episode_list_raw) if episode_list_raw else ()
     num_episodes = len(episode_list)
 
+    # Fetch skip times if MAL ID is available
+    episode_skip_available: dict[int, bool] = {}
+    if mal_id:
+        try:
+            with loading(f"Carregando skip times ({num_episodes} episódios)..."):
+                aniskip = AniSkipService()
+                episode_skip_available = aniskip.get_skip_available_batch(mal_id, num_episodes)
+            logger.debug(f"Fetched skip times for {len(episode_skip_available)} episodes")
+        except Exception as e:
+            logger.warning(f"Failed to fetch skip times for MAL ID {mal_id}: {e}")
+            # Continue without skip times - it's non-critical
+
     return PlaybackContext(
         anime_title=anime_title,
         episode_idx=episode_idx,
@@ -194,6 +230,7 @@ def prepare_playback_from_history(skip_enabled: bool = False) -> PlaybackContext
         episode_list=episode_list,
         skip_enabled=skip_enabled,
         mal_id=mal_id,
+        episode_skip_available=episode_skip_available,
     )
 
 

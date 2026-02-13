@@ -28,6 +28,50 @@ from utils.video_player import VideoPlayer
 from utils.episode_range_parser import parse_episode_range, RangeParseError
 
 
+def format_episode_list_with_skip(
+    episode_list: tuple[str, ...], episode_skip_available: dict[int, bool]
+) -> list[str]:
+    """Format episode list with skip time indicators.
+
+    Appends " ⏭️ (skip)" to episodes that have skip times available.
+
+    Args:
+        episode_list: Tuple of episode strings (e.g., ("Ep. 1", "Ep. 2", ...))
+        episode_skip_available: Dict mapping episode number (1-indexed) to bool
+
+    Returns:
+        List of formatted episode strings with skip indicators
+    """
+    formatted = []
+    for idx, episode in enumerate(episode_list):
+        ep_num = idx + 1  # Episode numbers are 1-indexed
+        if episode_skip_available.get(ep_num, False):
+            formatted.append(f"{episode} ⏭️ (skip)")
+        else:
+            formatted.append(episode)
+    return formatted
+
+
+def format_playback_menu_option(
+    label: str, episode_number: int, episode_skip_available: dict[int, bool]
+) -> str:
+    """Format playback menu option with skip time indicator if applicable.
+
+    Appends " ⏭️" to menu option if the referenced episode has skip times.
+
+    Args:
+        label: Menu label (e.g., "▶️  Próximo", "◀️  Anterior")
+        episode_number: Episode number (1-indexed) to check for skip times
+        episode_skip_available: Dict mapping episode number to bool
+
+    Returns:
+        Formatted menu option string
+    """
+    if episode_skip_available.get(episode_number, False):
+        return f"{label} ⏭️"
+    return label
+
+
 def handle_anime_download(ctx: "PlaybackContext", args) -> None:
     """Handle anime download workflow.
 
@@ -307,6 +351,7 @@ def anime(args) -> None:
         # Fetch skip times if enabled
         skip_times = None
         if ctx.skip_enabled:
+            print("\n⏩ Auto-skip ATIVADO - buscando tempos de intro/outro...")
             aniskip = AniSkipService()
             mal_id = ctx.mal_id
 
@@ -314,20 +359,48 @@ def anime(args) -> None:
             if not mal_id and ctx.anilist_title:
                 # Extract clean title (before " / " if bilingual format)
                 search_title = ctx.anilist_title.split(" / ")[0].strip()
-                print(f"🔍 Buscando MAL ID para '{search_title}'...")
+                print(f"   🔍 MAL ID não encontrado em AniList, procurando por '{search_title}'...")
                 mal_id = aniskip.search_mal_id(search_title)
                 if mal_id:
-                    print(f"✅ MAL ID encontrado: {mal_id}")
+                    print(f"   ✅ MAL ID encontrado: {mal_id}")
+                else:
+                    print(f"   ❌ MAL ID não encontrado para '{search_title}'")
+            elif mal_id:
+                print(f"   ✅ Usando MAL ID do AniList: {mal_id}")
 
             if mal_id:
                 try:
+                    print(f"   🎬 Buscando skip times para episódio {episode}...")
                     skip_times = aniskip.get_skip_times(mal_id, episode)
                     if skip_times:
-                        print(
-                            "⏩ Skip times carregados (intro/outro serão pulados automaticamente)"
+                        op_duration = (
+                            (skip_times.op_end - skip_times.op_start)
+                            if skip_times.op_start is not None and skip_times.op_end is not None
+                            else 0
                         )
+                        ed_duration = (
+                            (skip_times.ed_end - skip_times.ed_start)
+                            if skip_times.ed_start is not None and skip_times.ed_end is not None
+                            else 0
+                        )
+
+                        log_parts = []
+                        if skip_times.op_start is not None:
+                            log_parts.append(
+                                f"OP: {skip_times.op_start:.1f}s-{skip_times.op_end:.1f}s ({op_duration:.1f}s)"
+                            )
+                        if skip_times.ed_start is not None:
+                            log_parts.append(
+                                f"ED: {skip_times.ed_start:.1f}s-{skip_times.ed_end:.1f}s ({ed_duration:.1f}s)"
+                            )
+
+                        print(f"   ✅ Encontrados: {' | '.join(log_parts)}")
+                    else:
+                        print("   ℹ️  Sem skip times disponível para este episódio")
                 except Exception as e:
-                    print(f"⚠️  Falha ao carregar skip times: {e}")
+                    print(f"   ⚠️  Erro ao buscar skip times: {e}")
+            else:
+                print("   ℹ️  MAL ID não disponível, skip desativado para este episódio")
 
         playback_result = player.play_episode(
             url=player_url,
@@ -381,6 +454,7 @@ def anime(args) -> None:
             episode_list=ctx.episode_list,
             skip_enabled=ctx.skip_enabled,
             mal_id=ctx.mal_id,
+            episode_skip_available=ctx.episode_skip_available,
         )
 
         # Handle post-playback confirmation (includes history, AniList sync, offline queue)
@@ -398,13 +472,23 @@ def anime(args) -> None:
             if anime_service.offer_sequel_and_continue(ctx.anilist_id, args):
                 return  # Sequel started, exit this flow
 
-        # Episode navigation menu
+        # Episode navigation menu with skip time indicators
         opts = []
         if ctx.episode_idx < ctx.num_episodes - 1:
-            opts.append("▶️  Próximo")
+            next_ep_num = ctx.episode_idx + 2  # 1-indexed
+            opts.append(
+                format_playback_menu_option("▶️  Próximo", next_ep_num, ctx.episode_skip_available)
+            )
         if ctx.episode_idx > 0:
-            opts.append("◀️  Anterior")
-        opts.append("🔁 Replay")
+            prev_ep_num = ctx.episode_idx  # 1-indexed (episode_idx is 0-indexed)
+            opts.append(
+                format_playback_menu_option("◀️  Anterior", prev_ep_num, ctx.episode_skip_available)
+            )
+
+        current_ep_num = ctx.episode_idx + 1  # 1-indexed
+        opts.append(
+            format_playback_menu_option("🔁 Replay", current_ep_num, ctx.episode_skip_available)
+        )
         opts.append("📋 Escolher outro episódio")
         opts.append("📥 Baixar para assistir depois")
         opts.append("🔄 Trocar fonte")
@@ -413,18 +497,22 @@ def anime(args) -> None:
 
         if not selected_opt or selected_opt == "🔙 Voltar":
             return  # Exit to main menu
-        elif selected_opt == "▶️  Próximo":
+        elif "▶️  Próximo" in selected_opt:  # May have ⏭️ indicator
             ctx = navigate_episodes(ctx, "next")
-        elif selected_opt == "◀️  Anterior":
+        elif "◀️  Anterior" in selected_opt:  # May have ⏭️ indicator
             ctx = navigate_episodes(ctx, "previous")
-        elif selected_opt == "🔁 Replay":
+        elif "🔁 Replay" in selected_opt:  # May have ⏭️ indicator
             ctx = navigate_episodes(ctx, "replay")
         elif selected_opt == "📋 Escolher outro episódio":
-            # User selects episode from menu
-            selected_episode = menu_navigate(list(ctx.episode_list), msg="Escolha o episódio.")
+            # User selects episode from menu with skip time indicators
+            formatted_episodes = format_episode_list_with_skip(
+                ctx.episode_list, ctx.episode_skip_available
+            )
+            selected_episode = menu_navigate(formatted_episodes, msg="Escolha o episódio.")
             if not selected_episode:
                 return  # User cancelled, exit function
-            episode_idx = ctx.episode_list.index(selected_episode)
+            # Find the index in the formatted list (safe because formatting doesn't change order)
+            episode_idx = formatted_episodes.index(selected_episode)
             ctx = navigate_episodes(ctx, "choose", episode_idx)
         elif selected_opt == "📥 Baixar para assistir depois":
             # Download episodes for offline viewing
