@@ -246,3 +246,37 @@ class TestAnimesDigitalIncrementalSearch:
 
         assert len(result) == 1
         assert result[0]["episode_url"].startswith("https://animesdigital.org")
+
+    @patch("scrapers.plugins.animesdigital.requests.get")
+    def test_filters_duplicate_anime_versions(self, mock_get):
+        """Test that when same anime exists in both dubbed and subtitled versions,
+        only the best-matching version is returned.
+
+        This prevents duplicates when searching for "Anime Title Dublado" returns
+        both the dubbed and subtitled versions.
+        """
+        html = (
+            "<html><body>"
+            + self._create_html_for_episode(
+                "Seihantai na Kimi to Boku Dublado Episódio 6",
+                "https://animesdigital.org/video/a/123456/",
+            )
+            + self._create_html_for_episode(
+                "Seihantai na Kimi to Boku Episódio 6",
+                "https://animesdigital.org/video/a/654321/",
+            )
+            + "</body></html>"
+        )
+
+        mock_response = MagicMock()
+        mock_response.raise_for_status = MagicMock()
+        mock_response.text = html
+        mock_get.return_value = mock_response
+
+        # Search for the dubbed version
+        result = self.scraper.search_homepage_incremental("Seihantai na Kimi to Boku Dublado")
+
+        # Should return only 1 episode (the dubbed version with higher similarity score)
+        assert len(result) == 1
+        assert "Dublado" in result[0]["anime_title"]
+        assert result[0]["episode_number"] == 6

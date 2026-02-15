@@ -166,6 +166,7 @@ class TestPreparePlaybackFromSearch:
             anilist_id=12345,
             anilist_title="Dandadan",
             total_episodes=12,
+            mal_id=57334,
             found=True,
             authenticated=True,
         )
@@ -211,6 +212,7 @@ class TestPreparePlaybackFromSearch:
             anilist_id=None,
             anilist_title=None,
             total_episodes=None,
+            mal_id=None,
             found=False,
             authenticated=False,
         )
@@ -246,6 +248,7 @@ class TestPreparePlaybackFromSearch:
             anilist_id=None,
             anilist_title=None,
             total_episodes=None,
+            mal_id=None,
             found=False,
             authenticated=True,
         )
@@ -284,6 +287,7 @@ class TestPreparePlaybackFromSearch:
             anilist_id=12345,
             anilist_title="Some Anime",
             total_episodes=25,  # AniList says 25
+            mal_id=40748,
             found=True,
             authenticated=True,
         )
@@ -328,6 +332,7 @@ class TestPreparePlaybackFromHistory:
             anilist_id=12345,
             anilist_title="Dandadan",
             total_episodes=12,
+            mal_id=57334,
             found=True,
             authenticated=True,
         )
@@ -382,6 +387,7 @@ class TestPreparePlaybackFromHistory:
             anilist_id=99999,
             anilist_title="Test Anime (Romaji)",
             total_episodes=24,
+            mal_id=12345,
             found=True,
             authenticated=True,
         )
@@ -523,6 +529,10 @@ class TestSyncProgressToAnilist:
         mock_anilist.is_in_any_list.return_value = True
         mock_anilist.get_media_list_entry.return_value = MagicMock(status="CURRENT")
         mock_anilist.update_progress.return_value = True
+        # Mock get_anime_by_id for validation
+        mock_anime = MagicMock()
+        mock_anime.episodes = 24
+        mock_anilist.get_anime_by_id.return_value = mock_anime
 
         # Execute
         result = sync_progress_to_anilist(
@@ -549,6 +559,10 @@ class TestSyncProgressToAnilist:
         mock_anilist.is_in_any_list.return_value = False
         mock_anilist.add_to_list.return_value = True
         mock_anilist.update_progress.return_value = True
+        # Mock get_anime_by_id for validation
+        mock_anime = MagicMock()
+        mock_anime.episodes = 24
+        mock_anilist.get_anime_by_id.return_value = mock_anime
 
         # Execute
         result = sync_progress_to_anilist(
@@ -580,6 +594,10 @@ class TestSyncProgressToAnilist:
         mock_anilist.get_media_list_entry.return_value = mock_entry
         mock_anilist.add_to_list.return_value = True
         mock_anilist.update_progress.return_value = True
+        # Mock get_anime_by_id for validation
+        mock_anime = MagicMock()
+        mock_anime.episodes = 24
+        mock_anilist.get_anime_by_id.return_value = mock_anime
 
         # Execute
         result = sync_progress_to_anilist(
@@ -610,6 +628,10 @@ class TestSyncProgressToAnilist:
         mock_anilist.get_media_list_entry.return_value = mock_entry
         mock_anilist.update_progress.return_value = True
         mock_anilist.change_status.return_value = True
+        # Mock get_anime_by_id for validation
+        mock_anime = MagicMock()
+        mock_anime.episodes = 24
+        mock_anilist.get_anime_by_id.return_value = mock_anime
 
         # Execute: Last episode
         result = sync_progress_to_anilist(
@@ -875,6 +897,7 @@ class TestEdgeCases:
             anilist_id=None,
             anilist_title=None,
             total_episodes=None,
+            mal_id=None,
             found=False,
             authenticated=False,
         )

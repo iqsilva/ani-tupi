@@ -56,6 +56,13 @@ def mock_anilist_main_menu():
 
 
 @pytest.fixture
+def mock_get_aniskip_icon():
+    """Mock aniskip icon fetching."""
+    with patch("ui.anilist_menus._get_aniskip_icon", return_value="") as mock:
+        yield mock
+
+
+@pytest.fixture
 def sample_search_results():
     """Sample AniList search results."""
     return [
@@ -86,6 +93,7 @@ class TestCompleteSearchToWatchIntegration:
         mock_menu_navigate,
         mock_loading,
         mock_anilist_main_menu,
+        mock_get_aniskip_icon,
         sample_search_results,
     ):
         """User searches, has progress on anime, watches from that progress."""
@@ -125,6 +133,7 @@ class TestCompleteSearchToWatchIntegration:
         mock_menu_navigate,
         mock_loading,
         mock_anilist_main_menu,
+        mock_get_aniskip_icon,
         sample_search_results,
     ):
         """User searches, gets multiple results, selects the second one."""
@@ -153,6 +162,7 @@ class TestCompleteSearchToWatchIntegration:
         mock_menu_navigate,
         mock_loading,
         mock_anilist_main_menu,
+        mock_get_aniskip_icon,
         sample_search_results,
     ):
         """User adds new anime to list (with CURRENT status) then starts watching."""
@@ -187,6 +197,7 @@ class TestCompleteSearchToWatchIntegration:
         mock_menu_navigate,
         mock_loading,
         mock_anilist_main_menu,
+        mock_get_aniskip_icon,
         sample_search_results,
     ):
         """Bug fix verification: playback starts immediately, no menu recursion."""
@@ -220,6 +231,7 @@ class TestCompleteSearchToWatchIntegration:
         mock_menu_navigate,
         mock_loading,
         mock_anilist_main_menu,
+        mock_get_aniskip_icon,
         sample_search_results,
     ):
         """Verify all correct parameters are passed to anilist_anime_flow."""
@@ -255,6 +267,7 @@ class TestCompleteSearchToWatchIntegration:
         mock_menu_navigate,
         mock_loading,
         mock_anilist_main_menu,
+        mock_get_aniskip_icon,
         sample_search_results,
     ):
         """Unauthenticated user has no "add to list" option, goes straight to watch."""

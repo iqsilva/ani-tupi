@@ -708,6 +708,8 @@ class AnimesDigital:
             # But also filter out weak matches: require final full-title match >= 75%
             matched_episodes = []
             final_query = " ".join(query_words).lower()
+            anime_scores = {}  # Track best score for each unique anime
+
             for _, ep in best_matches[:5]:
                 # Re-score with full query to avoid weak partial matches
                 final_score = max(
@@ -716,7 +718,19 @@ class AnimesDigital:
                 )
                 # Only keep if final score is acceptable (75%+)
                 if final_score >= 75:
-                    matched_episodes.append(ep)
+                    anime_title = ep["anime_title"]
+                    # Track the best score for this anime
+                    if anime_title not in anime_scores or final_score > anime_scores[anime_title]:
+                        anime_scores[anime_title] = final_score
+                    matched_episodes.append((final_score, anime_title, ep))
+
+            # Filter to keep only episodes from the anime with the highest score
+            # This prevents duplicates when same anime appears in both dubbed and subtitled versions
+            if matched_episodes:
+                # Find the anime with the highest score
+                best_anime = max(anime_scores.items(), key=lambda x: x[1])[0]
+                # Keep only episodes from the best-matching anime
+                matched_episodes = [ep for _, anime, ep in matched_episodes if anime == best_anime]
 
             # Sort by episode number to ensure correct order (1, 2, 3, ...)
             matched_episodes.sort(key=lambda ep: ep["episode_number"])
