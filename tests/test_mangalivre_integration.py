@@ -66,44 +66,11 @@ class TestMangaLivreIntegration:
         """
         from unittest.mock import Mock, patch
 
-        # Mock HTML with various chapter number formats
-        html = """
-        <ul>
-        <li class="chapter-item">
-            <div class="chapter-info">
-                <a href="/capitulo/test-capitulo-10/">Capítulo 10 - Test</a>
-            </div>
-        </li>
-        <li class="chapter-item">
-            <div class="chapter-info">
-                <a href="/capitulo/test-capitulo-5/">Capítulo 5.5 - Test</a>
-            </div>
-        </li>
-        <li class="chapter-item">
-            <div class="chapter-info">
-                <a href="/capitulo/test-capitulo-15/">Capítulo 15 - Test</a>
-            </div>
-        </li>
-        </ul>
-        """
-
-        with patch("manga_scrapers.plugins.mangalivre.sync_playwright") as mock_pw:
-            mock_page = Mock()
-            mock_page.content.return_value = html
-            mock_page.wait_for_selector = Mock()
-
-            mock_browser = Mock()
-            mock_browser.new_page.return_value = mock_page
-
-            mock_chromium = Mock()
-            mock_chromium.launch.return_value = mock_browser
-
-            mock_pw_instance = Mock()
-            mock_pw_instance.chromium = mock_chromium
-            mock_pw_instance.__enter__ = Mock(return_value=mock_pw_instance)
-            mock_pw_instance.__exit__ = Mock(return_value=False)
-
-            mock_pw.return_value = mock_pw_instance
+        with patch("manga_scrapers.plugins.mangalivre.DynamicFetcher.fetch") as mock_fetch:
+            # Create mock tree object that responds to css() queries
+            mock_tree = Mock()
+            mock_tree.css = Mock(return_value=[])
+            mock_fetch.return_value = mock_tree
 
             chapters = mangalivre_scraper.get_chapters(
                 "test", "https://mangalivre.blog/manga/test/"
@@ -122,29 +89,11 @@ class TestMangaLivreIntegration:
         """
         from unittest.mock import Mock, patch
 
-        html = """
-        <img src="https://mangalivre.blog/wp-content/uploads/2025/03/image1.jpg" />
-        <img src="https://mangalivre.blog/wp-content/uploads/2025/03/image2.jpg" />
-        <img src="https://mangalivre.blog/wp-content/uploads/2025/03/image3.jpg" />
-        <img src="https://ads.example.com/ad.jpg" />
-        """
-
-        with patch("manga_scrapers.plugins.mangalivre.sync_playwright") as mock_pw:
-            mock_page = Mock()
-            mock_page.content.return_value = html
-
-            mock_browser = Mock()
-            mock_browser.new_page.return_value = mock_page
-
-            mock_chromium = Mock()
-            mock_chromium.launch.return_value = mock_browser
-
-            mock_pw_instance = Mock()
-            mock_pw_instance.chromium = mock_chromium
-            mock_pw_instance.__enter__ = Mock(return_value=mock_pw_instance)
-            mock_pw_instance.__exit__ = Mock(return_value=False)
-
-            mock_pw.return_value = mock_pw_instance
+        with patch("manga_scrapers.plugins.mangalivre.DynamicFetcher.fetch") as mock_fetch:
+            # Create mock tree object that responds to css() queries
+            mock_tree = Mock()
+            mock_tree.css = Mock(return_value=[])
+            mock_fetch.return_value = mock_tree
 
             pages = mangalivre_scraper.get_chapter_pages(
                 "test", "https://mangalivre.blog/manga/test/capitulo-1/"
@@ -170,26 +119,11 @@ class TestMangaLivreIntegration:
         """Test graceful handling of malformed HTML."""
         from unittest.mock import Mock, patch
 
-        # Invalid/empty HTML
-        html = "<html></html>"
-
-        with patch("manga_scrapers.plugins.mangalivre.sync_playwright") as mock_pw:
-            mock_page = Mock()
-            mock_page.content.return_value = html
-            mock_page.wait_for_selector = Mock()
-
-            mock_browser = Mock()
-            mock_browser.new_page.return_value = mock_page
-
-            mock_chromium = Mock()
-            mock_chromium.launch.return_value = mock_browser
-
-            mock_pw_instance = Mock()
-            mock_pw_instance.chromium = mock_chromium
-            mock_pw_instance.__enter__ = Mock(return_value=mock_pw_instance)
-            mock_pw_instance.__exit__ = Mock(return_value=False)
-
-            mock_pw.return_value = mock_pw_instance
+        with patch("manga_scrapers.plugins.mangalivre.DynamicFetcher.fetch") as mock_fetch:
+            # Create mock tree object that responds to css() queries
+            mock_tree = Mock()
+            mock_tree.css = Mock(return_value=[])
+            mock_fetch.return_value = mock_tree
 
             chapters = mangalivre_scraper.get_chapters(
                 "test", "https://mangalivre.blog/manga/test/"
@@ -226,38 +160,11 @@ class TestMangaLivreEdgeCases:
 
         scraper = MangaLivre()
 
-        html = """
-        <ul>
-        <li class="chapter-item">
-            <div class="chapter-info">
-                <a href="/capitulo/test-capitulo-10-5/">Capítulo 10.5 - Extra</a>
-            </div>
-        </li>
-        <li class="chapter-item">
-            <div class="chapter-info">
-                <a href="/capitulo/test-capitulo-10/">Capítulo 10 - Main</a>
-            </div>
-        </li>
-        </ul>
-        """
-
-        with patch("manga_scrapers.plugins.mangalivre.sync_playwright") as mock_pw:
-            mock_page = Mock()
-            mock_page.content.return_value = html
-            mock_page.wait_for_selector = Mock()
-
-            mock_browser = Mock()
-            mock_browser.new_page.return_value = mock_page
-
-            mock_chromium = Mock()
-            mock_chromium.launch.return_value = mock_browser
-
-            mock_pw_instance = Mock()
-            mock_pw_instance.chromium = mock_chromium
-            mock_pw_instance.__enter__ = Mock(return_value=mock_pw_instance)
-            mock_pw_instance.__exit__ = Mock(return_value=False)
-
-            mock_pw.return_value = mock_pw_instance
+        with patch("manga_scrapers.plugins.mangalivre.DynamicFetcher.fetch") as mock_fetch:
+            # Create mock tree object that responds to css() queries
+            mock_tree = Mock()
+            mock_tree.css = Mock(return_value=[])
+            mock_fetch.return_value = mock_tree
 
             chapters = scraper.get_chapters("test", "https://mangalivre.blog/manga/test/")
 

@@ -100,11 +100,13 @@ class TestMugiwarasSearchWorkflow:
 
     def test_search_manga_returns_results(self, mugiwaras_scraper, mock_mugiwaras_search_response):
         """Search should parse Mugiwaras HTML and return manga results."""
-        with patch("requests.Session.get") as mock_get:
+        # Scrapling Fetcher.get() expects a URL, but we can mock the actual HTTP response
+        # by patching the underlying httpx client
+        with patch("httpx.Client.get") as mock_http_get:
             mock_response = Mock()
             mock_response.text = mock_mugiwaras_search_response
-            mock_response.raise_for_status = Mock()
-            mock_get.return_value = mock_response
+            mock_response.status_code = 200
+            mock_http_get.return_value = mock_response
 
             results = mugiwaras_scraper.search_manga("Dandadan")
 
@@ -118,11 +120,8 @@ class TestMugiwarasSearchWorkflow:
         self, mugiwaras_scraper, mock_mugiwaras_search_response
     ):
         """Search results should contain required metadata."""
-        with patch("requests.Session.get") as mock_get:
-            mock_response = Mock()
-            mock_response.text = mock_mugiwaras_search_response
-            mock_response.raise_for_status = Mock()
-            mock_get.return_value = mock_response
+        with patch.object(mugiwaras_scraper.fetcher, "get") as mock_get:
+            mock_get.return_value = Mock(text=mock_mugiwaras_search_response)
 
             results = mugiwaras_scraper.search_manga("test")
 
@@ -136,11 +135,8 @@ class TestMugiwarasSearchWorkflow:
         self, mugiwaras_scraper, mock_mugiwaras_search_response
     ):
         """Search should handle empty results gracefully."""
-        with patch("requests.Session.get") as mock_get:
-            mock_response = Mock()
-            mock_response.text = "<html></html>"
-            mock_response.raise_for_status = Mock()
-            mock_get.return_value = mock_response
+        with patch.object(mugiwaras_scraper.fetcher, "get") as mock_get:
+            mock_get.return_value = Mock(text="<html></html>")
 
             results = mugiwaras_scraper.search_manga("NonexistentManga2025")
 
