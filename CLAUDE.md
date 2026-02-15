@@ -2,6 +2,71 @@
 
 Guidance for developing ani-tupi: a Brazilian Portuguese CLI for anime and manga with multi-source support, AniList integration, and external player support.
 
+---
+
+## Workflow Orchestration
+
+**Everything starts with execution discipline.** These principles prevent mistakes, reduce rework, and ensure high-quality contributions.
+
+### 1. Plan Mode Default
+
+- **Enter plan mode for ANY non-trivial task** (3+ steps or architectural decisions)
+- If something goes sideways, **STOP and re-plan immediately** — don't keep pushing
+- Use plan mode for verification steps, not just building
+- Write detailed specs upfront to reduce ambiguity
+
+### 2. Subagent Strategy
+
+- Use subagents liberally to keep main context window clean
+- Offload research, exploration, and parallel analysis to subagents
+- For complex problems, throw more compute at it via subagents
+- One task per subagent for focused execution
+
+### 3. Self-Improvement Loop
+
+- After ANY correction from the user, update `tasks/lessons.md` with the pattern
+- Write rules for yourself that prevent the same mistake
+- Ruthlessly iterate on these lessons until mistake rate drops
+- Review lessons at session start for relevant project
+
+### 4. Verification Before Done
+
+- Never mark a task complete without proving it works
+- Diff behavior between main and your changes when relevant
+- Ask yourself: "Would a staff engineer approve this?"
+- Run tests, check logs, demonstrate correctness
+
+### 5. Demand Elegance (Balanced)
+
+- For non-trivial changes: pause and ask "is there a more elegant way?"
+- If a fix feels hacky: "Knowing what I know now, implement the elegant solution"
+- Skip this for simple, obvious fixes — don't over-engineer
+- Challenge your own work before presenting it
+
+### 6. Autonomous Bug Fixing
+
+- When given a bug report: just fix it. Don't ask for hand-holding
+- Point at logs, errors, failing tests — then resolve them
+- Zero context switching required from the user
+- Go fix failing CI tests without being told how
+
+### Task Management
+
+1. **Plan First**: Write plan to `tasks/todo.md` with checkable items
+2. **Verify Plan**: Check in before starting implementation
+3. **Track Progress**: Mark items complete as you go
+4. **Explain Changes**: High-level summary at each step
+5. **Document Results**: Add review section to `tasks/todo.md`
+6. **Capture Lessons**: Update `tasks/lessons.md` after corrections
+
+### Core Execution Principles
+
+- **Simplicity First**: Make every change as simple as possible. Impact minimal code.
+- **No Laziness**: Find root causes. No temporary fixes. Senior developer standards.
+- **Minimal Impact**: Changes should only touch what's necessary. Avoid introducing bugs.
+
+---
+
 ## Core Values
 
 **Simplicity First**: Every feature should feel effortless to the user. Complex logic (incremental search, fuzzy matching, automatic syncing) runs invisibly.
@@ -14,11 +79,11 @@ Guidance for developing ani-tupi: a Brazilian Portuguese CLI for anime and manga
 
 **User Configuration Over Code**: Settings live in environment variables (via Pydantic config), not config files that break. Users can tune everything without touching code.
 
+---
+
 ## Architecture Principles
 
-### Pattern: Service Layer as Coordinator
-
-The system has three tiers:
+### The Three-Tier System
 
 1. **Commands** (CLI entry points) - Parse user intent
 2. **Services** (business logic) - Coordinate plugins, cache, APIs, and persistence
@@ -28,24 +93,19 @@ Services orchestrate. They decide: "Should I search cache first?" "Should I sync
 
 Commands ask services questions. Services ask plugins for data. Plugins never ask anything—they're pure adapters.
 
-**Extension**: Add a new feature? Build a service. Add a new data source? Build a plugin. Add a new command? Wire up a service call.
+**To extend**: Add a new feature? Build a service. Add a new data source? Build a plugin. Add a new command? Wire up a service call.
 
 ### Pattern: Centralized Configuration
 
-All settings flow through one place: `models/config.py` (Pydantic v2).
+All settings flow through `models/config.py` (Pydantic v2):
 
 ```python
-# In any file:
 from models.config import settings
 cache_ttl = settings.cache_duration_hours
 reader = settings.manga.pdf_reader
 ```
 
-Why? Centralization means:
-- Environment variables override defaults (`ANI_TUPI__CACHE__DURATION_HOURS=48`)
-- No scattered `.env` files or hardcoded values
-- Type validation on boot (fail fast)
-- Configuration is self-documenting
+Why? Environment variables override defaults (`ANI_TUPI__CACHE__DURATION_HOURS=48`), no scattered `.env` files, type validation on boot, configuration is self-documenting.
 
 ### Pattern: Plugin Protocol (Not Inheritance)
 
@@ -62,28 +122,24 @@ Why protocol, not ABC?
 - No base class boilerplate
 - Plugin loading is one loop: find `.py` files in `scrapers/plugins/`, import them, extract classes matching the protocol
 
-This is why adding a scraper requires only: create one file, implement two methods, done.
-
 ### Pattern: Repository for Plugin Access
 
-Need to call scrapers? Don't import them directly. Use the repository:
+Don't import plugins directly. Use the repository:
 
 ```python
-# services/anime_service.py
 from services.repository import get_scrapers
 
 for scraper in get_scrapers():
     results.extend(scraper.search(query))
 ```
 
-Why? Because scrapers are loaded dynamically. The repository tracks which ones exist, which ones are enabled. You don't hardcode plugin names anywhere.
+Why? Scrapers are loaded dynamically. The repository tracks which ones exist, which ones are enabled.
 
 ### Pattern: Caching as a Wrapper
 
-Scraper results are cached consistently across the system, but the service layer decides *when* to cache, not the scraper.
+Services decide *when* to cache, not the scraper:
 
 ```python
-# services/anime_service.py
 if cache_hit := self.cache.get(key):
     return cache_hit
 
@@ -91,75 +147,25 @@ results = scraper.search(query)
 self.cache.set(key, results, ttl=settings.cache_duration_hours)
 ```
 
-Why? Because:
-- Scrapers stay simple (no caching logic)
-- Services control cache strategy (e.g., "don't cache on retry")
-- Cache invalidation is centralized
+Scrapers stay simple. Services control cache strategy. Cache invalidation is centralized.
 
 ### Pattern: External Tools via Adapters
 
 MPV, PDF readers, MangaDex API—all external. Wrap them:
 
 ```python
-# utils/video_player.py
 class VideoPlayer:
     def play(self, url: str, episode_number: int) -> None:
-        # IPC to MPV, or import subprocess
+        # IPC to MPV
 
-# utils/manga_reader.py
 class MangaReader:
     def open(self, pdf_path: str) -> None:
         # Detect installed readers, execute in priority order
 ```
 
-Why? Because:
-- Replacing MPV with another player = swap one class
-- Testing doesn't require external tools (mock them)
-- You can detect/configure readers per-system
+Why? Replacing MPV = swap one class. Testing doesn't require external tools (mock them).
 
-### Pattern: Shared Arguments → Shared Class
-
-Multiple functions with identical parameters? Make them methods:
-
-```python
-# Bad:
-def search_animefire(query): ...
-def search_animesonline(query): ...
-
-# Good:
-class AnimeFireScraper:
-    def search(self, query): ...
-class AnimesonlineScraper:
-    def search(self, query): ...
-```
-
-The system uses this everywhere:
-- `AniListService` → all AniList methods share `token`, `rate_limit`, `client`
-- `MangaService` → all manga methods share `cache`, `downloader`, `pdf_converter`
-- Scrapers → search and episode extraction both need the scraper session
-
-## How Data Flows
-
-### Anime Watching
-1. **CLI** → user types `uv run ani-tupi --query "dandadan"`
-2. **Command** → parses args, calls `AnimeService.search(query)`
-3. **Service** → checks cache; if miss, loops through enabled scrapers
-4. **Scraper** → calls MangaDex/AnimeFire/etc API, returns `AnimeMetadata`
-5. **Service** → performs *incremental search* (local algorithm: add words until ≤5 results)
-6. **UI** → shows menu; user picks anime
-7. **Service** → fetches episodes from chosen scraper, checks history, caches episodes
-8. **UI** → shows episode menu; user picks episode
-9. **Service** → launches `VideoPlayer.play(url)`, which execs MPV with IPC socket
-10. **After playback** → service updates history, asks "Sync to AniList?", sends GraphQL mutation if yes
-
-### Manga Reading
-Same steps, but:
-- Step 3: Call `MangaService.search()` instead, which hits MangaDex API
-- Step 7: Instead of episodes, fetch chapters
-- Step 9: `MangaReader.open(pdf)` instead of VideoPlayer; reader auto-detects (Zathura → Evince → xdg-open)
-- Step 10: `MangaService.convert_to_pdf()` if needed (downloads images, Pillow conversion), saves progress
-
-The pattern is identical. Services handle orchestration. Plugins handle source-specific work.
+---
 
 ## Data Structures
 
@@ -180,74 +186,33 @@ class EpisodeData(BaseModel):
 
 Why Pydantic? Validation on entry (fail fast if scraper returns garbage), type hints everywhere, serialization to JSON for cache/history.
 
+---
+
 ## Configuration
 
 All settings are environment variables. Use Pydantic as the source of truth:
 
 ```bash
-# All equivalent:
 ANI_TUPI__CACHE__DURATION_HOURS=48
 ANI_TUPI__MANGA__PDF_READER=zathura
 ANI_TUPI__LOG_LEVEL=debug
 ```
 
-No config files. Centralized in `models/config.py`. Type-safe on boot.
-
 ### Source Priority Configuration
-
-By default, ani-tupi uses a single global priority order for all anime sources. However, you can configure separate source priorities for dubbed anime:
 
 **Standard Priority** (used for all anime):
 ```bash
 export ANI_TUPI__PLUGINS__PRIORITY_ORDER='["animesdigital", "goyabu", "animefire", "animesonlinecc"]'
 ```
 
-**Dubbed Anime Priority** (optional, used when anime title contains "Dublado"):
+**Dubbed Anime Priority** (optional, when anime title contains "Dublado"):
 ```bash
 export ANI_TUPI__PLUGINS__DUBBED_PRIORITY_ORDER='["animesdigital", "animefire", "goyabu"]'
 ```
 
-**How It Works**:
-- When an anime title contains "Dublado" (dubbed marker), the `dubbed_priority_order` is used for source selection
-- Non-dubbed anime always use the standard `priority_order`
-- If `dubbed_priority_order` is not configured, all anime use the standard `priority_order`
-- Detection is case-insensitive (matches "DUBLADO", "Dublado", "dublado")
+When title contains "Dublado", the `dubbed_priority_order` is used for source selection. Otherwise, standard `priority_order` applies.
 
-**Example Workflow**:
-1. User searches for "Naruto Dublado" (dubbed version)
-2. System detects "Dublado" in title
-3. Uses `dubbed_priority_order` to select sources
-4. Returns episodes from the highest-priority dubbed source
-
-This is useful when you have preferred sources for high-quality dubs (e.g., AnimesDigital) but want different priorities for subtitled anime.
-
-## Development Workflow
-
-**Setup**
-```bash
-uv sync
-```
-
-**Run**
-```bash
-uv run ani-tupi                          # Anime CLI
-uv run manga_tupi                        # Manga CLI
-uv run main.py --debug                   # Enable debug logging
-```
-
-**Quality**
-```bash
-uv run ruff check .                      # Lint
-uv run ruff format .                     # Format
-uv run pytest                            # Test
-```
-
-**Manage**
-```bash
-uv add package-name                      # Add dependency
-uv remove package-name                   # Remove dependency
-uv sync --upgrade                        # Update all
-```
+---
 
 ## How to Extend
 
@@ -271,7 +236,7 @@ class NewSourceScraper:
 
 ### Add a New Service
 
-Most work belongs here. Example: adding "trending anime" feature:
+Most feature work belongs here. Example: adding "trending anime" feature:
 
 1. Create `services/trending_service.py`:
 ```python
@@ -323,192 +288,105 @@ AniList touches three places (because AniList is stateful—token, rate limits, 
 
 To add a feature: modify 1 (add the API method), then 2–3 if title mapping is needed.
 
-## Anime Download Feature
+---
 
-### Overview
+## Features
 
-Download episodes for offline viewing. Episodes are stored locally in `~/.local/share/ani-tupi/anime/` and organized by anime title.
+### Anime Download
 
-### How to Download Episodes
+Download episodes for offline viewing. Episodes stored in `~/.local/share/ani-tupi/anime/` organized by title.
 
-1. **In Playback**: While watching an episode, press the menu and select "📥 Baixar para assistir depois"
-2. **Range Selection**: Enter an episode range:
-   - `5`: Download episode 5
-   - `1-12`: Download episodes 1 through 12
-   - `5-`: Download from episode 5 to the end
-   - `-12`: Download episodes 1 through 12
-   - `5-15`: Download episodes 5 through 15
-
+**How to Download**:
+1. While watching, select "📥 Baixar para assistir depois"
+2. Enter episode range: `5`, `1-12`, `5-`, `-12`, or `5-15`
 3. Episodes download in parallel (respects `max_parallel_downloads` config, default: 2)
 4. Already-downloaded episodes are skipped automatically
 
-### How to Access Local Library
-
-1. From main menu, select "📂 Biblioteca Local"
-2. Choose an anime from the list
-3. Select an episode to play
-4. Playback uses the same VideoPlayer as streaming
-
-### How to Configure Downloads
-
-Set environment variables to customize behavior:
-
+**Configuration**:
 ```bash
-# Maximum parallel downloads (1-16)
 export ANI_TUPI__ANIME__MAX_PARALLEL_DOWNLOADS=4
-
-# Download directory (default: ~/.local/share/ani-tupi/anime)
 export ANI_TUPI__ANIME__DOWNLOAD_DIRECTORY="~/Videos/Anime"
-
-# Video format (mkv, mp4, etc)
 export ANI_TUPI__ANIME__VIDEO_FORMAT="mp4"
 ```
 
-### Architecture
-
-**Services**:
+**Architecture**:
 - `AnimeDownloadService`: Orchestrates downloads with parallel queue and retry logic
-- `LocalAnimeService`: Scans and manages local library, discovers episodes
-
-**Data**:
+- `LocalAnimeService`: Scans and manages local library
 - Episodes stored in: `~/.local/share/ani-tupi/anime/{anime_title}/{episode_number}.mkv`
 - Metadata stored in: `~/.local/state/ani-tupi/anime_downloads.json`
-- Format: Pydantic models (serialized to JSON for persistence)
 
-**Commands**:
-- Download prompt in playback menu (`commands/anime.py`)
-- Local library browser in main menu (`main.py`)
+### Airing Episodes
 
-### Implementation Details
+The "🎬 Novos Episódios" tab displays anime from your AniList watching list that have new episodes currently airing.
 
-- **Episode Range Parser**: Flexible input parsing with validation (`utils/episode_range_parser.py`)
-- **Download Models**: Pydantic models for type-safe download operations (`models/models.py`)
-- **Parallel Downloads**: ThreadPoolExecutor with ordered execution (ep 1 before ep 2)
-- **File Validation**: Skip files < 1MB (indicates HTML error pages)
-- **Retry Logic**: Exponential backoff (2s, 4s, 8s) for failed downloads
-- **Skip Logic**: If episode exists in database and skip_already_downloaded=True, download is skipped
-
-## Airing Episodes Feature
-
-### Overview
-
-The "🎬 Novos Episódios" (New Episodes) tab displays anime from your AniList watching list that have new episodes currently airing. This feature helps you quickly discover which anime need attention without manually checking each title.
-
-### How to Access
-
+**How to Access**:
 1. Open the AniList menu: `uv run ani-tupi`
 2. Select "🎬 Novos Episódios" (appears at top of authenticated menu)
 3. Browse anime sorted by urgency (most episodes behind first)
 4. Select an anime to start playback
 
-### Display Format
-
-Each anime shows:
-- **Title**: Formatted with emoji and official AniList name
-- **Episode Status**: "Ep X aired, você viu Y (Z atrasado)"
-  - `X` = next episode number that aired
-  - `Y` = your current progress
-  - `Z` = how many episodes you're behind (gap)
-- **Score**: AniList average score as "⭐Score%"
-
-Example:
+**Display Format**:
 ```
 Jujutsu Kaisen - Ep 25 aired, você viu 22 (3 atrasado) ⭐82%
 Dandadan - Ep 18 aired, você viu 15 (3 atrasado) ⭐79%
 Blue Lock - Ep 11 aired, você viu 11 (0 atrasado) ⭐75%
 ```
 
-### Sorting
-
-Anime are sorted by **episodes_behind** (descending), so:
-- Anime with the largest gap appear first (most urgent)
-- Caught-up anime (gap = 0) appear last
-- Within same gap, order matches API response
-
-### Architecture
-
-**Data Flow**:
-```
-User selects "🎬 Novos Episódios"
-  ↓
-AiringEpisodesService.get_watching_with_airing_episodes()
-  ↓
-AniListClient.get_airing_episodes_for_watching()
-  ↓
-GraphQL: MediaListCollection(status: CURRENT) with nextAiringEpisode
-  ↓
-Filter: nextAiringEpisode != null
-  ↓
-Calculate gap: next_episode - progress
-  ↓
-Sort by gap (descending)
-  ↓
-Display menu
-  ↓
-User selects anime → anilist_anime_flow() → playback
-```
-
-**Services**:
+**Architecture**:
 - `services/anime/airing_episodes_service.py`: Business logic (filtering, sorting, gap calculation)
-- `services/anilist/anime_operations.py`: GraphQL query method `get_airing_episodes_for_watching()`
+- `services/anilist/anime_operations.py`: GraphQL query `get_airing_episodes_for_watching()`
+- `models/models.py`: `AiringAnimeEntry` Pydantic model for display data
 
-**Models**:
-- `models/models.py`: `AiringAnimeEntry` (Pydantic model for display data)
-
-**UI**:
-- `ui/anilist_menus.py`: Menu integration and display function `_show_airing_episodes()`
-
-### Testing
-
-Run unit and integration tests:
+**Testing**:
 ```bash
-uv run pytest tests/test_airing_episodes_service.py tests/test_anilist_airing_query.py tests/test_airing_anime_entry_model.py -v
+uv run pytest tests/test_airing_episodes_service.py tests/test_anilist_airing_query.py -v
 ```
 
-Tests cover:
-- Gap calculation accuracy
-- Filtering logic (only anime with nextAiringEpisode)
-- Sorting by urgency (descending gap)
-- Title extraction with fallbacks (romaji → english → native → "Unknown")
-- Edge cases (zero progress, caught up, large lists, null fields)
-- Model validation (required fields, ranges, constraints)
+---
 
-### Empty States
+## Development Workflow
 
-If no airing episodes are found, you'll see:
-- **"Você não tem nenhum anime na lista 'Assistindo'"** - No anime in watching list
-- **"Nenhum anime da sua lista está em transmissão no momento"** - All watching anime finished airing
-- **"Erro ao buscar dados do AniList. Tente novamente."** - API error (user can retry)
+**Setup**:
+```bash
+uv sync
+```
 
-### Known Limitations
+**Run**:
+```bash
+uv run ani-tupi                          # Anime CLI
+uv run manga_tupi                        # Manga CLI
+uv run main.py --debug                   # Enable debug logging
+```
 
-- Only shows anime in "Watching" (CURRENT) list
-- Does not include anime in "Planning" list (can be extended later)
-- No countdown timers for next episode (just episode number that aired)
-- No caching (always fetches fresh data from AniList on tab open)
-- Large watching lists (100+ anime) may take a few seconds to load
+**Quality**:
+```bash
+uv run ruff check .                      # Lint
+uv run ruff format .                     # Format
+uv run pytest                            # Test
+uv run pytest -v --cov=. --cov-report=html  # Coverage
+```
 
-### Future Extensions
+**Manage**:
+```bash
+uv add package-name                      # Add dependency
+uv remove package-name                   # Remove dependency
+uv sync --upgrade                        # Update all
+```
 
-Without changing current design:
-- Add caching with TTL and manual refresh button
-- Show countdown timers for next episode air time
-- Extend to "Planning" list (anime airing soon but not yet watched)
-- Add filters (by genre, score, year, etc.)
-- Add option to batch-add multiple anime to download queue
+---
 
 ## Known Issues & Solutions
 
-### Issue: Scraper Results Not Cached
+### Scraper Results Not Cached
 
 **Root Cause**: Service not calling `cache.set()` after fetch.
 
-**Solution**: Check `services/anime_service.py` line where results are returned. If cache miss, add:
+**Solution**: Check `services/anime_service.py` where results are returned. If cache miss, add:
 ```python
 self.cache.set(cache_key, results, ttl=settings.cache_duration_hours)
 ```
 
-### Issue: New PDF Reader Not Detected
+### New PDF Reader Not Detected
 
 **Root Cause**: `utils/manga_reader.py` detection loop doesn't check for your reader.
 
@@ -517,7 +395,7 @@ self.cache.set(cache_key, results, ttl=settings.cache_duration_hours)
 PRIORITY = ["zathura", "evince", "your-reader-name", "xdg-open"]
 ```
 
-### Issue: AniList Sync Fails
+### AniList Sync Fails
 
 **Root Causes**:
 1. Token expired (valid ~6 months)
@@ -532,7 +410,7 @@ uv run ani-tupi --query "anime name"
 
 Logs show GraphQL requests/responses.
 
-### Issue: AnimesonlineCC Videos Fail
+### AnimesonlineCC Videos Fail
 
 **Root Cause**: Videos use temporary Blogger URLs with short expiry.
 
@@ -541,15 +419,17 @@ Logs show GraphQL requests/responses.
 export ANI_TUPI__PLUGINS__PRIORITY_ORDER='["animesdigital", "animefire"]'
 ```
 
-### Issue: Incremental Search Gives Wrong Results
+### Incremental Search Gives Wrong Results
 
-**Root Cause**: Two separate search iterations are being treated as one (words not split correctly).
+**Root Cause**: Words not split correctly or thresholds miscalibrated.
 
 **Solution**: Check `services/anime_service.py` incremental search algorithm:
 - Split query by space
 - Start with first 3 words
 - Add one word per iteration
 - Stop when results ≤ 5 or all words used
+
+---
 
 ## Design Trade-Offs
 
@@ -561,19 +441,21 @@ export ANI_TUPI__PLUGINS__PRIORITY_ORDER='["animesdigital", "animefire"]'
 
 **DRY Documentation**: This guide repeats no code flows. But it's denser to read. Always refer to actual services for truth.
 
+---
+
 ## Testing Strategy
 
 - **Unit tests** for services (mock scrapers, cache, API clients)
 - **Integration tests** for plugin loading (verify scrapers are discoverable)
 - **E2E tests** for critical flows (search → select → play/read)
 
-Run: `uv run pytest -v --cov=. --cov-report=html`
-
 Goal: 80%+ coverage on service layer (business logic). CLI layer and utilities need less coverage (tested manually).
+
+---
 
 ## Notes for Contributors
 
-1. **Always use `uv`.
+1. **Always use `uv`**.
 2. **Config in `models/config.py`**—not scattered imports.
 3. **Business logic in services**—not commands or UI.
 4. **Don't import plugins directly**—use the repository.
@@ -581,6 +463,8 @@ Goal: 80%+ coverage on service layer (business logic). CLI layer and utilities n
 6. **Avoid circular imports**: commands → services → models/utils.
 7. **Persist data** in `~/.local/state/ani-tupi/` (XDG standard).
 8. **No hardcoded values**—use config or Pydantic models.
+
+---
 
 ## When to Refactor
 
