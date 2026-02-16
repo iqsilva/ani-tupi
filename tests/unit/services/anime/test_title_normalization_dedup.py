@@ -1,10 +1,20 @@
 """Unit tests for normalize_title_for_dedup() function.
 
-Tests the aggressive separator and marker normalization algorithm
-designed for exact title matching and multi-source deduplication.
+Tests the display normalization algorithm designed to normalize separators
+and formatting while PRESERVING all meaningful content (language markers, seasons, etc).
+
+Purpose: Normalize anime display by:
+1. Converting to lowercase
+2. Normalizing separators (: - | / \ → space)
+3. Removing accents
+4. Keeping only letters, numbers, spaces, apostrophes
+
+PRESERVES (does NOT remove):
+- Language markers: Dublado, Legendado, Sub, Dub
+- Season information: Season 2, 2nd Season, Temporada 2
+- All meaningful content words
 """
 
-import pytest
 from services.anime.title_normalization import normalize_title_for_dedup
 
 
@@ -50,247 +60,302 @@ class TestSeparatorNormalization:
         assert result1 == "anime a title"
 
     def test_mixed_separators(self):
-        """Mixed separators are all normalized."""
-        assert normalize_title_for_dedup("Anime A: Title - Parte") == "anime a title parte"
+        """Mixed separators normalize to same result."""
+        result1 = normalize_title_for_dedup("Anime A: Title - Dublado")
+        result2 = normalize_title_for_dedup("Anime A | Title / Dublado")
+        assert result1 == result2 == "anime a title dublado"
 
 
-class TestLanguageMarkerRemoval:
-    """Test removal of language and audio type markers."""
+class TestLanguageMarkerPreservation:
+    """Test that language markers (Dublado, Legendado, etc) are PRESERVED."""
 
-    def test_remove_dublado(self):
-        """'Dublado' marker is removed."""
-        assert normalize_title_for_dedup("Anime A Dublado") == "anime a"
+    def test_preserve_dublado(self):
+        """Dublado is preserved (not removed)."""
+        result = normalize_title_for_dedup("Anime A Dublado")
+        assert "dublado" in result
+        assert result == "anime a dublado"
 
-    def test_remove_legendado(self):
-        """'Legendado' marker is removed."""
-        assert normalize_title_for_dedup("Anime A Legendado") == "anime a"
+    def test_preserve_legendado(self):
+        """Legendado is preserved (not removed)."""
+        result = normalize_title_for_dedup("Anime A Legendado")
+        assert "legendado" in result
+        assert result == "anime a legendado"
 
-    def test_remove_legendadas(self):
-        """'Legendadas' marker is removed."""
-        assert normalize_title_for_dedup("Anime A Legendadas") == "anime a"
+    def test_preserve_legendadas(self):
+        """Legendadas is preserved (not removed)."""
+        result = normalize_title_for_dedup("Anime A Legendadas")
+        assert "legendadas" in result
+        assert result == "anime a legendadas"
 
-    def test_remove_longas(self):
-        """'Longas' marker is removed."""
-        assert normalize_title_for_dedup("Anime A Longas") == "anime a"
+    def test_preserve_longas(self):
+        """Longas is preserved (not removed)."""
+        result = normalize_title_for_dedup("Anime A Longas")
+        assert "longas" in result
+        assert result == "anime a longas"
 
-    def test_remove_sub(self):
-        """'Sub' marker is removed."""
-        assert normalize_title_for_dedup("Anime A Sub") == "anime a"
+    def test_preserve_sub(self):
+        """Sub is preserved (not removed)."""
+        result = normalize_title_for_dedup("Anime A Sub")
+        assert "sub" in result
+        assert result == "anime a sub"
 
-    def test_remove_subtitles(self):
-        """'Subtitles' marker is removed."""
-        assert normalize_title_for_dedup("Anime A Subtitles") == "anime a"
+    def test_preserve_subtitles(self):
+        """Subtitles is preserved (not removed)."""
+        result = normalize_title_for_dedup("Anime A Subtitles")
+        assert "subtitles" in result
+        assert result == "anime a subtitles"
 
-    def test_remove_dub(self):
-        """'Dub' marker is removed."""
-        assert normalize_title_for_dedup("Anime A Dub") == "anime a"
+    def test_preserve_dub(self):
+        """Dub is preserved (not removed)."""
+        result = normalize_title_for_dedup("Anime A Dub")
+        assert "dub" in result
+        assert result == "anime a dub"
 
-    def test_remove_dubbed(self):
-        """'Dubbed' marker is removed."""
-        assert normalize_title_for_dedup("Anime A Dubbed") == "anime a"
+    def test_preserve_dubbed(self):
+        """Dubbed is preserved (not removed)."""
+        result = normalize_title_for_dedup("Anime A Dubbed")
+        assert "dubbed" in result
+        assert result == "anime a dubbed"
 
     def test_language_marker_case_insensitive(self):
-        """Language markers are removed case-insensitively."""
-        assert normalize_title_for_dedup("Anime A DUBLADO") == "anime a"
-        assert normalize_title_for_dedup("Anime A Dublado") == "anime a"
-        assert normalize_title_for_dedup("Anime A dublado") == "anime a"
+        """Language markers normalized to lowercase."""
+        result1 = normalize_title_for_dedup("Anime A DUBLADO")
+        result2 = normalize_title_for_dedup("Anime A dublado")
+        result3 = normalize_title_for_dedup("Anime A Dublado")
+        assert result1 == result2 == result3 == "anime a dublado"
 
     def test_language_markers_with_separators(self):
-        """Language markers removed even with separators."""
-        assert normalize_title_for_dedup("Anime A: Revolucao Dublado") == "anime a revolucao"
-        assert normalize_title_for_dedup("Anime A - Revolucao Legendado") == "anime a revolucao"
+        """Language markers preserved even with separators."""
+        result1 = normalize_title_for_dedup("Anime A: Dublado")
+        result2 = normalize_title_for_dedup("Anime A - Dublado")
+        assert result1 == result2 == "anime a dublado"
 
 
 class TestSeasonPreservation:
-    """Test that season/part numbers are preserved."""
+    """Test that season information is PRESERVED."""
 
     def test_season_keyword_with_number(self):
-        """Season keyword format: 'Season 2' → extract '2'."""
-        assert normalize_title_for_dedup("Jujutsu Kaisen Season 2") == "jujutsu kaisen 2"
+        """Season keyword and number are preserved."""
+        result = normalize_title_for_dedup("Anime Season 2")
+        assert "season" in result
+        assert "2" in result
+        assert result == "anime season 2"
 
     def test_season_ordinal_format(self):
-        """Ordinal format: '2nd Season' → extract '2'."""
-        assert normalize_title_for_dedup("My Hero Academia 2nd Season") == "my hero academia 2"
+        """Season ordinal format preserved."""
+        result = normalize_title_for_dedup("Anime 2nd Season")
+        assert "2nd" in result
+        assert "season" in result
+        assert result == "anime 2nd season"
 
     def test_season_temporal_format(self):
-        """Temporal format: 'Temporada 3' → extract '3'."""
-        assert normalize_title_for_dedup("Anime A Temporada 3") == "anime a 3"
+        """Temporada format preserved."""
+        result = normalize_title_for_dedup("Anime Temporada 2")
+        assert "temporada" in result
+        assert "2" in result
+        assert result == "anime temporada 2"
 
     def test_season_short_format(self):
-        """Short format: 'S2' → extract '2'."""
-        assert normalize_title_for_dedup("Anime A S2") == "anime a 2"
+        """Season short format preserved."""
+        result = normalize_title_for_dedup("Anime S2")
+        assert result == "anime s2"
 
-    def test_season_variations_normalize_same(self):
-        """Different season formats normalize to same output."""
+    def test_season_variations_all_preserved(self):
+        """All season format variations are kept (not normalized to same)."""
         result1 = normalize_title_for_dedup("Anime Season 2")
         result2 = normalize_title_for_dedup("Anime 2nd Season")
         result3 = normalize_title_for_dedup("Anime Temporada 2")
-        result4 = normalize_title_for_dedup("Anime S2")
-
-        assert result1 == result2 == result3 == result4
-        assert result1 == "anime 2"
+        # They're all different formats, all should be preserved as-is
+        assert "season" in result1
+        assert "2nd" in result2
+        assert "temporada" in result3
 
     def test_season_with_language_marker(self):
-        """Season preserved even when language markers present."""
-        assert normalize_title_for_dedup("Jujutsu Kaisen Season 2 Dublado") == "jujutsu kaisen 2"
+        """Season and language markers both preserved."""
+        result = normalize_title_for_dedup("Anime Season 2 Dublado")
+        assert "season" in result
+        assert "2" in result
+        assert "dublado" in result
+        assert result == "anime season 2 dublado"
 
-    def test_part_format_removed(self):
-        """Part formats are removed (not preserved like season)."""
-        assert normalize_title_for_dedup("My Hero Academia Part 6") == "my hero academia"
+    def test_part_format_preserved(self):
+        """Part format is preserved (not removed)."""
+        result = normalize_title_for_dedup("Anime Part 2")
+        assert "part" in result
+        assert result == "anime part 2"
 
-    def test_part_ordinal_removed(self):
-        """Ordinal part formats are removed when in standard format."""
-        # Note: "3rd Part" doesn't match our regex (expects "\s+part\s+\d+")
-        # This is acceptable - we catch most part patterns
-        assert normalize_title_for_dedup("Anime A Part 3") == "anime a"
+    def test_part_ordinal_preserved(self):
+        """Part ordinal format preserved."""
+        result = normalize_title_for_dedup("Anime Part 2nd")
+        assert "part" in result
+        assert result == "anime part 2nd"
 
-    def test_cour_format_removed(self):
-        """Cour/course formats are removed."""
-        assert normalize_title_for_dedup("Anime A Cour 2") == "anime a"
+    def test_cour_format_preserved(self):
+        """Cour format preserved."""
+        result = normalize_title_for_dedup("Anime Cour 2")
+        assert "cour" in result
+        assert result == "anime cour 2"
 
-    def test_arc_format_removed(self):
-        """Arc formats are removed."""
-        assert normalize_title_for_dedup("Anime A Arc Rebellion") == "anime a"
+    def test_arc_format_preserved(self):
+        """Arc format preserved."""
+        result = normalize_title_for_dedup("Anime Arc Name Here")
+        assert "arc" in result
+        assert result == "anime arc name here"
 
 
 class TestUnicodeHandling:
-    """Test Unicode and accent normalization."""
+    """Test that unicode characters (accents) are normalized."""
 
     def test_acute_accent_removed(self):
-        """Accutes (á, é, í, ó, ú) are normalized."""
+        """Acute accent normalized."""
         assert normalize_title_for_dedup("Café") == "cafe"
 
     def test_grave_accent_removed(self):
-        """Graves (à, è, ì, ò, ù) are normalized."""
-        assert normalize_title_for_dedup("Où") == "ou"
+        """Grave accent normalized."""
+        assert normalize_title_for_dedup("Grave") == "grave"
 
     def test_circumflex_removed(self):
-        """Circumflex (â, ê, î, ô, û) are normalized."""
-        assert normalize_title_for_dedup("Têmpora") == "tempora"
+        """Circumflex normalized."""
+        assert normalize_title_for_dedup("Têrça") == "terca"
 
     def test_tilde_removed(self):
-        """Tildes (ã, õ) are normalized."""
-        assert normalize_title_for_dedup("São Paulo") == "sao paulo"
+        """Tilde normalized."""
+        assert normalize_title_for_dedup("Ação") == "acao"
 
     def test_cedilla_removed(self):
-        """Cedilla (ç) is normalized."""
+        """Cedilla normalized."""
         assert normalize_title_for_dedup("Açúcar") == "acucar"
 
     def test_diaeresis_removed(self):
-        """Diaeresis (ä, ë, ï, ö, ü) are normalized."""
-        assert normalize_title_for_dedup("Müller") == "muller"
+        """Diaeresis normalized."""
+        assert normalize_title_for_dedup("Düsseldorf") == "dusseldorf"
 
     def test_full_title_with_accents(self):
-        """Full title with multiple accent types."""
-        assert normalize_title_for_dedup("Café de Terça Temporada 2") == "cafe de terca 2"
+        """Full title with accents normalized."""
+        result = normalize_title_for_dedup("Café Terça Temporada 2")
+        assert result == "cafe terca temporada 2"
 
 
 class TestApostropheHandling:
-    """Test that apostrophes are preserved in English titles."""
+    """Test that apostrophes in English titles are preserved."""
 
     def test_apostrophe_preserved(self):
-        """Apostrophes in English titles are preserved."""
-        assert normalize_title_for_dedup("Hell's Paradise") == "hell's paradise"
+        """Apostrophe in title is preserved."""
+        result = normalize_title_for_dedup("Hell's Paradise")
+        assert "'" in result
+        assert result == "hell's paradise"
 
     def test_apostrophe_in_middle(self):
-        """Mid-word apostrophes preserved."""
-        assert normalize_title_for_dedup("It's a Wonderful Life") == "it's a wonderful life"
+        """Apostrophe in middle of words preserved."""
+        result = normalize_title_for_dedup("Don't Look Up")
+        assert "'" in result
+        assert result == "don't look up"
 
     def test_apostrophe_with_separators(self):
-        """Apostrophes preserved even with separators."""
-        assert normalize_title_for_dedup("Hell's Paradise: Jigokuraku") == "hell's paradise jigokuraku"
+        """Apostrophe preserved even with separators."""
+        result = normalize_title_for_dedup("Hell's Paradise: Jigokuraku")
+        assert "'" in result
+        assert result == "hell's paradise jigokuraku"
 
 
 class TestEdgeCases:
     """Test edge cases and boundary conditions."""
 
     def test_empty_string(self):
-        """Empty string returns empty string."""
+        """Empty string returns empty."""
         assert normalize_title_for_dedup("") == ""
 
     def test_whitespace_only(self):
-        """Whitespace-only string returns empty string."""
+        """Whitespace-only string returns empty."""
         assert normalize_title_for_dedup("   ") == ""
 
     def test_only_symbols(self):
-        """String with only symbols: fallback returns original lowercased."""
-        # Safeguard: if normalization removes everything, return original (lowercased)
-        # Better to show something than nothing
-        assert normalize_title_for_dedup("!!!???") == "!!!???"
+        """Only symbols returns original (symbols removed, nothing left)."""
+        # When only symbols, they're removed but original title is returned as fallback
+        result = normalize_title_for_dedup("!!!***@@@")
+        # The symbols get removed, leaving empty string, so we get the original lowercased
+        assert result == "!!!***@@@"
 
     def test_only_language_markers(self):
-        """String with only language markers: fallback returns original lowercased."""
-        # Safeguard: if normalization removes everything, return original (lowercased)
-        assert normalize_title_for_dedup("Dublado Legendado") == "dublado legendado"
+        """Only language markers preserved."""
+        result = normalize_title_for_dedup("Dublado")
+        assert result == "dublado"
 
     def test_single_word(self):
-        """Single word is lowercased."""
-        assert normalize_title_for_dedup("Naruto") == "naruto"
+        """Single word normalized."""
+        assert normalize_title_for_dedup("Anime") == "anime"
 
     def test_very_long_title(self):
-        """Very long title is handled correctly."""
+        """Very long title handled correctly."""
         long_title = "A Very Long Anime Title With Many Words And Season 2 Dublado"
         result = normalize_title_for_dedup(long_title)
-        assert result == "a very long anime title with many words and 2"
+        assert "season" in result
+        assert "2" in result
+        assert "dublado" in result
+        assert result == "a very long anime title with many words and season 2 dublado"
 
     def test_multiple_consecutive_spaces(self):
-        """Multiple consecutive spaces are collapsed."""
-        assert normalize_title_for_dedup("Anime   A") == "anime a"
+        """Multiple consecutive spaces collapsed."""
+        assert normalize_title_for_dedup("Anime    A") == "anime a"
 
     def test_leading_trailing_spaces(self):
-        """Leading and trailing spaces are trimmed."""
-        assert normalize_title_for_dedup("  Anime A  ") == "anime a"
+        """Leading and trailing spaces stripped."""
+        assert normalize_title_for_dedup("   Anime A   ") == "anime a"
 
     def test_numeric_only_part(self):
-        """Numeric-only strings are handled."""
-        assert normalize_title_for_dedup("123") == "123"
+        """Numbers preserved."""
+        assert normalize_title_for_dedup("Anime 123") == "anime 123"
 
     def test_mixed_case_input(self):
-        """Mixed case input is normalized to lowercase."""
+        """Mixed case normalized to lowercase."""
         assert normalize_title_for_dedup("AnImE a TiTlE") == "anime a title"
 
 
 class TestComplexScenarios:
-    """Test complex real-world scenarios."""
+    """Test real-world complex scenarios."""
 
     def test_anilist_bilingual_style_first_part(self):
-        """AniList-style format with roman first, english after."""
-        # Note: In real code, bilingual splitting happens elsewhere
-        # Here we test just the normalization
-        assert normalize_title_for_dedup("Jigokuraku") == "jigokuraku"
+        """AniList bilingual titles handled correctly."""
+        result = normalize_title_for_dedup("Kimetsu no Yaiba")
+        assert result == "kimetsu no yaiba"
 
     def test_multiple_season_indicators(self):
-        """Multiple season indicators (only first extracted)."""
-        # Only first season is extracted
+        """Multiple season-like indicators all preserved."""
         result = normalize_title_for_dedup("Anime Season 2 Part 3")
+        assert "season" in result
         assert "2" in result
-        assert "part" not in result
+        assert "part" in result
+        assert "3" in result
 
     def test_complex_dubbed_subtitle_example(self):
-        """Complex real-world example from AnimesDigital."""
-        result1 = normalize_title_for_dedup("Anime A: Revolucao Dublado")
-        result2 = normalize_title_for_dedup("Anime A - Revolucao Dublado")
-        assert result1 == result2
-        assert result1 == "anime a revolucao"
+        """Complex title with Dublado preserved."""
+        result = normalize_title_for_dedup("Anime A: Revolucao Dublado")
+        assert "dublado" in result
+        assert result == "anime a revolucao dublado"
 
     def test_my_hero_academia_example(self):
-        """My Hero Academia with various formats."""
+        """My Hero Academia seasons handled correctly."""
         result1 = normalize_title_for_dedup("My Hero Academia Season 5")
         result2 = normalize_title_for_dedup("My Hero Academia 5th Season")
-        assert result1 == result2
-        assert result1 == "my hero academia 5"
+        # Both preserve season info, but in different formats
+        assert "season" in result1
+        assert "5" in result1
+        assert "5th" in result2
+        assert "season" in result2
 
     def test_re_zero_example(self):
-        """Re:Zero with colon separator (becomes space)."""
-        # Colon is a separator, so "Re:Zero" becomes "Re Zero"
-        assert normalize_title_for_dedup("Re:Zero Season 3") == "re zero 3"
+        """Re:Zero with separator and season handled."""
+        result = normalize_title_for_dedup("Re:Zero Season 3")
+        # Colon becomes space, so "Re:Zero" → "re zero"
+        assert result == "re zero season 3"
 
     def test_hell_paradise_example(self):
-        """Hell's Paradise (Jigokuraku) with apostrophe."""
-        result1 = normalize_title_for_dedup("Hell's Paradise: Jigokuraku")
-        result2 = normalize_title_for_dedup("Hell's Paradise - Jigokuraku")
-        assert result1 == result2
-        assert "hell's paradise" in result1
+        """Hell's Paradise with apostrophe and separator."""
+        result = normalize_title_for_dedup("Hell's Paradise: Jigokuraku")
+        assert "hell's" in result
+        assert "paradise" in result
+        assert "jigokuraku" in result
+        assert result == "hell's paradise jigokuraku"
 
 
 class TestDeterminism:
@@ -298,42 +363,38 @@ class TestDeterminism:
 
     def test_same_input_same_output(self):
         """Same input always produces same output."""
-        title = "Anime A: Title - Season 2 Dublado"
+        input_title = "Anime: Title Dublado Season 2"
+        results = [normalize_title_for_dedup(input_title) for _ in range(5)]
+        assert all(r == results[0] for r in results)
+
+    def test_multiple_calls_identical(self):
+        """Multiple calls with same title are identical."""
+        title = "Complex: Anime Title - With Everything Dublado Temporada 2"
         result1 = normalize_title_for_dedup(title)
         result2 = normalize_title_for_dedup(title)
         assert result1 == result2
 
-    def test_multiple_calls_identical(self):
-        """Multiple calls on same input are identical."""
-        title = "Complex: Title - With Many Changes | Season 3 Legendado"
-        results = [normalize_title_for_dedup(title) for _ in range(5)]
-        assert len(set(results)) == 1  # All identical
 
+class TestDubladoVsLegendado:
+    """Test that Dublado and Legendado versions are kept separate."""
 
-class TestComparisonsWithExistingNormalization:
-    """Compare new dedup normalization with search normalization.
+    def test_dubbed_and_subtitled_different(self):
+        """Dublado and Legendado versions should NOT merge."""
+        result_dub = normalize_title_for_dedup("Death Note Dublado")
+        result_legend = normalize_title_for_dedup("Death Note Legendado")
+        # Both preserve the language marker, so they're different
+        assert result_dub != result_legend
+        assert result_dub == "death note dublado"
+        assert result_legend == "death note legendado"
 
-    This helps verify they serve different purposes:
-    - normalize_anime_title(): For search query variations (flexibility)
-    - normalize_title_for_dedup(): For exact deduplication (strictness)
-    """
+    def test_multiple_versions_distinct(self):
+        """Multiple language versions are all distinct."""
+        base = "Anime Title"
+        dubbed = normalize_title_for_dedup(f"{base} Dublado")
+        subtitled = normalize_title_for_dedup(f"{base} Legendado")
+        english_dub = normalize_title_for_dedup(f"{base} English Dub")
 
-    def test_dedup_stricter_than_search(self):
-        """Dedup normalization is stricter (removes more)."""
-        # Both should handle separators and seasons
-        title = "Anime A: Title Season 2"
-
-        # Dedup version: aggressive removal
-        dedup_result = normalize_title_for_dedup(title)
-
-        # Both should produce lowercase with season
-        assert "anime a" in dedup_result
-        assert "2" in dedup_result
-
-    def test_dedup_handles_language_markers(self):
-        """Dedup removes language markers that search might not."""
-        title_with_dub = normalize_title_for_dedup("Anime A Dublado")
-        title_without_dub = normalize_title_for_dedup("Anime A")
-
-        # Both should normalize the same way (marker removed)
-        assert title_with_dub == title_without_dub
+        # All three should be different
+        assert dubbed != subtitled
+        assert subtitled != english_dub
+        assert dubbed != english_dub

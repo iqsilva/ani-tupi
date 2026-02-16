@@ -72,6 +72,37 @@ def _get_episode_count(anime_id: int, media_episodes: int | None) -> int | None:
     return None
 
 
+def _fetch_skip_icon_for_mal_id(aniskip: AniSkipService, cache, title: str, mal_id: int) -> str:
+    """Fetch skip icon for a MAL ID without additional lookups.
+
+    Used internally by batch fetching to avoid redundant MAL ID searches.
+
+    Args:
+        aniskip: AniSkipService instance
+        cache: Cache instance
+        title: Display title for caching
+        mal_id: MyAnimeList ID (already resolved)
+
+    Returns:
+        Icon string "⏭️ " if skip data available, empty string otherwise
+    """
+    cache_key = f"aniskip:{mal_id}"
+
+    # Check cache first (7 day TTL)
+    cached_result = cache.get(cache_key)
+    if cached_result is not None:
+        return "⏭️ " if cached_result else ""
+
+    try:
+        skip_times = aniskip.get_skip_times(mal_id, 1)
+        has_skip = bool(skip_times)
+        cache.set(cache_key, has_skip, ttl=604800)
+        return "⏭️ " if has_skip else ""
+    except Exception:
+        cache.set(cache_key, False, ttl=604800)
+        return ""
+
+
 def _get_aniskip_icon(display_title: str, mal_id: int | None = None, timeout: float = 1.5) -> str:
     """Get skip icon if anime has auto-skip data available.
 
@@ -130,18 +161,22 @@ def _get_aniskip_icon(display_title: str, mal_id: int | None = None, timeout: fl
 
 def _get_aniskip_icons_batch(
     anime_list: list[tuple[str, int | None]],
-    max_workers: int = 2,
-    timeout_per_task: float = 1.0,
+    max_workers: int | None = None,
+    timeout_per_task: float = 2.0,
     use_progress_bar: bool = True,
 ) -> dict[str, str]:
-    """Get skip icons for multiple anime in parallel.
+    """Get skip icons for multiple anime in parallel with optimized MAL ID lookups.
+
+    Two-phase approach:
+    1. Batch resolve missing MAL IDs in parallel
+    2. Fetch skip times in parallel
 
     Uses ThreadPoolExecutor to parallelize API calls with no global timeout.
     Each individual task has a timeout to avoid hanging.
 
     Args:
         anime_list: List of (display_title, mal_id) tuples
-        max_workers: Max parallel threads (default 2 to avoid rate limiting)
+        max_workers: Max parallel threads. If None, scales based on list size (4-8)
         timeout_per_task: Max time per individual task in seconds
         use_progress_bar: Whether to show tqdm progress bar (default True)
 
@@ -155,15 +190,54 @@ def _get_aniskip_icons_batch(
 
     from tqdm import tqdm
 
+    # Dynamically scale workers based on list size (4-8 workers)
+    if max_workers is None:
+        max_workers = min(8, max(4, len(anime_list) // 3))
+
+    aniskip = AniSkipService()
+
+    # Phase 1: Resolve missing MAL IDs in parallel
+    cache = get_cache()
+    mal_ids_to_search = []
+    mal_id_map = {}  # title -> mal_id
+
+    for title, mal_id in anime_list:
+        if mal_id:
+            mal_id_map[title] = mal_id
+        else:
+            mal_ids_to_search.append(title)
+
+    # Batch search MAL IDs if needed
+    if mal_ids_to_search:
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            futures = {
+                executor.submit(aniskip.search_mal_id, title): title for title in mal_ids_to_search
+            }
+
+            for future in as_completed(futures):
+                title = futures[future]
+                try:
+                    mal_id = future.result(timeout=timeout_per_task)
+                    if mal_id:
+                        mal_id_map[title] = mal_id
+                except Exception:
+                    pass  # Skip if MAL ID lookup fails
+
+    # Phase 2: Fetch skip times in parallel for all anime with MAL IDs
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
-        # Submit all tasks without waiting for all to complete
-        future_to_title = {
-            executor.submit(_get_aniskip_icon, title, mal_id): title for title, mal_id in anime_list
-        }
+        # Submit all skip time checks
+        future_to_title = {}
+        for title, mal_id in anime_list:
+            mal_id = mal_id_map.get(title)  # Use resolved MAL ID if available
+            if mal_id:
+                # Submit skip check task
+                future = executor.submit(_fetch_skip_icon_for_mal_id, aniskip, cache, title, mal_id)
+                future_to_title[future] = title
+            else:
+                # No MAL ID available - skip this anime
+                result[title] = ""
 
         # Collect results as they complete with progress bar
-        # NO global timeout to avoid exceptions
-        # Just iterate through all futures with individual timeouts
         futures_iter = as_completed(future_to_title)
 
         # Wrap with tqdm for progress bar
@@ -180,13 +254,15 @@ def _get_aniskip_icons_batch(
         for future in futures_iter:
             title = future_to_title[future]
             try:
-                # Individual timeout per task
                 icon = future.result(timeout=timeout_per_task)
                 result[title] = icon
             except Exception:
-                # If any individual request times out or errors, just skip it
-                # This anime will show without the icon
                 result[title] = ""
+
+    # Fill in any missing anime that couldn't be looked up
+    for title, _ in anime_list:
+        if title not in result:
+            result[title] = ""
 
     return result
 
@@ -506,20 +582,24 @@ def _show_anime_list(list_type: str) -> tuple[str, int] | None:
         options = []
         anime_map = {}  # option -> (display_title, search_title, id, progress, episodes)
 
-        # Pre-fetch skip icons in parallel with tqdm progress bar
-        anime_skip_data = []
-        for item in anime_list:
-            if hasattr(item, "media"):
-                media = item.media
-            else:
-                media = item
-            if media and media.id_mal:
-                anime_skip_data.append((anilist_client.format_title(media.title), media.id_mal))
-
+        # Pre-fetch skip icons ONLY for watching and planning lists
+        # IMPORTANT: Do NOT fetch skip icons for other lists (Completed, Dropped, Paused, etc.)
         skip_icons_map = {}
-        if anime_skip_data:
-            # tqdm progress bar will show internally
-            skip_icons_map = _get_aniskip_icons_batch(anime_skip_data, use_progress_bar=True)
+        should_show_skip_icons = list_type in ("CURRENT", "PLANNING")
+
+        if should_show_skip_icons:
+            anime_skip_data = []
+            for item in anime_list:
+                if hasattr(item, "media"):
+                    media = item.media
+                else:
+                    media = item
+                if media and media.id_mal:
+                    anime_skip_data.append((anilist_client.format_title(media.title), media.id_mal))
+
+            if anime_skip_data:
+                # tqdm progress bar will show internally
+                skip_icons_map = _get_aniskip_icons_batch(anime_skip_data, use_progress_bar=True)
 
         # Now build menu with pre-loaded skip icons
         for item in anime_list:
@@ -554,10 +634,11 @@ def _show_anime_list(list_type: str) -> tuple[str, int] | None:
             if score:
                 display += f" ⭐{score}%"
 
-            # Add skip icon if available (from pre-fetched data)
-            skip_icon = skip_icons_map.get(display_title, "")
-            if skip_icon:
-                display = f"{skip_icon}{display}"
+            # Add skip icon if available (only for watching and planning lists)
+            if should_show_skip_icons:
+                skip_icon = skip_icons_map.get(display_title, "")
+                if skip_icon:
+                    display = f"{skip_icon}{display}"
 
             options.append(display)
             anime_map[display] = (
@@ -663,11 +744,6 @@ def _show_recent_history() -> None:
 
                 episode_num = episode_idx + 1
                 display = f"{display_name} (Ep {episode_num})"
-
-                # Add skip icon if available
-                skip_icon = _get_aniskip_icon(display_name)
-                if skip_icon:
-                    display = f"{skip_icon}{display}"
 
                 options.append(display)
                 # Store anime_name, anilist_id, and episode_idx
@@ -776,11 +852,6 @@ def _search_and_add_anime(is_logged_in: bool) -> tuple[str, int] | None:
         display = f"{display_title} ({year}, {episodes} eps)"
         if score:
             display += f" ⭐{score}%"
-
-        # Add skip icon if available (with cache optimization)
-        skip_icon = _get_aniskip_icon(display_title, anime.id_mal)
-        if skip_icon:
-            display = f"{skip_icon}{display}"
 
         options.append(display)
         search_title = get_search_title(anime.title, display_title)
@@ -985,11 +1056,6 @@ def _show_airing_episodes() -> None:
 
             if entry.average_score:
                 display += f" ⭐{entry.average_score}%"
-
-            # Add skip icon if available
-            skip_icon = _get_aniskip_icon(entry.title)
-            if skip_icon:
-                display = f"{skip_icon}{display}"
 
             options.append(display)
             anime_map[display] = entry

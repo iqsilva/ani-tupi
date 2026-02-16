@@ -9,7 +9,7 @@ import json
 from models.config import get_data_path
 from services.repository import rep
 from ui.components import loading, menu_navigate
-from services.anime.title_normalization import normalize_anime_title
+from services.anime.title_normalization import normalize_anime_title, normalize_title_for_dedup
 from services.anime.mappings import (
     load_anilist_search_title,
 )
@@ -83,7 +83,26 @@ def switch_anime_source(
     if state.has_next():
         menu_options.append("➡️  Resultados próximos (menos palavras)")
 
-    menu_options.extend(search_results)
+    # Normalize titles for display (same as anilist_integration.py)
+    # Create mapping: normalized → original for lookup after selection
+    normalized_to_original = {}
+    normalized_search_results = []
+    for title_with_sources in search_results:
+        # Split into anime name and sources
+        if " [" in title_with_sources:
+            anime_name, sources_part = title_with_sources.split(" [", 1)
+            sources_part = "[" + sources_part
+        else:
+            anime_name = title_with_sources
+            sources_part = ""
+
+        # Normalize anime name: lowercase, letters/numbers/apostrophes only
+        normalized_name = normalize_title_for_dedup(anime_name)
+        normalized_full = f"{normalized_name} {sources_part}".rstrip()
+        normalized_to_original[normalized_name] = anime_name
+        normalized_search_results.append(normalized_full)
+
+    menu_options.extend(normalized_search_results)
 
     selected_anime_with_source = menu_navigate(menu_options, msg=menu_title)
 
@@ -113,8 +132,9 @@ def switch_anime_source(
             return switch_anime_source(current_anime, args, anilist_id, display_title)
         return None, None
 
-    # User selected an anime
-    selected_anime = selected_anime_with_source.split(" [")[0]
+    # User selected an anime - map normalized back to original
+    normalized_selected = selected_anime_with_source.split(" [")[0]
+    selected_anime = normalized_to_original.get(normalized_selected, normalized_selected)
 
     # 5. Load episodes from new source
     with loading("Carregando episódios..."):

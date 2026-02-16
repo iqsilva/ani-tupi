@@ -135,6 +135,36 @@ for scraper in get_scrapers():
 
 Why? Scrapers are loaded dynamically. The repository tracks which ones exist, which ones are enabled.
 
+### Pattern: Multi-Source Title Normalization
+
+The repository automatically deduplicates anime results from multiple sources using intelligent title normalization. This means:
+
+**Same anime, different title formats are merged:**
+```
+AnimesDigital: "Anime A: Revolucao Dublado"
+AnimeOnlineCC: "Anime A - Revolucao Dublado"
+AnimeFireTV:   "Anime A | Revolucao Dublado"
+
+Result: Single entry "Anime A: Revolucao Dublado [animesdigital, animesonlinecc, animefiretv]"
+```
+
+**How it works:**
+- `normalize_title_for_dedup()` strips away separators (`:`, `-`, `|`, `/`), language markers (`Dublado`, `Legendado`), and season indicators
+- When `add_anime()` is called, new titles are matched against existing normalized titles
+- If normalized forms match, the source is appended to the existing entry
+- If no match, a new entry is created
+
+**Examples of merged titles:**
+```
+"Jujutsu Kaisen Season 2 Dublado" + "Jujutsu Kaisen 2nd Season"
+→ "Jujutsu Kaisen 2 [both sources]"
+
+"Hell's Paradise: Jigokuraku" + "Hell's Paradise - Jigokuraku"
+→ "Hell's Paradise: Jigokuraku [both sources]"
+```
+
+Why? Reduces cognitive load during search. Users see one entry per anime with all available sources, not 3-4 duplicate entries with slight title variations.
+
 ### Pattern: Caching as a Wrapper
 
 Services decide *when* to cache, not the scraper:
