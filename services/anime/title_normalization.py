@@ -8,6 +8,115 @@ import re
 import unicodedata
 
 
+def normalize_title_for_dedup(title: str) -> str:
+    """Normalize title for deduplication across multiple sources.
+
+    This is an aggressive normalization designed for EXACT MATCHING and MERGING
+    of results from multiple scrapers. It removes all separators, language markers,
+    and part/season indicators to create a canonical form suitable for deduplication.
+
+    Why separate from normalize_anime_title()?
+    - normalize_anime_title(): For search queries (preserves flexibility for partial matches)
+    - normalize_title_for_dedup(): For exact merging (removes everything except core title)
+
+    Handles:
+    - Unicode normalization (accents: á → a, ç → c)
+    - Separator normalization (: - | / \\ → space)
+    - Language marker removal (Dublado, Legendado, Sub, Dub, etc.)
+    - Season/part number extraction and preservation
+    - Whitespace cleanup
+    - Case normalization
+
+    Examples:
+        "Anime A: Revolucao Dublado" → "anime a revolucao"
+        "Anime A - Revolucao Dublado" → "anime a revolucao"
+        "Jujutsu Kaisen Season 2 Dublado" → "jujutsu kaisen 2"
+        "My Hero Academia Part 6 Legendado" → "my hero academia 6"
+        "Hell's Paradise: Jigokuraku" → "hell's paradise jigokuraku"
+
+    Args:
+        title: Raw title from scraper (may include separators, language markers, etc.)
+
+    Returns:
+        Normalized lowercase form suitable for exact matching and deduplication.
+        Returns empty string if title becomes empty after normalization.
+    """
+    if not title or not title.strip():
+        return ""
+
+    # Step 1: Normalize Unicode
+    # Decompose accents: "Café" → "Cafe"
+    normalized = unicodedata.normalize("NFKD", title)
+    # Remove combining marks (accents)
+    normalized = "".join(c for c in normalized if unicodedata.category(c) != "Mn")
+
+    # Step 2: Normalize separators to spaces
+    # Replace common separators with space
+    for sep in [(":", " "), ("-", " "), ("–", " "), ("—", " "), ("|", " "), ("/", " "), ("\\", " ")]:
+        normalized = normalized.replace(sep[0], sep[1])
+
+    # Step 3: Extract season number BEFORE removing patterns
+    # This preserves "2" from "2nd Season" or "Season 2" or "Temporada 2"
+    extracted_season = None
+    for pattern in [
+        r"(?:season|temporada|s)\s*(\d+)",
+        r"(\d+)(?:st|nd|rd|th)?\s+season",
+    ]:
+        match = re.search(pattern, normalized, re.IGNORECASE)
+        if match:
+            extracted_season = match.group(1)
+            break
+
+    # Step 4: Remove language/audio type markers
+    # These are format markers, not part of the anime identity
+    for pattern in [
+        r"\bdublado\b",
+        r"\blegendado\b",
+        r"\blegendadas\b",
+        r"\blongas\b",
+        r"\bsub(?:title)?s?\b",
+        r"\bdub(?:bed)?\b",
+    ]:
+        normalized = re.sub(pattern, " ", normalized, flags=re.IGNORECASE)
+
+    # Step 5: Remove season/part/cour/arc patterns
+    # These are metadata markers, not part of core title
+    for pattern in [
+        r"\s+season\s+\d+",
+        r"\s+\d+(?:st|nd|rd|th)?\s+season",
+        r"\s+temporada\s+\d+",
+        r"\s+s\d+",
+        r"\s+part\s+\d+(?:st|nd|rd|th)?",
+        r"\s+cour\s+\d+",
+        r"\s+arc\s+[^:]+"
+    ]:
+        normalized = re.sub(pattern, " ", normalized, flags=re.IGNORECASE)
+
+    # Step 6: Clean whitespace
+    # Collapse multiple spaces from previous substitutions
+    normalized = re.sub(r"\s+", " ", normalized).strip()
+
+    # Step 7: Keep only alphanumerics, spaces, and apostrophes
+    # (Apostrophes preserved for English titles like "Hell's Paradise")
+    normalized = re.sub(r"[^A-Za-z0-9\s']", "", normalized)
+
+    # Step 8: Clean whitespace again
+    # Previous step may have created spaces where special chars were removed
+    normalized = re.sub(r"\s+", " ", normalized).strip()
+
+    # Step 9: Append extracted season number if present
+    # Preserves season info while keeping core title unified
+    if extracted_season:
+        normalized = f"{normalized} {extracted_season}".strip()
+
+    # Step 10: Convert to lowercase
+    # Final normalized form for exact matching
+    normalized = normalized.lower()
+
+    # Return normalized form, or original title (lowercased) if everything was removed
+    return normalized if normalized else title.lower()
+
+
 def normalize_anime_title(title: str, is_english: bool = False):
     """Generate sensible title variations for searching.
 

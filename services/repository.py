@@ -8,7 +8,7 @@ from concurrent.futures import ThreadPoolExecutor
 
 from models.config import settings
 from models.models import EpisodeData, SearchMetadata, SearchResults, AnimeSearchResult
-from services.anime.title_normalization import normalize_search_cache_key
+from services.anime.title_normalization import normalize_search_cache_key, normalize_title_for_dedup
 
 
 class Repository:
@@ -422,38 +422,44 @@ class Repository:
             executor.shutdown(wait=True)
 
     def add_anime(self, title: str, url: str, source: str, params=None) -> None:
-        """Add anime with exact deduplication.
+        """Add anime with intelligent multi-source deduplication.
 
-        This method assumes different seasons are different anime (like MAL).
-        Plugin devs should scrape that way.
+        Uses normalize_title_for_dedup() to recognize when the same anime appears
+        from multiple sources with different title formats. This enables merging of:
+        - Different separators: "Anime A: Title" and "Anime A - Title"
+        - Different language markers: "Anime A Dublado" and "Anime A Legendado"
+        - Different season formats: "Season 2" and "2nd Season" and "Temporada 2"
 
-        Uses exact matching: only consolidates if normalized titles are 100% identical.
-        This preserves dubbed/subbed/season distinctions.
+        Examples:
+            add_anime("Anime A: Title Dublado", "url1", "source1")
+            add_anime("Anime A - Title Dublado", "url2", "source2")
+            → Results in single entry with both sources
+
+        Args:
+            title: Original title from scraper
+            url: Episode/anime URL
+            source: Source plugin name
+            params: Optional parameters dict
         """
-        title_ = title.lower()
-        table = {
-            "clássico": "",
-            "classico": "",
-            ":": "",
-            "part": "season",
-            "temporada": "season",
-            "(": "",
-            ")": "",
-            " ": "",
-        }
+        # Normalize the new title using aggressive deduplication normalization
+        normalized_new = normalize_title_for_dedup(title)
+        self.norm_titles[title] = normalized_new
 
-        for key, val in table.items():
-            title_ = title_.replace(key, val)
+        # Check if this anime (by normalized title) already exists
+        for existing_title in self.anime_to_urls:
+            # Get normalized form of existing title
+            existing_normalized = self.norm_titles.get(existing_title)
+            if existing_normalized is None:
+                # Anime was loaded from cache, compute normalization now
+                existing_normalized = normalize_title_for_dedup(existing_title)
+                self.norm_titles[existing_title] = existing_normalized
 
-        self.norm_titles[title] = title_
-
-        # Exact matching: only consolidate if normalized titles are identical
-        for key in self.anime_to_urls:
-            # Handle case where anime was loaded from cache and not in norm_titles yet
-            key_normalized = self.norm_titles.get(key, self._normalize_for_filter(key))
-            if title_ == key_normalized:
-                self.anime_to_urls[key].append((url, source, params))
+            # If normalized forms match, append to existing entry
+            if normalized_new == existing_normalized:
+                self.anime_to_urls[existing_title].append((url, source, params))
                 return
+
+        # No match found, create new entry using original title
         self.anime_to_urls[title].append((url, source, params))
 
     def get_anime_titles(
