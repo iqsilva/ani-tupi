@@ -25,6 +25,7 @@ from services.anime.mappings import (
     save_language_preference,
 )
 from services.anime.search import incremental_search_anime
+from services.anime.title_normalization import normalize_title_for_dedup
 from services.anime.aniskip_service import AniSkipService
 
 # Use centralized path function from config
@@ -281,33 +282,44 @@ def anilist_anime_flow(
             # Fluxo normal vai procurar episódios (não salva/usa URL)
 
     # Only ask for language preference if no saved title or user wants to choose another
-    if selected_anime is None and english_title and romaji_title and english_title != romaji_title:
-        # Check if language preference is cached
-        cached_language = load_language_preference(anilist_id) if anilist_id else None
+    if selected_anime is None and english_title and romaji_title:
+        # Compare normalized titles - if they're the same, skip the menu
+        normalized_english = normalize_title_for_dedup(english_title)
+        normalized_romaji = normalize_title_for_dedup(romaji_title)
 
-        if cached_language:
-            # Use cached language preference
-            anime_title = english_title if cached_language == "english" else romaji_title
+        if normalized_english == normalized_romaji:
+            # Titles are the same when normalized - use Romaji by default
+            anime_title = romaji_title
         else:
-            # Ask user for language preference
-            language_options = [
-                f"🇯🇵 Romanji: {romaji_title}",
-                f"🇬🇧 Inglês: {english_title}",
-            ]
-            language_choice = menu_navigate(language_options, msg="Escolha o idioma para buscar:")
+            # Titles are different - ask user for language preference
+            # Check if language preference is cached
+            cached_language = load_language_preference(anilist_id) if anilist_id else None
 
-            if not language_choice:
-                return  # User cancelled
-
-            # Set anime_title based on choice and cache the preference
-            if language_choice.startswith("🇬🇧"):
-                anime_title = english_title
-                if anilist_id:
-                    save_language_preference(anilist_id, "english")
+            if cached_language:
+                # Use cached language preference
+                anime_title = english_title if cached_language == "english" else romaji_title
             else:
-                anime_title = romaji_title
-                if anilist_id:
-                    save_language_preference(anilist_id, "romaji")
+                # Ask user for language preference
+                language_options = [
+                    f"🇯🇵 Romanji: {romaji_title}",
+                    f"🇬🇧 Inglês: {english_title}",
+                ]
+                language_choice = menu_navigate(
+                    language_options, msg="Escolha o idioma para buscar:"
+                )
+
+                if not language_choice:
+                    return  # User cancelled
+
+                # Set anime_title based on choice and cache the preference
+                if language_choice.startswith("🇬🇧"):
+                    anime_title = english_title
+                    if anilist_id:
+                        save_language_preference(anilist_id, "english")
+                else:
+                    anime_title = romaji_title
+                    if anilist_id:
+                        save_language_preference(anilist_id, "romaji")
 
     # Only search if no saved title or user wants to choose another
     search_state = None
@@ -425,11 +437,49 @@ def anilist_anime_flow(
         titles_to_show = titles_with_sources[:top_limit]
         has_more = len(titles_with_sources) > top_limit
 
+        # Normalize anime titles for display (lowercase, letters and numbers only)
+        # Keep sources as is, only normalize the anime name part
+        # Create mapping from normalized title → original title for lookup after selection
+        normalized_to_original = {}
+        normalized_titles_to_show = []
+        for title_with_sources in titles_to_show:
+            # Split into title and sources
+            if " [" in title_with_sources:
+                anime_name, sources_part = title_with_sources.split(" [", 1)
+                sources_part = "[" + sources_part
+            else:
+                anime_name = title_with_sources
+                sources_part = ""
+
+            # Normalize only the anime name
+            normalized_name = normalize_title_for_dedup(anime_name)
+            normalized_full = f"{normalized_name} {sources_part}".rstrip()
+
+            normalized_to_original[normalized_name] = anime_name
+            normalized_titles_to_show.append(normalized_full)
+
+        normalized_titles_all = []
+        for title_with_sources in titles_with_sources:
+            # Split into title and sources
+            if " [" in title_with_sources:
+                anime_name, sources_part = title_with_sources.split(" [", 1)
+                sources_part = "[" + sources_part
+            else:
+                anime_name = title_with_sources
+                sources_part = ""
+
+            # Normalize only the anime name
+            normalized_name = normalize_title_for_dedup(anime_name)
+            normalized_full = f"{normalized_name} {sources_part}".rstrip()
+
+            normalized_to_original[normalized_name] = anime_name
+            normalized_titles_all.append(normalized_full)
+
         # Build menu options
         titles_with_button = []
         if has_more:
             titles_with_button.append(SHOW_MORE_BUTTON)
-        titles_with_button.extend(titles_to_show)
+        titles_with_button.extend(normalized_titles_to_show)
 
         # Calculate language toggle button parameters
         can_toggle_language = (
@@ -458,7 +508,7 @@ def anilist_anime_flow(
         # Handle "Show all" button
         if selected_anime_with_source == SHOW_MORE_BUTTON:
             # Show all results in next menu
-            titles_with_button = titles_with_sources.copy()
+            titles_with_button = normalized_titles_all.copy()
             selected_anime_with_source = menu_navigate(
                 titles_with_button, msg=menu_title, search_state=search_state
             )
@@ -515,8 +565,9 @@ def anilist_anime_flow(
             continue  # Loop back to show menu with new results
 
         else:
-            # Remove source tag from selected anime
-            selected_anime = selected_anime_with_source.split(" [")[0]
+            # Map normalized title back to original title
+            normalized_selected = selected_anime_with_source.split(" [")[0]
+            selected_anime = normalized_to_original.get(normalized_selected, normalized_selected)
             # Extract source (if present)
             source = None
             if " [" in selected_anime_with_source and selected_anime_with_source.endswith("]"):
