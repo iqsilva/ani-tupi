@@ -133,6 +133,8 @@ def menu_navigate(
     preview_callback: Callable | None = None,
     enable_search: bool = True,
     search_state=None,
+    alternative_language_available: bool = False,
+    alternative_language_label: str | None = None,
 ) -> str | None:
     """Display interactive menu for navigation (returns None instead of exit).
 
@@ -143,16 +145,20 @@ def menu_navigate(
         preview_callback: Ignored (preview feature removed in refactor)
         enable_search: Enable fuzzy search (default: True)
         search_state: Optional IncrementalSearchState for navigation between result sets
+        alternative_language_available: Whether language toggle button should be shown
+        alternative_language_label: Label for language toggle button (e.g., "🔄 Re-buscar em Inglês")
 
     Returns:
-        Selected option, special navigation commands ("__nav_previous__", "__nav_next__"),
+        Selected option, special navigation commands ("__nav_previous__", "__nav_next__", "__research_language__"),
         or None if user cancels
 
     Behavior:
         - Adds navigation buttons: "← Voltar" (back), "Sair" (exit)
         - If search_state: adds "◀ Resultados Anteriores" and/or "▶ Próximos Resultados"
+        - If alternative_language_available: adds language toggle button
         - "← Voltar" returns None (go back)
         - Navigation buttons return special commands for search flow handling
+        - Language toggle button returns "__research_language__"
         - "Sair" exits to terminal
         - Q key exits to terminal immediately
         - Fuzzy search enabled by default
@@ -178,7 +184,13 @@ def menu_navigate(
                 f"▶ Próximos Resultados ({next_result.word_count} palavras: {len(next_result.results)} resultados)"
             )
 
-    if not enable_search and not search_state:
+    # Add language toggle button if available
+    if alternative_language_available and alternative_language_label:
+        if not (search_state or enable_search):
+            opts_copy.append("─" * 30)
+        opts_copy.append(alternative_language_label)
+
+    if not enable_search and not search_state and not alternative_language_available:
         opts_copy.append("─" * 30)
     opts_copy.extend(["← Voltar", "Sair"])
 
@@ -250,6 +262,10 @@ def menu_navigate(
             return "__nav_previous__"
         if answer and answer.startswith("▶ Próximos Resultados"):
             return "__nav_next__"
+
+    # Handle language toggle
+    if alternative_language_available and answer == alternative_language_label:
+        return "__research_language__"
 
     # Return selection (filter out the added options)
     return answer

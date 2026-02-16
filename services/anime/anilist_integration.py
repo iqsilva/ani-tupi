@@ -338,7 +338,11 @@ def anilist_anime_flow(
                 titles_with_sources = [anime_title]
         else:
             # Not in cache: use incremental search (start with min(3,len(words)) and filter)
-            search_state, titles_with_sources = incremental_search_anime(anime_title)
+            search_state, titles_with_sources = incremental_search_anime(
+                anime_title,
+                english_title=english_title,
+                romaji_title=romaji_title,
+            )
 
             # Extract the query that was actually used for the final results
             if search_state:
@@ -378,7 +382,11 @@ def anilist_anime_flow(
                 search_state = None  # No navigation state for manual cached search
             else:
                 # Not in cache: use incremental search for manual query
-                search_state, titles_with_sources = incremental_search_anime(manual_query)
+                search_state, titles_with_sources = incremental_search_anime(
+                    manual_query,
+                    english_title=english_title,
+                    romaji_title=romaji_title,
+                )
 
                 # Extract the query that was actually used for the final results
                 if search_state:
@@ -423,9 +431,28 @@ def anilist_anime_flow(
             titles_with_button.append(SHOW_MORE_BUTTON)
         titles_with_button.extend(titles_to_show)
 
+        # Calculate language toggle button parameters
+        can_toggle_language = (
+            search_state
+            and search_state.can_toggle_language()
+            and english_title
+            and romaji_title
+            and english_title != romaji_title
+        )
+        alt_lang = search_state.get_alternative_language() if search_state else None
+        alt_label = (
+            f"🔄 Re-buscar em {'Inglês' if alt_lang == 'english' else 'Romanji'}"
+            if can_toggle_language
+            else None
+        )
+
         # Show menu with navigation support
         selected_anime_with_source = menu_navigate(
-            titles_with_button, msg=menu_title, search_state=search_state
+            titles_with_button,
+            msg=menu_title,
+            search_state=search_state,
+            alternative_language_available=can_toggle_language,
+            alternative_language_label=alt_label,
         )
 
         # Handle "Show all" button
@@ -438,6 +465,35 @@ def anilist_anime_flow(
 
         if not selected_anime_with_source:
             return  # User cancelled
+
+        # Handle language toggle
+        if selected_anime_with_source == "__research_language__":
+            # Toggle to alternative language and re-search
+            assert search_state is not None
+            new_lang = search_state.toggle_language()
+            new_title = english_title if new_lang == "english" else romaji_title
+
+            # Clear repository to remove old search results
+            rep.clear_search_results()
+
+            # Store anilist_id in repository for caching with new title
+            if anilist_id:
+                rep.anime_to_anilist_id[new_title] = anilist_id
+
+            # Re-search with alternative language
+            search_state, titles_with_sources = incremental_search_anime(
+                new_title,
+                english_title=english_title,
+                romaji_title=romaji_title,
+            )
+
+            # Extract the query that was actually used
+            if search_state:
+                current_result_set = search_state.get_current()
+                if current_result_set:
+                    used_query = current_result_set.query
+
+            continue  # Loop back to show menu with new results
 
         # Handle incremental search navigation
         if selected_anime_with_source == "__nav_previous__":

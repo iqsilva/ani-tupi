@@ -93,11 +93,19 @@ class IncrementalSearchState:
     Attributes:
         search_history: List of SearchResultSet objects in chronological order
         current_index: Current position in navigation history
+        current_language: Language of the current search results ("romaji" or "english")
+        current_title: The title used for current search (in current_language)
+        alternative_title: Title in the alternative language (if available)
+        alternative_language: The alternative language ("romaji" or "english")
     """
 
     def __init__(self):
         self.search_history: list[SearchResultSet] = []
         self.current_index: int = -1
+        self.current_language: str = "romaji"
+        self.current_title: str | None = None
+        self.alternative_title: str | None = None
+        self.alternative_language: str | None = None
 
     def add_result(
         self,
@@ -178,6 +186,45 @@ class IncrementalSearchState:
         self.search_history = []
         self.current_index = -1
 
+    def can_toggle_language(self) -> bool:
+        """Check if language toggle is available.
+
+        Returns:
+            True if alternative title exists and alternative language is different
+        """
+        return self.alternative_title is not None and self.alternative_language is not None
+
+    def get_alternative_language(self) -> str | None:
+        """Get the language we can switch to.
+
+        Returns:
+            The alternative language ("romaji" or "english"), or None if toggle not available
+        """
+        return self.alternative_language if self.can_toggle_language() else None
+
+    def toggle_language(self) -> str:
+        """Switch to the alternative language and update state.
+
+        Returns:
+            The new current language after toggle
+
+        Raises:
+            ValueError: If toggle is not available (alternative_title is None)
+        """
+        if not self.can_toggle_language():
+            raise ValueError("Language toggle not available")
+
+        # Swap languages, titles, and current_title
+        old_language = self.current_language
+        old_title = self.current_title
+
+        self.current_language = self.alternative_language
+        self.current_title = self.alternative_title
+        self.alternative_language = old_language
+        self.alternative_title = old_title
+
+        return self.current_language
+
     def __repr__(self) -> str:
         current = self.get_current()
         current_str = (
@@ -186,7 +233,11 @@ class IncrementalSearchState:
         return f"IncrementalSearchState(current={current_str}, history_size={len(self.search_history)})"
 
 
-def incremental_search_anime(query: str) -> tuple[IncrementalSearchState, list[str]]:
+def incremental_search_anime(
+    query: str,
+    english_title: str | None = None,
+    romaji_title: str | None = None,
+) -> tuple[IncrementalSearchState, list[str]]:
     """Perform incremental anime search starting with 1 word and adding progressively.
 
     Implements the filtering-based word addition strategy:
@@ -199,6 +250,8 @@ def incremental_search_anime(query: str) -> tuple[IncrementalSearchState, list[s
 
     Args:
         query: The user's search query (e.g., "Boku no Hero Academia Season 5")
+        english_title: English title (for language toggle feature), optional
+        romaji_title: Romaji title (for language toggle feature), optional
 
     Returns:
         Tuple of (IncrementalSearchState, final_results_list)
@@ -206,6 +259,26 @@ def incremental_search_anime(query: str) -> tuple[IncrementalSearchState, list[s
         - Results are the final anime titles with sources to display
     """
     state = IncrementalSearchState()
+
+    # Initialize language tracking if both titles are provided
+    if english_title and romaji_title and english_title != romaji_title:
+        # Determine current language based on query
+        query_lower = query.lower()
+        english_lower = english_title.lower()
+
+        # Check which title is closer to the query
+        if english_lower in query_lower or query_lower == english_lower:
+            # Query matches English title
+            state.current_language = "english"
+            state.current_title = english_title
+            state.alternative_title = romaji_title
+            state.alternative_language = "romaji"
+        else:
+            # Default to Romaji or if query matches Romaji
+            state.current_language = "romaji"
+            state.current_title = romaji_title
+            state.alternative_title = english_title
+            state.alternative_language = "english"
 
     # Normalize query first (remove season patterns, punctuation, convert to lowercase, etc)
     # normalize_anime_title() returns a list of variations from most specific to least
