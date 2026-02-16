@@ -249,7 +249,9 @@ class AnimesDigital:
             # Step 2: Supplement with homepage search for newly-published episodes
             # Homepage "Últimos Episódios" may have episodes not yet on the series page
             logger.debug(f"Searching AnimesDigital homepage for new episodes of '{anime}'...")
-            homepage_episodes = self.search_homepage_incremental(anime)
+            # Detect audio type from anime title (Dublado vs Legendado)
+            audio_type = "dublado" if "dublado" in anime.lower() else "legendado"
+            homepage_episodes = self.search_homepage_incremental(anime, audio_type=audio_type)
 
             if homepage_episodes:
                 logger.debug(f"Found {len(homepage_episodes)} episodes on homepage for '{anime}'")
@@ -575,7 +577,7 @@ class AnimesDigital:
         except Exception as e:
             logger.debug(f"Could not extract iframe src: {e}")
 
-    def search_homepage_incremental(self, title: str) -> list[dict]:
+    def search_homepage_incremental(self, title: str, audio_type: str = "dublado") -> list[dict]:
         """Search AnimesDigital homepage "últimos episódios" with incremental search.
 
         Fetches the homepage and searches the recent episodes section using an
@@ -584,9 +586,11 @@ class AnimesDigital:
 
         Args:
             title: Anime title to search (e.g., "Jujutsu Kaisen Season 2")
+            audio_type: Audio type to filter ("dublado" or "legendado")
 
         Returns:
             List of dicts with keys: anime_title, episode_number, episode_url
+            Filtered to include only episodes matching the specified audio_type
             Empty list if no matches found or on error
         """
         import re
@@ -710,7 +714,6 @@ class AnimesDigital:
             # But also filter out weak matches: require final full-title match >= 75%
             matched_episodes = []
             final_query = " ".join(query_words).lower()
-            anime_scores = {}  # Track best score for each unique anime
 
             for _, ep in best_matches[:5]:
                 # Re-score with full query to avoid weak partial matches
@@ -720,19 +723,54 @@ class AnimesDigital:
                 )
                 # Only keep if final score is acceptable (75%+)
                 if final_score >= 75:
-                    anime_title = ep["anime_title"]
-                    # Track the best score for this anime
-                    if anime_title not in anime_scores or final_score > anime_scores[anime_title]:
-                        anime_scores[anime_title] = final_score
-                    matched_episodes.append((final_score, anime_title, ep))
+                    matched_episodes.append((final_score, ep["anime_title"], ep))
 
-            # Filter to keep only episodes from the anime with the highest score
-            # This prevents duplicates when same anime appears in both dubbed and subtitled versions
+            # FIRST: Filter by audio type (dublado vs legendado)
+            # This must happen BEFORE selecting best_anime to ensure we compare
+            # only episodes of the requested audio type
             if matched_episodes:
+                # First pass: find episodes with explicit matching audio marker
+                explicit_matches = []
+                for score, anime_title, ep in matched_episodes:
+                    episode_title_lower = ep["anime_title"].lower()
+                    if audio_type == "dublado" and "dublado" in episode_title_lower:
+                        explicit_matches.append((score, anime_title, ep))
+                    elif audio_type == "legendado" and "legendado" in episode_title_lower:
+                        explicit_matches.append((score, anime_title, ep))
+
+                # If we found explicit matches, use only those
+                if explicit_matches:
+                    matched_episodes = explicit_matches
+                else:
+                    # Fallback: accept episodes WITHOUT any audio marker (neutral)
+                    # This handles cases where homepage episodes don't explicitly mark audio type
+                    neutral_episodes = []
+                    for score, anime_title, ep in matched_episodes:
+                        episode_title_lower = ep["anime_title"].lower()
+                        # Episode is neutral if it has neither "dublado" nor "legendado"
+                        if (
+                            "dublado" not in episode_title_lower
+                            and "legendado" not in episode_title_lower
+                        ):
+                            neutral_episodes.append((score, anime_title, ep))
+
+                    matched_episodes = neutral_episodes
+
+            # SECOND: Select best_anime from the filtered results
+            # Track best score for each unique anime (after audio filtering)
+            if matched_episodes:
+                anime_scores = {}
+                for score, anime_title, ep in matched_episodes:
+                    if anime_title not in anime_scores or score > anime_scores[anime_title]:
+                        anime_scores[anime_title] = score
+
                 # Find the anime with the highest score
                 best_anime = max(anime_scores.items(), key=lambda x: x[1])[0]
                 # Keep only episodes from the best-matching anime
                 matched_episodes = [ep for _, anime, ep in matched_episodes if anime == best_anime]
+            else:
+                # Convert to plain episode list if empty
+                matched_episodes = []
 
             # Sort by episode number to ensure correct order (1, 2, 3, ...)
             matched_episodes.sort(key=lambda ep: ep["episode_number"])
