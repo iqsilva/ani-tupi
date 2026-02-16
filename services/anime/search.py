@@ -378,8 +378,68 @@ def incremental_search_anime(
                     # Uses substring matching on normalized titles (same as repository does)
                     filtered = _filter_anime_results(base_results, partial_query)
 
-                if filtered:
-                    # Filtered results found - use them
+                # If filtered results are very few (<= 3), do a fresh search instead
+                # This handles cases where API returns different results for different queries
+                # (e.g., AnimesDigital returns more results for "re zero" than filtering "re" results)
+                #
+                # Re-search strategy:
+                # - If query has 2+ words AND filtered results <= 3: ALWAYS re-search
+                #   (2+ words = specific enough query to be worth re-searching all scrapers)
+                # - This ensures we don't miss results from APIs that only match multi-word queries
+                #   (e.g., AnimesDigital finds Re:Zero for "re zero" but not for "re")
+                if filtered and len(filtered) <= 3 and current_word_count >= 2:
+                    logger.debug(
+                        f"Only {len(filtered)} filtered results for '{partial_query}', "
+                        "performing fresh search instead"
+                    )
+                    # Clear and re-search with the full query
+                    rep.clear_search_results()
+                    with loading(f"Buscando '{partial_query}'..."):
+                        rep.search_anime(partial_query, verbose=True)
+
+                    # Get results from fresh search
+                    search_metadata = rep.get_search_metadata()
+                    used_query = search_metadata.used_query or partial_query
+
+                    # Try to get AniList match for ranking
+                    ranking_query = used_query
+                    try:
+                        from utils.anilist_discovery import auto_discover_anilist_id
+
+                        anilist_results = auto_discover_anilist_id(used_query)
+                        if anilist_results:
+                            ranking_query = anilist_results[0].title
+                    except Exception:
+                        pass
+
+                    # Get anime titles with sources, ranked by AniList if available
+                    titles_with_sources = rep.get_anime_titles_with_sources(
+                        filter_by_query=used_query, original_query=ranking_query
+                    )
+
+                    # Update base_results to include new search results for future filtering
+                    base_results = titles_with_sources.copy()
+                    current_results = titles_with_sources
+
+                    # Count results from each source for metadata
+                    source_counts: dict[str, int] = {}
+                    for title_entry in titles_with_sources:
+                        if " [" in title_entry:
+                            _, source = title_entry.rsplit(" [", 1)
+                            source = source.rstrip("]")
+                            source_counts[source] = source_counts.get(source, 0) + 1
+
+                    state.add_result(
+                        current_word_count,
+                        partial_query,
+                        titles_with_sources,
+                        source_counts,
+                        used_query=used_query,
+                        is_filtered=False,  # This was a fresh search, not a filter
+                    )
+
+                elif filtered:
+                    # Filtered results found and enough (> 3) - use them
                     current_results = filtered
 
                     # Count results from each source for metadata

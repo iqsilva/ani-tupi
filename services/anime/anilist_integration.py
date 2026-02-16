@@ -431,11 +431,8 @@ def anilist_anime_flow(
 
         menu_title += f"\nEncontrados {len(titles_with_sources)} resultados. Escolha:"
 
-        # Show pagination if too many results
-        SHOW_MORE_BUTTON = "📋 Ver todos os resultados"
-        top_limit = settings.search.top_results_limit
-        titles_to_show = titles_with_sources[:top_limit]
-        has_more = len(titles_with_sources) > top_limit
+        # Show all results (no pagination)
+        titles_to_show = titles_with_sources
 
         # Normalize anime titles for display (lowercase, letters and numbers only)
         # Keep sources as is, only normalize the anime name part
@@ -475,11 +472,8 @@ def anilist_anime_flow(
             normalized_to_original[normalized_name] = anime_name
             normalized_titles_all.append(normalized_full)
 
-        # Build menu options
-        titles_with_button = []
-        if has_more:
-            titles_with_button.append(SHOW_MORE_BUTTON)
-        titles_with_button.extend(normalized_titles_to_show)
+        # Build menu options (all normalized titles)
+        titles_with_button = normalized_titles_to_show
 
         # Calculate language toggle button parameters
         can_toggle_language = (
@@ -504,14 +498,6 @@ def anilist_anime_flow(
             alternative_language_available=can_toggle_language,
             alternative_language_label=alt_label,
         )
-
-        # Handle "Show all" button
-        if selected_anime_with_source == SHOW_MORE_BUTTON:
-            # Show all results in next menu
-            titles_with_button = normalized_titles_all.copy()
-            selected_anime_with_source = menu_navigate(
-                titles_with_button, msg=menu_title, search_state=search_state
-            )
 
         if not selected_anime_with_source:
             return  # User cancelled
@@ -878,71 +864,106 @@ def anilist_anime_flow(
     current_episode_idx: int = episode_idx
     num_episodes = len(episode_list)
 
-    # Ask what user wants to do with the first episode
-    initial_episode = current_episode_idx + 1
-    action_options = ["▶️ Assistir agora", "📥 Baixar para assistir depois", "🔙 Voltar"]
-    initial_action = menu_navigate(
-        action_options, msg=f"O que deseja fazer com o episódio {initial_episode}?"
-    )
+    # Loop to allow going back to episode selection
+    while True:
+        # Ask what user wants to do with the episode
+        episode_number = current_episode_idx + 1
+        action_options = ["▶️ Assistir agora", "📥 Baixar para assistir depois", "🔙 Voltar"]
+        action = menu_navigate(
+            action_options, msg=f"O que deseja fazer com o episódio {episode_number}?"
+        )
 
-    if initial_action == "📥 Baixar para assistir depois":
-        # Download episodes starting from current
-        from services.anime.download_service import AnimeDownloadService
-        from utils.episode_range_parser import parse_episode_range, RangeParseError
+        if action == "🔙 Voltar":
+            # Go back to episode selection menu
+            # Fetch skip times for ALL episodes if not already fetched
+            if aniskip_service and mal_id and scraper_episode_count and len(episode_list) > 0:
+                try:
+                    with loading(f"Carregando skip times para {len(episode_list)} episódios..."):
+                        full_skip_available = aniskip_service.get_skip_available_batch(
+                            mal_id, len(episode_list)
+                        )
+                    episode_skip_available = full_skip_available
+                except Exception as e:
+                    import logging
 
-        print(f"\n📥 Baixar episódios: {selected_anime}")
-        print(f"   Total de episódios: {num_episodes}")
+                    logging.debug(f"Failed to fetch full skip times: {e}")
+                    # Continue without updated skip times - show menu anyway
 
-        # Calculate default range (from current episode to end)
-        default_range = f"{initial_episode}-"
-        print(f"   Padrão: {default_range} (do episódio {initial_episode} até o fim)\n")
+            # Format episode list with skip indicators
+            from commands.anime import format_episode_list_with_skip
 
-        # Prompt for range
-        try:
-            range_input = input("Qual intervalo? (pressione Enter para padrão): ").strip()
+            formatted_episode_list = format_episode_list_with_skip(
+                tuple(episode_list), episode_skip_available
+            )
 
-            if not range_input:
-                range_input = default_range
-                print(f"   Usando: {range_input}")
+            # Let user choose from full episode list
+            selected_episode = menu_navigate(formatted_episode_list, msg="Escolha o episódio.")
+            if not selected_episode:
+                return  # User cancelled, exit completely
+            current_episode_idx = formatted_episode_list.index(selected_episode)
+            continue  # Loop back to action menu with new episode
 
-            # Parse range
-            episodes = parse_episode_range(range_input, num_episodes)
-        except RangeParseError as e:
-            print(f"❌ {e}")
+        if action == "📥 Baixar para assistir depois":
+            # Download episodes starting from current
+            from services.anime.download_service import AnimeDownloadService
+            from utils.episode_range_parser import parse_episode_range, RangeParseError
+
+            print(f"\n📥 Baixar episódios: {selected_anime}")
+            print(f"   Total de episódios: {num_episodes}")
+
+            # Calculate default range (from current episode to end)
+            default_range = f"{episode_number}-"
+            print(f"   Padrão: {default_range} (do episódio {episode_number} até o fim)\n")
+
+            # Prompt for range
+            try:
+                range_input = input("Qual intervalo? (pressione Enter para padrão): ").strip()
+
+                if not range_input:
+                    range_input = default_range
+                    print(f"   Usando: {range_input}")
+
+                # Parse range
+                episodes = parse_episode_range(range_input, num_episodes)
+            except RangeParseError as e:
+                print(f"❌ {e}")
+                return
+
+            # Download episodes
+            service = AnimeDownloadService()
+
+            def get_episode_url_for_download(episode_num: int):
+                """Get episode URL for download."""
+                player_url = rep.search_player(selected_anime, episode_num)
+                if player_url:
+                    return (player_url, source or "unknown")
+                return None
+
+            print(f"\n⏳ Baixando {len(episodes)} episódio(s)...")
+            try:
+                with loading(f"Baixando {len(episodes)} episódio(s)..."):
+                    result = service.download_episodes(
+                        anime_title=selected_anime,
+                        range_input=range_input,
+                        total_episodes=num_episodes,
+                        get_episode_url=get_episode_url_for_download,
+                    )
+
+                # Show result
+                print(f"\n{result.summary}")
+
+                if result.successful > 0:
+                    print(f"✅ {result.successful} episódio(s) baixado(s) com sucesso!")
+                    print(f"   Localização: {service.download_dir / selected_anime}")
+            except Exception as e:
+                print(f"❌ Erro ao baixar: {e}")
             return
-
-        # Download episodes
-        service = AnimeDownloadService()
-
-        def get_episode_url_for_download(episode_num: int):
-            """Get episode URL for download."""
-            player_url = rep.search_player(selected_anime, episode_num)
-            if player_url:
-                return (player_url, source or "unknown")
-            return None
-
-        print(f"\n⏳ Baixando {len(episodes)} episódio(s)...")
-        try:
-            with loading(f"Baixando {len(episodes)} episódio(s)..."):
-                result = service.download_episodes(
-                    anime_title=selected_anime,
-                    range_input=range_input,
-                    total_episodes=num_episodes,
-                    get_episode_url=get_episode_url_for_download,
-                )
-
-            # Show result
-            print(f"\n{result.summary}")
-
-            if result.successful > 0:
-                print(f"✅ {result.successful} episódio(s) baixado(s) com sucesso!")
-                print(f"   Localização: {service.download_dir / selected_anime}")
-        except Exception as e:
-            print(f"❌ Erro ao baixar: {e}")
-        return
-    elif initial_action != "▶️ Assistir agora":
-        # User cancelled
-        return
+        elif action == "▶️ Assistir agora":
+            # Break out of loop and proceed to playback
+            break
+        else:
+            # User cancelled
+            return
 
     # Initialize video player for this session
     player = VideoPlayer()

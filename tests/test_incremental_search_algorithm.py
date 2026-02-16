@@ -64,6 +64,10 @@ def test_incremental_search_stops_at_5_results(patch_repository, no_anilist):
 
     With the new filtering approach, we search once with 1 word to get base results,
     then filter for subsequent iterations instead of re-searching.
+
+    However, if filtering returns ≤ 3 results AND they contain fast scrapers
+    (API-based like animesdigital, animefire), we re-search with the full query
+    to get better results (APIs may return different results for different queries).
     """
     mock_rep = patch_repository
 
@@ -83,16 +87,28 @@ def test_incremental_search_stops_at_5_results(patch_repository, no_anilist):
         ],
     )
 
+    # Setup: 2 words returns the filtered results (3 items)
+    # When filtering "boku" -> "boku no" returns 3 results with fast scrapers,
+    # we re-search with "boku no" to get better API results
+    mock_rep.setup_search_result(
+        "boku no",
+        [
+            "Boku no Hero [animefire]",
+            "Boku no Hero Season 2 [animefire]",
+            "Boku no Hero Season 3 [animefire]",
+        ],
+    )
+
     state, results = incremental_search_anime("boku no hero academia")
 
-    # Should only search once (the base 1-word search)
-    # The 2,3,4-word iterations use filtering, not re-searching
-    assert len(mock_rep.search_calls) == 1
+    # Should search twice:
+    # 1. Initial search with "boku" (1 word)
+    # 2. Re-search with "boku no" (2 words) because filtered had ≤ 3 results with fast scrapers
+    assert len(mock_rep.search_calls) == 2
     assert "boku" in mock_rep.search_calls
+    assert "boku no" in mock_rep.search_calls
 
-    # Filtering by "boku no hero academia" against base results
-    # should match some titles (e.g., "Boku no Hero" contains all key words)
-    # So we should get results from filtering
+    # Should get results from the re-search
     assert state.get_current() is not None
 
 
@@ -457,7 +473,11 @@ def test_incremental_search_filters_not_searches(patch_repository, no_anilist):
 
 
 def test_incremental_search_fallback_on_zero_filter(patch_repository, no_anilist):
-    """Test that zero filter results fall back to previous without re-searching."""
+    """Test that zero filter results fall back to previous without re-searching.
+
+    With the new re-search logic: if filtering returns ≤ 3 results with fast scrapers,
+    we re-search with the full query. This test checks that behavior.
+    """
     mock_rep = patch_repository
 
     # Setup: 1-word search returns 6 results (>5, so continue filtering)
@@ -472,18 +492,27 @@ def test_incremental_search_fallback_on_zero_filter(patch_repository, no_anilist
             "A6",
         ],
     )
-    # 2-word search (if it were called) would return 0
-    # But with filtering, we filter base_results by "test anime"
-    # This should find some results
-    mock_rep.setup_search_result("test anime", [])
+    # When filtering "test" -> "test anime" returns 3 results with fast scrapers,
+    # we re-search with "test anime" to get better API results
+    mock_rep.setup_search_result(
+        "test anime",
+        [
+            "Test Anime [animefire]",
+            "Test Anime Season 2 [animefire]",
+            "Test Anime Season 3 [animefire]",
+        ],
+    )
 
     state, results = incremental_search_anime("test anime ultra rare edition")
 
-    # Should only search once (the initial search)
-    # No re-search for "test anime"
-    assert len(mock_rep.search_calls) == 1
+    # Should search twice:
+    # 1. Initial search with "test" (1 word)
+    # 2. Re-search with "test anime" (2 words) because filtered had ≤ 3 results with fast scrapers
+    assert len(mock_rep.search_calls) == 2
+    assert "test" in mock_rep.search_calls
+    assert "test anime" in mock_rep.search_calls
 
-    # Results should be from first iteration (at least some found)
+    # Results should be from the re-search
     assert len(results) > 0
 
 
@@ -561,6 +590,9 @@ def test_incremental_search_season_2_query_real_world(patch_repository, no_anili
     This addresses the original issue where numbered queries would fail.
     When the number "2" is added, filtering should find Season 2 results
     because those titles contain all words in the expanded query.
+
+    With the new re-search logic: if filtering returns ≤ 3 results with fast scrapers,
+    we re-search with the full query to get better API results.
     """
     mock_rep = patch_repository
 
@@ -578,16 +610,29 @@ def test_incremental_search_season_2_query_real_world(patch_repository, no_anili
         ],
     )
 
+    # Setup: re-search with full query returns Season 2 results
+    # When filtering "tate" -> full query returns 2 results with fast scrapers,
+    # we re-search with the full query
+    mock_rep.setup_search_result(
+        "tate no yuusha no nariagari 2",
+        [
+            "Tate no Yuusha no Nariagari 2 [animesdigital]",
+            "Tate no Yuusha no Nariagari Season 2 [animefire, animesonlinecc]",
+        ],
+    )
+
     # Perform the search with the full normalized query
     # "tate no yuusha no nariagari season 2" normalizes to "tate no yuusha no nariagari 2"
     state, results = incremental_search_anime("tate no yuusha no nariagari season 2")
 
-    # Should search only once (base search)
-    assert len(mock_rep.search_calls) == 1
+    # Should search twice:
+    # 1. Initial search with "tate" (1 word)
+    # 2. Re-search with full query because filtered had ≤ 3 results with fast scrapers
+    assert len(mock_rep.search_calls) == 2
     assert "tate" in mock_rep.search_calls
+    assert "tate no yuusha no nariagari 2" in mock_rep.search_calls
 
-    # Results should include Season 2 variants when filtered
-    # because they contain all the words in the full query
+    # Results should include Season 2 variants
     assert len(results) > 0
 
     # Check that the state tracks iterations

@@ -56,7 +56,7 @@ class AnimesDigital:
     name = "animesdigital"
 
     def _search_api(
-        self, query: str, page: int = 1, limit: int = 90, audio_type: str = "legendado"
+        self, query: str, page: int = 1, limit: int = 200, audio_type: str = "legendado"
     ) -> tuple[list[AnimeResult], dict]:
         """Search anime using the JSON API.
 
@@ -202,7 +202,7 @@ class AnimesDigital:
             "search": search_query,
             "type": "lista",
             "filter_audio": audio_type,
-            "limit": "90",  # Fetch up to 90 episodes in one request (default API returns only 10)
+            "limit": "200",  # Fetch up to 200 episodes in one request (default API returns only 10)
         }
 
         try:

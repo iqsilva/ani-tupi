@@ -49,11 +49,11 @@ class TestAnimesDigitalAPILimit:
         payload = call_args[1]["data"]  # Get the data kwargs
 
         assert "limit" in payload, "API request missing 'limit' parameter"
-        assert payload["limit"] == "90", f"Expected limit=90, got {payload['limit']}"
+        assert payload["limit"] == "200", f"Expected limit=200, got {payload['limit']}"
 
     @patch("scrapers.plugins.animesdigital.requests.post")
     def test_api_returns_all_episodes_up_to_limit(self, mock_post):
-        """Test that API with limit=90 returns all episodes up to 90."""
+        """Test that API with limit=200 returns all episodes up to 200."""
         # Simulate API response with 22 episodes (both series and part 2)
         html_fragments = [self._create_episode_html(i) for i in range(1, 23)]
         mock_response = MagicMock()

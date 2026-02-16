@@ -172,17 +172,26 @@ def menu_navigate(
         if not enable_search:
             opts_copy.append("─" * 30)
 
+        # Only show "◀ Resultados Anteriores" if previous iteration has DIFFERENT result count
+        # This avoids confusion when filtering doesn't change the result set
         if search_state.has_previous():
+            current_result = search_state.get_current()
             prev_result = search_state.search_history[search_state.current_index - 1]
-            opts_copy.append(
-                f"◀ Resultados Anteriores ({prev_result.word_count} palavras: {len(prev_result.results)} resultados)"
-            )
+            # Show button only if result count differs
+            if current_result and len(current_result.results) != len(prev_result.results):
+                opts_copy.append(
+                    f"◀ Resultados Anteriores ({prev_result.word_count} palavras: {len(prev_result.results)} resultados)"
+                )
 
+        # Only show "▶ Próximos Resultados" if next iteration has DIFFERENT result count
         if search_state.has_next():
+            current_result = search_state.get_current()
             next_result = search_state.search_history[search_state.current_index + 1]
-            opts_copy.append(
-                f"▶ Próximos Resultados ({next_result.word_count} palavras: {len(next_result.results)} resultados)"
-            )
+            # Show button only if result count differs
+            if current_result and len(current_result.results) != len(next_result.results):
+                opts_copy.append(
+                    f"▶ Próximos Resultados ({next_result.word_count} palavras: {len(next_result.results)} resultados)"
+                )
 
     # Add language toggle button if available
     if alternative_language_available and alternative_language_label:

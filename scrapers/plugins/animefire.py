@@ -15,7 +15,9 @@ class AnimeFire:
         target_class = "col-6 col-sm-4 col-md-3 col-lg-2 mb-1 minWDanime divCardUltimosEps"
         titles_urls = []
         for div in tree.css(f"div.{target_class.replace(' ', '.')}"):
-            article = div.css_first("article a")
+            # Use css()[0] instead of css_first() for scrapling compatibility
+            article_results = div.css("article a")
+            article = article_results[0] if article_results else None
             if article is not None:
                 href = article.attrib.get("href")
                 if href:
@@ -41,7 +43,9 @@ class AnimeFire:
 
             # AnimeFire uses Video.js player with data-video-src attribute
             # The attribute contains an API endpoint that returns JSON with video URLs
-            video = page.css_first("video")
+            # Use css()[0] instead of css_first() for scrapling compatibility
+            video_results = page.css("video")
+            video = video_results[0] if video_results else None
             if video:
                 api_url = video.attrib.get("data-video-src")
                 if api_url:
@@ -91,7 +95,9 @@ class AnimeFire:
                     return
 
             # Try to find source tag inside video
-            source = page.css_first("video source")
+            # Use css()[0] instead of css_first() for scrapling compatibility
+            source_results = page.css("video source")
+            source = source_results[0] if source_results else None
             if source:
                 src = source.attrib.get("src")
                 if src:
@@ -101,7 +107,9 @@ class AnimeFire:
                     return
 
             # Try to find iframe
-            iframe = page.css_first("iframe")
+            # Use css()[0] instead of css_first() for scrapling compatibility
+            iframe_results = page.css("iframe")
+            iframe = iframe_results[0] if iframe_results else None
             if iframe:
                 src = iframe.attrib.get("src")
                 if src:
