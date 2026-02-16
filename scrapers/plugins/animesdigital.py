@@ -429,13 +429,15 @@ class AnimesDigital:
 
         for ep_div in episode_divs:
             # Find the link inside the episode div for the URL
-            link = ep_div.css_first("a")
-            if not link:
+            link_results = ep_div.css("a")
+            if not link_results:
                 continue
+            link = link_results[0]
             href = link.attrib.get("href")
 
             # Get episode title from .title_anime class (avoids metadata like "9 meses atrás")
-            title_elem = ep_div.css_first(".title_anime")
+            title_results = ep_div.css(".title_anime")
+            title_elem = title_results[0] if title_results else None
             if title_elem and href:
                 title = str(title_elem.text).strip()
                 # Clean up extra whitespace
