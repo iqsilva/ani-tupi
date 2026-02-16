@@ -86,12 +86,17 @@ class TestAnimesDigitalAudioFilter:
         assert "Dublado" not in result[0]["anime_title"]
 
     @patch("scrapers.plugins.animesdigital.requests.get")
-    def test_accepts_unmarked_episodes_as_fallback(self, mock_get):
-        """When no explicit audio markers found, accept unmarked episodes."""
+    def test_accepts_unmarked_episodes_as_legendado(self, mock_get):
+        """Unmarked episodes are treated as Legendado (default).
+
+        In practice:
+        - Dublado episodes ALWAYS have "Dublado" in title
+        - Legendado episodes usually DON'T have "Legendado" in title (it's the default)
+        """
         html = (
             "<html><body>"
             + self._create_html_for_episode(
-                "Jujutsu Kaisen Season 2 Episódio 25",
+                "Jujutsu Kaisen Season 2 Episódio 25",  # No audio marker
                 "https://animesdigital.org/video/a/123456/",
             )
             + "</body></html>"
@@ -102,16 +107,18 @@ class TestAnimesDigitalAudioFilter:
         mock_response.text = html
         mock_get.return_value = mock_response
 
-        # Should accept unmarked episode when searching for either audio type
-        result_dublado = self.scraper.search_homepage_incremental(
-            "Jujutsu Kaisen", audio_type="dublado"
-        )
+        # Unmarked episodes are treated as Legendado (default)
         result_legendado = self.scraper.search_homepage_incremental(
             "Jujutsu Kaisen", audio_type="legendado"
         )
+        result_dublado = self.scraper.search_homepage_incremental(
+            "Jujutsu Kaisen", audio_type="dublado"
+        )
 
-        assert len(result_dublado) == 1
+        # Legendado accepts unmarked episodes (default behavior)
         assert len(result_legendado) == 1
+        # Dublado requires explicit "Dublado" marker (rejects unmarked)
+        assert len(result_dublado) == 0
 
     @patch("scrapers.plugins.animesdigital.requests.get")
     def test_prefers_explicit_marker_over_unmarked(self, mock_get):

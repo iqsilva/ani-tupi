@@ -185,14 +185,14 @@ class Goyabu:
             pass
 
     async def _fetch_video_url_async(self, url: str) -> str | None:
-        """Async function to fetch video URL using Playwright with mouse automation"""
+        """Async function to fetch video URL by extracting from Blogger iframe"""
         async with async_playwright() as p:
             browser = await p.firefox.launch(headless=True)
 
             context = await browser.new_context(
                 user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:123.0) Gecko/20100101 Firefox/123.0",
-                locale="en-US",
-                timezone_id="America/New_York",
+                locale="pt-BR",
+                timezone_id="America/Sao_Paulo",
                 viewport={"width": 1920, "height": 1080},
             )
 
@@ -209,50 +209,75 @@ class Goyabu:
             )
 
             page = await context.new_page()
+            blogger_url = None
             captured_url = None
 
-            # Capture video URL from navigation events
-            def on_framenavigated(frame):
-                nonlocal captured_url
-                if "blogger.com/video.g" in frame.url:
-                    # Clean URL: remove ALL whitespace using str.split() and join
-                    # This removes newlines, tabs, spaces everywhere
-                    cleaned = "".join(frame.url.split())
-                    captured_url = cleaned
-                    # Debug: print length to verify it's one line
-                    print(f"[Goyabu] Captured video URL (length={len(cleaned)}): {cleaned[:80]}...")
-
-            page.on("framenavigated", on_framenavigated)
-
             try:
-                # Navigate to episode page
+                # Step 1: Navigate to episode page and get Blogger iframe URL
                 await page.goto(
                     url,
                     wait_until="domcontentloaded",
-                    timeout=10000,
+                    timeout=15000,
                     referer="https://www.google.com/",
                 )
-                await page.wait_for_timeout(1000)
+                await page.wait_for_timeout(3000)
 
-                # Move mouse over video area to trigger player
-                viewport_size = await page.evaluate(
-                    "() => ({ width: window.innerWidth, height: window.innerHeight })"
-                )
-                center_x = viewport_size["width"] // 2
-                center_y = viewport_size["height"] // 2
+                # Click "Player FHD" button
+                try:
+                    fhd_button = await page.wait_for_selector(
+                        "button:has-text('Player FHD')", timeout=5000
+                    )
+                    if fhd_button:
+                        await fhd_button.evaluate("element => element.click()")
+                        await page.wait_for_timeout(3000)
+                except Exception:
+                    pass
 
-                await page.mouse.move(center_x, center_y)
-                await page.wait_for_timeout(300)
+                # Extract Blogger iframe URL
+                iframes = await page.query_selector_all("iframe")
+                for iframe in iframes:
+                    src = await iframe.get_attribute("src")
+                    if src and "blogger.com/video.g" in src:
+                        blogger_url = "".join(src.split())
+                        break
 
-                # Wave mouse inside video to keep controls visible
-                for _ in range(2):
-                    await page.mouse.move(center_x - 20, center_y - 10)
-                    await page.wait_for_timeout(100)
-                    await page.mouse.move(center_x + 20, center_y + 10)
-                    await page.wait_for_timeout(100)
+                # Step 2: Navigate to Blogger URL and intercept video request
+                if blogger_url:
+                    # Setup network interception
+                    def on_request(request):
+                        nonlocal captured_url
+                        req_url = request.url
+                        if "googlevideo.com/videoplayback" in req_url:
+                            captured_url = req_url
 
-                # Wait for video URL to be captured
-                await page.wait_for_timeout(2000)
+                    page.on("request", on_request)
+
+                    # Navigate to Blogger URL
+                    await page.goto(blogger_url, wait_until="domcontentloaded", timeout=15000)
+                    await page.wait_for_timeout(3000)
+
+                    # Click to trigger video loading
+                    try:
+                        await page.mouse.click(960, 540)
+                        await page.wait_for_timeout(5000)
+                    except Exception:
+                        pass
+
+                    # If still no URL, try clicking play button
+                    if not captured_url:
+                        try:
+                            play_btn = await page.wait_for_selector(
+                                "button[aria-label*='Play'], .jw-icon-playback", timeout=3000
+                            )
+                            if play_btn:
+                                await play_btn.click()
+                                await page.wait_for_timeout(5000)
+                        except Exception:
+                            pass
+
+                # Fallback: return Blogger URL if Google Video not found
+                if not captured_url and blogger_url:
+                    captured_url = blogger_url
 
             except Exception:
                 pass

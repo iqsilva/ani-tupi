@@ -274,9 +274,11 @@ class TestAnimesDigitalIncrementalSearch:
         mock_get.return_value = mock_response
 
         # Search for the dubbed version
-        result = self.scraper.search_homepage_incremental("Seihantai na Kimi to Boku Dublado")
+        result = self.scraper.search_homepage_incremental(
+            "Seihantai na Kimi to Boku Dublado", audio_type="dublado"
+        )
 
-        # Should return only 1 episode (the dubbed version with higher similarity score)
+        # Should return only 1 episode (the dubbed version, filtered by audio_type)
         assert len(result) == 1
         assert "Dublado" in result[0]["anime_title"]
         assert result[0]["episode_number"] == 6
