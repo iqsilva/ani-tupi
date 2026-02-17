@@ -947,7 +947,7 @@ class Repository:
                 sources_urls.keys(), key=lambda s: priority_map.get(s, len(priority_order))
             )
 
-            with ThreadPoolExecutor(max_workers=cpu_count()) as executor:
+            with ThreadPoolExecutor(max_workers=1) as executor:
                 # Try sources in configured priority order (SEQUENTIALLY to respect priority)
                 for source_name in sorted_sources:
                     if container:

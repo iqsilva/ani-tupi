@@ -178,8 +178,8 @@ class PluginSettings(BaseModel):
     dubbed_priority_order: list[str] | None = Field(
         default_factory=lambda: [
             "animesdigital",
-            "animefire",
             "goyabu",
+            "animefire",
             "animesonlinecc",
         ],
         description=(

@@ -12,6 +12,11 @@
 @continue:
     uv run ani-tupi --continue-watching
 
+# Clear anime search cache (query cache only)
+@clear-search-cache:
+    rm -rf ~/.local/state/ani-tupi/cache
+    echo "✅ Search cache cleared!"
+
 # Clear anime search cache (query cache and episode cache)
 @clear-cache:
     uv run ani-tupi --clear-cache
