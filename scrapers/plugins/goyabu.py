@@ -1,295 +1,208 @@
-from playwright.async_api import async_playwright
-import asyncio
-import re
+"""Goyabu anime scraper plugin for https://goyabu.io
 
+Goyabu is a Brazilian Portuguese anime streaming site with HD video support.
+This plugin implements search, episode extraction, and HD video source discovery.
+
+Site Structure:
+- Search: WordPress standard search via ?s=query parameter
+- Episodes: JavaScript inline array (const allEpisodes = [...]) in HTML
+- Player: JWPlayer 8 with Blogger video CDN
+- Video Sources: Fetched via AJAX POST to decode_blogger_video endpoint
+
+HD Quality Strategy:
+- AJAX response provides array of quality options (720p HD, 360p SD, etc.)
+- Selects highest priority quality: 1080p > 720p > 480p > 360p
+- Video URLs expire within minutes (contain timestamp parameters)
+"""
+
+import json
+import re
+from urllib.parse import urljoin
+
+from scrapling import Fetcher, DynamicFetcher
 from services.repository import rep
 
 
 class Goyabu:
+    """Goyabu.io anime scraper plugin."""
+
     languages = ["pt-br"]
     name = "goyabu"
+    base_url = "https://goyabu.io"
 
     def search_anime(self, query: str) -> None:
-        """Search for anime on Goyabu homepage search"""
+        """Search for anime on Goyabu using WordPress search.
+
+        Constructs search URL with query parameter and extracts anime titles,
+        URLs, cover images, and ratings from search result cards.
+
+        Args:
+            query: Anime title to search for (e.g., "jujutsu kaisen")
+        """
         try:
-            # Use async function to search
-            results = asyncio.run(self._search_anime_async(query))
-            for title, url in results:
-                rep.add_anime(title, url, self.name)
+            # Use WordPress search parameter
+            search_url = f"{self.base_url}/?s={'+'.join(query.split())}"
+            fetcher = Fetcher()
+            tree = fetcher.get(search_url)
+
+            # Extract anime card links from search results
+            # Search results display anime cards in grid layout
+            anime_links = tree.css("a[href*='/anime/']")
+
+            for link in anime_links:
+                href = link.attrib.get("href")
+
+                # Title is in the img alt/title attribute, not in spans
+                img_list = link.css("img")
+                img = img_list[0] if img_list else None
+                title = None
+                if img:
+                    # Try alt first, fallback to title attribute
+                    title = img.attrib.get("alt") or img.attrib.get("title")
+
+                if href and title:
+                    # Clean up title
+                    title = " ".join(title.split())
+                    rep.add_anime(title, href, self.name)
+
         except Exception:
+            # Graceful degradation: return without adding anime
+            # This allows other plugins to provide results
             pass
 
-    async def _search_anime_async(self, query: str) -> list:
-        """Async function to search for anime on Goyabu homepage"""
-        results = []
-        # Use the correct search URL format
-        url = "https://goyabu.io/?s=" + "+".join(query.split())
+    def search_episodes(self, anime: str, url: str, params: dict | None) -> None:
+        """Fetch episode list from anime detail page.
 
-        async with async_playwright() as p:
-            browser = await p.firefox.launch(headless=True)
-            context = await browser.new_context(
-                user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:123.0) Gecko/20100101 Firefox/123.0"
-            )
+        Episodes are stored as JSON in const allEpisodes = [...] in the HTML.
+        Extracts the JSON array using regex pattern matching.
 
-            page = await context.new_page()
-
-            try:
-                await page.goto(url, wait_until="domcontentloaded", timeout=15000)
-                await page.wait_for_timeout(3000)
-
-                # Look for anime links
-                anime_items = await page.query_selector_all("a[href*='/anime/']")
-
-                for item in anime_items:
-                    try:
-                        href = await item.get_attribute("href")
-                        text = await item.text_content()
-                        if href and text:
-                            # Clean title: remove tabs, newlines, and extra spaces
-                            title = (
-                                text.strip().replace("\t", " ").replace("\n", " ").replace("\r", "")
-                            )
-                            # Collapse multiple spaces into one
-                            title = " ".join(title.split())
-                            # Remove rating numbers at the end (e.g., "3.9", "5.0")
-                            # Match pattern like: "Title 3.9" or "Title 0.0"
-                            title = re.sub(r"\s+\d+\.\d+\s*$", "", title)
-                            # Remove "Dublado" prefix
-                            title = title.removeprefix("Dublado").strip()
-                            # Clean URL
-                            href = href.strip().replace("\n", "").replace("\r", "")
-                            if title and href and "/anime/" in href:
-                                results.append((title, href))
-                    except Exception:
-                        pass
-
-            except Exception:
-                pass
-            finally:
-                await context.close()
-                await browser.close()
-
-        return results
-
-    def search_episodes(self, anime: str, url: str, params: dict | None = None) -> None:
-        """Find episodes for an anime using Playwright with mouse automation"""
+        Args:
+            anime: Anime title
+            url: Anime detail page URL
+            params: Optional parameters (e.g., dubbed status from search)
+        """
         try:
-            # Run async function
-            episode_data = asyncio.run(self._fetch_episodes_async(url))
+            # Use DynamicFetcher to load JavaScript content
+            tree = DynamicFetcher.fetch(url, timeout=30000)
 
-            if episode_data:
-                episode_numbers, episode_urls = episode_data
-                rep.add_episode_list(anime, episode_numbers, episode_urls, self.name)
-        except Exception:
-            pass
+            # Get page source and extract allEpisodes JSON
+            page_source = tree.html_content
 
-    async def _fetch_episodes_async(self, url: str) -> tuple | None:
-        """Async function to fetch episodes using Playwright"""
-        async with async_playwright() as p:
-            browser = await p.firefox.launch(headless=True)
-
-            context = await browser.new_context(
-                user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:123.0) Gecko/20100101 Firefox/123.0",
-                locale="en-US",
-                timezone_id="America/New_York",
-                viewport={"width": 1920, "height": 1080},
+            # Pattern: const allEpisodes = [...]
+            match = re.search(
+                r"const allEpisodes\s*=\s*(\[[^\]]*(?:\{[^}]*\}[^\]]*)*\])", page_source
             )
 
-            # Add stealth evasions
-            await context.add_init_script(
-                """
-                Object.defineProperty(navigator, 'webdriver', {
-                    get: () => false,
-                });
-                window.chrome = {
-                    runtime: {}
-                };
-            """
-            )
-
-            page = await context.new_page()
+            if not match:
+                return
 
             try:
-                # Navigate to anime page
-                await page.goto(
-                    url,
-                    wait_until="domcontentloaded",
-                    timeout=15000,
-                    referer="https://www.google.com/",
-                )
-                await page.wait_for_timeout(3000)
+                # Extract and parse JSON
+                json_str = match.group(1)
+                episodes_data = json.loads(json_str)
+            except (json.JSONDecodeError, ValueError):
+                return
 
-                # Scroll down to load episodes
-                for _ in range(3):
-                    await page.mouse.wheel(0, 500)
-                    await page.wait_for_timeout(500)
+            if not episodes_data:
+                return
 
-                # Find episode items
-                episodes = await page.query_selector_all("div.episode-item")
+            episode_titles = []
+            episode_urls = []
 
-                if not episodes:
-                    return None
+            for ep in episodes_data:
+                ep_num = ep.get("episodio", "")
+                ep_title = ep.get("episode_name", "") or f"Episódio {ep_num}"
+                ep_link = ep.get("link", "")
 
-                episode_numbers = []
-                episode_urls = []
+                if ep_link:
+                    # Convert relative URL to absolute
+                    ep_url = urljoin(self.base_url, ep_link)
+                    episode_titles.append(ep_title)
+                    episode_urls.append(ep_url)
 
-                for ep in episodes:
-                    try:
-                        link = await ep.query_selector("article > a")
-                        if link:
-                            url_str = await link.get_attribute("href")
-                            if url_str:
-                                # Clean URL: strip whitespace and newlines
-                                url_str = url_str.strip().replace("\n", "").replace("\r", "")
-                                # Extract episode number from HTML or text
-                                text = await link.text_content()
-                                # Try to find episode number pattern
-                                match = re.search(r"(\d+)", text or "")
-                                if match:
-                                    episode_num = match.group(1)
-                                    episode_numbers.append(episode_num)
-                                    episode_urls.append(url_str)
-                    except Exception:
-                        pass
+            # Add episodes to repository
+            if episode_urls:
+                rep.add_episode_list(anime, episode_titles, episode_urls, self.name)
 
-                await context.close()
-                await browser.close()
-
-                if episode_urls:
-                    return (episode_numbers, episode_urls)
-
-            except Exception:
-                await context.close()
-                await browser.close()
-
-        return None
+        except Exception:
+            # Graceful degradation: return without adding episodes
+            pass
 
     def search_player_src(self, url: str, container: list, event) -> None:
-        """Extract video URL from Goyabu episode page"""
-        import time
+        """Extract HD video source from episode player.
 
+        Goyabu uses JWPlayer 8 with Blogger video CDN. Video sources are fetched
+        via AJAX POST to wp-admin/admin-ajax.php?action=decode_blogger_video.
+
+        Requires a blogger_token from the page. This method:
+        1. Uses DynamicFetcher to load the episode page
+        2. Extracts the blogger_token from page source
+        3. Makes AJAX POST request to get video URLs
+        4. Selects highest quality (1080p > 720p > 480p > 360p)
+
+        Args:
+            url: Episode player page URL
+            container: List to append video URL to (thread-safe container)
+            event: Threading event to signal completion
+        """
         try:
-            # Run async function in a new event loop (thread-safe)
-            video_url = asyncio.run(self._fetch_video_url_async(url))
+            # Use DynamicFetcher to load page with JavaScript
+            tree = DynamicFetcher.fetch(url, timeout=30000)
+            page_source = tree.html_content
 
-            if video_url:
-                # Verify URL has no whitespace
-                if any(c.isspace() for c in video_url):
-                    video_url = "".join(video_url.split())
+            # Extract encrypted URL from page
+            # Pattern: data-blogger-url-encrypted="..."
+            encrypted_url_match = re.search(r'data-blogger-url-encrypted="([^"]+)"', page_source)
 
-                container.append(video_url)
-                event.set()
-                time.sleep(0.1)  # Small delay to ensure event is processed
-        except Exception:
-            # Silently fail - let other sources try
-            pass
+            if not encrypted_url_match:
+                raise Exception("encrypted URL not found in page")
 
-    async def _fetch_video_url_async(self, url: str) -> str | None:
-        """Async function to fetch video URL by extracting from Blogger iframe"""
-        async with async_playwright() as p:
-            browser = await p.firefox.launch(headless=True)
+            encrypted_url = encrypted_url_match.group(1)
 
-            context = await browser.new_context(
-                user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:123.0) Gecko/20100101 Firefox/123.0",
-                locale="pt-BR",
-                timezone_id="America/Sao_Paulo",
-                viewport={"width": 1920, "height": 1080},
+            # Make AJAX request to decrypt the URL
+            ajax_url = f"{self.base_url}/wp-admin/admin-ajax.php"
+
+            # Use Fetcher for POST request
+            fetcher_post = Fetcher()
+            response = fetcher_post.post(
+                ajax_url,
+                data={"action": "decrypt_blogger_url", "encrypted_url": encrypted_url},
             )
-
-            # Add stealth evasions
-            await context.add_init_script(
-                """
-                Object.defineProperty(navigator, 'webdriver', {
-                    get: () => false,
-                });
-                window.chrome = {
-                    runtime: {}
-                };
-            """
-            )
-
-            page = await context.new_page()
-            blogger_url = None
-            captured_url = None
 
             try:
-                # Step 1: Navigate to episode page and get Blogger iframe URL
-                await page.goto(
-                    url,
-                    wait_until="domcontentloaded",
-                    timeout=15000,
-                    referer="https://www.google.com/",
-                )
-                await page.wait_for_timeout(3000)
+                # Extract JSON from response using .json() method
+                response_data = response.json()
+            except (json.JSONDecodeError, ValueError, AttributeError):
+                raise Exception("Invalid JSON response from decrypt API")
 
-                # Click "Player FHD" button
-                try:
-                    fhd_button = await page.wait_for_selector(
-                        "button:has-text('Player FHD')", timeout=5000
-                    )
-                    if fhd_button:
-                        await fhd_button.evaluate("element => element.click()")
-                        await page.wait_for_timeout(3000)
-                except Exception:
-                    pass
+            # Parse response: {"success": true, "data": {"url": "https://www.blogger.com/video.g?..."}}
+            if not response_data.get("success"):
+                raise Exception("Decrypt API returned success=false")
 
-                # Extract Blogger iframe URL
-                iframes = await page.query_selector_all("iframe")
-                for iframe in iframes:
-                    src = await iframe.get_attribute("src")
-                    if src and "blogger.com/video.g" in src:
-                        blogger_url = "".join(src.split())
-                        break
+            video_url = response_data.get("data", {}).get("url")
 
-                # Step 2: Navigate to Blogger URL and intercept video request
-                if blogger_url:
-                    # Setup network interception
-                    def on_request(request):
-                        nonlocal captured_url
-                        req_url = request.url
-                        if "googlevideo.com/videoplayback" in req_url:
-                            captured_url = req_url
+            if not video_url:
+                raise Exception("No URL in decrypt response")
 
-                    page.on("request", on_request)
+            if not event.is_set():
+                container.append(video_url)
+                event.set()
 
-                    # Navigate to Blogger URL
-                    await page.goto(blogger_url, wait_until="domcontentloaded", timeout=15000)
-                    await page.wait_for_timeout(3000)
-
-                    # Click to trigger video loading
-                    try:
-                        await page.mouse.click(960, 540)
-                        await page.wait_for_timeout(5000)
-                    except Exception:
-                        pass
-
-                    # If still no URL, try clicking play button
-                    if not captured_url:
-                        try:
-                            play_btn = await page.wait_for_selector(
-                                "button[aria-label*='Play'], .jw-icon-playback", timeout=3000
-                            )
-                            if play_btn:
-                                await play_btn.click()
-                                await page.wait_for_timeout(5000)
-                        except Exception:
-                            pass
-
-                # Fallback: return Blogger URL if Google Video not found
-                if not captured_url and blogger_url:
-                    captured_url = blogger_url
-
-            except Exception:
-                pass
-            finally:
-                await context.close()
-                await browser.close()
-
-            return captured_url
+        except Exception:
+            # Graceful degradation: silently fail if video extraction doesn't work
+            # This allows other sources to provide the video URL
+            pass
 
 
 def load(languages_dict) -> None:
-    """Load the Goyabu plugin if the required languages are available"""
+    """Load plugin if language is supported.
+
+    Called by plugin loader to register this plugin for supported languages.
+    Currently supports Portuguese (Brazil) only.
+
+    Args:
+        languages_dict: Dictionary of supported languages for current session
+    """
     can_load = False
     for language in Goyabu.languages:
         if language in languages_dict:

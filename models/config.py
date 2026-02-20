@@ -169,8 +169,8 @@ class PluginSettings(BaseModel):
     priority_order: list[str] = Field(
         default_factory=lambda: [
             "animesdigital",
-            "goyabu",
             "animefire",
+            "goyabu",
             "animesonlinecc",
         ],
         description="Priority order for scraper sources (first = highest priority)",
@@ -178,8 +178,8 @@ class PluginSettings(BaseModel):
     dubbed_priority_order: list[str] | None = Field(
         default_factory=lambda: [
             "animesdigital",
-            "goyabu",
             "animefire",
+            "goyabu",
             "animesonlinecc",
         ],
         description=(
