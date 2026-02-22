@@ -175,11 +175,7 @@ class PluginSettings(BaseModel):
         description="Priority order for scraper sources (first = highest priority)",
     )
     dubbed_priority_order: list[str] | None = Field(
-        default_factory=lambda: [
-            "animesdigital",
-            "animefire",
-            "animesonlinecc",
-        ],
+        default=None,
         description=(
             "Priority order specifically for dubbed (Dublado) anime. "
             "If not set, falls back to priority_order. "
