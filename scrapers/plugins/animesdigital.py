@@ -155,11 +155,48 @@ class AnimesDigital:
 
         return results
 
+    def _extract_series_url(self, episode_url: str) -> str | None:
+        """Extract the anime series URL from an episode page.
+
+        Episode pages contain a navigation link back to the series page.
+        Looks for: div.epsL a[href*='/anime/a/']
+
+        Args:
+            episode_url: URL like https://animesdigital.org/video/a/133808/
+
+        Returns:
+            Series URL like https://animesdigital.org/anime/a/ikoku-nikki, or None
+        """
+        BROWSER_HEADERS = {
+            "User-Agent": "Mozilla/5.0 (X11; Linux x86_64; rv:146.0) Gecko/20100101 Firefox/146.0",
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+            "Accept-Language": "pt-BR,pt;q=0.9,en;q=0.8",
+            "Referer": "https://animesdigital.org",
+        }
+        try:
+            resp = requests.get(episode_url, headers=BROWSER_HEADERS, timeout=REQUEST_TIMEOUT)
+            resp.raise_for_status()
+            soup = BeautifulSoup(resp.text, "html.parser")
+            # Look for back-link in div.epsL navigation
+            link = soup.select_one("div.epsL a[href*='/anime/a/']")
+            if link:
+                href = link.get("href")
+                # Ensure it's a full URL
+                if href and not href.startswith("http"):
+                    href = f"https://animesdigital.org{href}"
+                return href
+        except Exception as e:
+            logger.debug(f"Failed to extract series URL from {episode_url}: {e}")
+        return None
+
     def search_anime(self, query: str) -> None:
         """Search for anime on AnimesDigital using the JSON API.
 
         Searches both dubbed and subtitled versions using the efficient
         /func/listanime endpoint. Much faster than browser automation.
+
+        Falls back to homepage search if the API returns no results, since some
+        anime are not indexed in the API but appear in the homepage's "últimos episódios".
         """
         search_configs = [
             "legendado",
@@ -180,6 +217,30 @@ class AnimesDigital:
         except Exception as e:
             logger.error(f"❌ AnimesDigital search failed for '{query}': {e}")
             return
+
+        # Fallback: try homepage search when API returns no results
+        if not all_anime:
+            logger.debug(f"API returned 0 results for '{query}', trying homepage fallback...")
+            homepage_results = self.search_homepage_incremental(query, audio_type="legendado")
+
+            if homepage_results:
+                # Group by anime_title (one entry per anime)
+                seen_titles: set[str] = set()
+                for ep in homepage_results:
+                    title = ep.get("anime_title", "")
+                    episode_url = ep.get("episode_url", "")
+                    if not title or not episode_url or title in seen_titles:
+                        continue
+                    seen_titles.add(title)
+
+                    series_url = self._extract_series_url(episode_url)
+                    if series_url:
+                        logger.debug(f"Homepage fallback found: '{title}' -> {series_url}")
+                        all_anime.append({"title": title, "url": series_url, "image": ""})
+                    else:
+                        logger.debug(
+                            f"Could not extract series URL for '{title}' from {episode_url}"
+                        )
 
         # Add anime to repository
         for anime in all_anime:
