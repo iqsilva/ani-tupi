@@ -170,7 +170,6 @@ class PluginSettings(BaseModel):
         default_factory=lambda: [
             "animesdigital",
             "animefire",
-            "goyabu",
             "animesonlinecc",
         ],
         description="Priority order for scraper sources (first = highest priority)",
@@ -179,13 +178,12 @@ class PluginSettings(BaseModel):
         default_factory=lambda: [
             "animesdigital",
             "animefire",
-            "goyabu",
             "animesonlinecc",
         ],
         description=(
             "Priority order specifically for dubbed (Dublado) anime. "
             "If not set, falls back to priority_order. "
-            "Example: ['animesdigital', 'animefire', 'goyabu', 'animesonlinecc']"
+            "Example: ['animesdigital', 'animefire', 'animesonlinecc']"
         ),
     )
 
