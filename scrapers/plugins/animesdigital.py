@@ -9,6 +9,7 @@ The parameter enables proper episode ordering from 1 to end.
 
 import json
 import logging
+import re
 from typing import TypedDict
 
 import requests
@@ -155,6 +156,39 @@ class AnimesDigital:
 
         return results
 
+    def _normalize_title_for_slug(self, title: str) -> str:
+        """Normalize title for slug generation.
+
+        - Replace "2nd Season", "3rd Season", etc. → "2", "3"
+        - Keep only letters and numbers
+        - Replace spaces with hyphens
+        - Lowercase
+
+        Examples:
+            "Jujutsu Kaisen 2nd Season" → "jujutsu-kaisen-2"
+            "Attack on Titan Season 3" → "attack-on-titan-season-3"
+            "Spy × Family" → "spy-family"
+        """
+
+        # Replace "Xnd Season", "Xst Season", "Xth Season", "Xrd Season" → " X"
+        normalized = re.sub(
+            r"\s+(\d+)(?:nd|st|th|rd)\s+season\b", r" \1", title, flags=re.IGNORECASE
+        )
+
+        # Also handle "Season X" format → " X"
+        normalized = re.sub(r"\bseason\s+(\d+)\b", r"\1", normalized, flags=re.IGNORECASE)
+
+        # Keep only letters, numbers, and spaces
+        normalized = re.sub(r"[^a-zA-Z0-9\s]", "", normalized)
+
+        # Clean up extra spaces
+        normalized = " ".join(normalized.split())
+
+        # Replace spaces with hyphens and lowercase
+        slug = normalized.lower().replace(" ", "-")
+
+        return slug
+
     def _extract_series_url(self, episode_url: str) -> str | None:
         """Extract the anime series URL from an episode page.
 
@@ -190,61 +224,210 @@ class AnimesDigital:
         return None
 
     def search_anime(self, query: str) -> None:
-        """Search for anime on AnimesDigital using the JSON API.
+        """Search for anime on AnimesDigital using incremental search.
 
-        Searches both dubbed and subtitled versions using the efficient
-        /func/listanime endpoint. Much faster than browser automation.
+        Search order:
+        1. API incremental (1 word → 2 words → ... → all words) for both audio types
+        2. Homepage incremental (same pattern) for both audio types
+        3. Slug search (complete query) for both audio types
 
-        Falls back to homepage search if the API returns no results, since some
-        anime are not indexed in the API but appear in the homepage's "últimos episódios".
+        When multiple versions (legendado/dublado) are found, adds both to repository
+        as separate entries so user can choose which version to watch.
         """
-        search_configs = [
-            "legendado",
-            "dublado",
-        ]
+        all_anime: dict[str, dict] = {}  # Map: normalized_title -> {legendado, dublado URLs}
 
-        all_anime = []
+        # Step 1: Incremental API search
+        logger.debug(f"Starting incremental API search for '{query}'...")
+        query_words = query.lower().split()
 
-        try:
-            for audio_type in search_configs:
-                results, _ = self._search_api(query, audio_type=audio_type)
+        for word_count in range(1, len(query_words) + 1):
+            incremental_query = " ".join(query_words[:word_count])
+            logger.debug(f"API incremental search ({word_count} words): '{incremental_query}'")
 
-                if not results:
-                    continue
-
-                all_anime.extend(results)
-
-        except Exception as e:
-            logger.error(f"❌ AnimesDigital search failed for '{query}': {e}")
-            return
-
-        # Fallback: try homepage search when API returns no results
-        if not all_anime:
-            logger.debug(f"API returned 0 results for '{query}', trying homepage fallback...")
-            homepage_results = self.search_homepage_incremental(query, audio_type="legendado")
-
-            if homepage_results:
-                # Group by anime_title (one entry per anime)
-                seen_titles: set[str] = set()
-                for ep in homepage_results:
-                    title = ep.get("anime_title", "")
-                    episode_url = ep.get("episode_url", "")
-                    if not title or not episode_url or title in seen_titles:
+            try:
+                for audio_type in ["legendado", "dublado"]:
+                    results, _ = self._search_api(incremental_query, audio_type=audio_type)
+                    if not results:
                         continue
-                    seen_titles.add(title)
 
-                    series_url = self._extract_series_url(episode_url)
-                    if series_url:
-                        logger.debug(f"Homepage fallback found: '{title}' -> {series_url}")
-                        all_anime.append({"title": title, "url": series_url, "image": ""})
+                    for result in results:
+                        title = result["title"]
+                        url = result["url"]
+                        image = result.get("image", "")
+
+                        # Normalize title for grouping (remove audio markers)
+                        normalized = title.replace(" Dublado", "").replace(" dublado", "").strip()
+
+                        if normalized not in all_anime:
+                            all_anime[normalized] = {
+                                "base_title": normalized,
+                                "legendado": None,
+                                "dublado": None,
+                                "image": image,
+                            }
+
+                        if audio_type == "dublado":
+                            all_anime[normalized]["dublado"] = url
+                        else:
+                            all_anime[normalized]["legendado"] = url
+
+            except Exception as e:
+                logger.error(f"❌ AnimesDigital API search failed for '{incremental_query}': {e}")
+                continue
+
+        # Step 2: Incremental homepage search
+        logger.debug(f"Starting incremental homepage search for '{query}'...")
+
+        for word_count in range(1, len(query_words) + 1):
+            incremental_query = " ".join(query_words[:word_count])
+            logger.debug(f"Homepage incremental search ({word_count} words): '{incremental_query}'")
+
+            # Try both legendado and dublado on homepage
+            for audio_type in ["legendado", "dublado"]:
+                homepage_results = self.search_homepage_incremental(
+                    incremental_query, audio_type=audio_type
+                )
+
+                if homepage_results:
+                    # Group by anime_title (one entry per anime)
+                    seen_titles: set[str] = set()
+                    for ep in homepage_results:
+                        title = ep.get("anime_title", "")
+                        episode_url = ep.get("episode_url", "")
+                        if not title or not episode_url or title in seen_titles:
+                            continue
+                        seen_titles.add(title)
+
+                        series_url = self._extract_series_url(episode_url)
+                        if series_url:
+                            logger.debug(f"Homepage search found: '{title}' -> {series_url}")
+
+                            # Normalize title for grouping
+                            normalized = (
+                                title.replace(" Dublado", "").replace(" dublado", "").strip()
+                            )
+
+                            if normalized not in all_anime:
+                                all_anime[normalized] = {
+                                    "base_title": normalized,
+                                    "legendado": None,
+                                    "dublado": None,
+                                    "image": "",
+                                }
+
+                            if audio_type == "dublado":
+                                all_anime[normalized]["dublado"] = series_url
+                            else:
+                                all_anime[normalized]["legendado"] = series_url
+                        else:
+                            logger.debug(
+                                f"Could not extract series URL for '{title}' from {episode_url}"
+                            )
+
+        # Step 3: Complete slug search (using FULL query, not partial)
+        if not all_anime:
+            logger.debug("No results from API/homepage, trying complete slug search...")
+
+            # Normalize complete query to slug
+            complete_slug = self._normalize_title_for_slug(query)
+            logger.debug(f"Complete slug from '{query}': {complete_slug}")
+
+            for audio_type in ["legendado", "dublado"]:
+                slug = complete_slug if audio_type == "legendado" else f"{complete_slug}-dublado"
+                url = f"https://animesdigital.org/anime/a/{slug}"
+
+                try:
+                    logger.debug(f"Trying complete slug: {url}")
+                    from concurrent.futures import ThreadPoolExecutor
+                    import asyncio
+
+                    if "?" in url:
+                        if "odr=" not in url:
+                            url = url + "&odr=1"
                     else:
-                        logger.debug(
-                            f"Could not extract series URL for '{title}' from {episode_url}"
+                        url = url + "?odr=1"
+
+                    try:
+                        loop = asyncio.get_running_loop()
+                        with ThreadPoolExecutor(max_workers=1) as executor:
+                            tree = loop.run_until_complete(
+                                loop.run_in_executor(
+                                    executor,
+                                    lambda: DynamicFetcher.fetch(
+                                        url, timeout=15000, browser="firefox"
+                                    ),
+                                )
+                            )
+                    except RuntimeError:
+                        tree = DynamicFetcher.fetch(
+                            url.replace("?odr=1", "").replace("&odr=1", ""),
+                            timeout=15000,
+                            browser="firefox",
                         )
 
-        # Add anime to repository
-        for anime in all_anime:
-            rep.add_anime(anime["title"], anime["url"], AnimesDigital.name)
+                    # Check if page has episodes (if it exists)
+                    episode_divs = tree.css("div.item_ep")
+                    if episode_divs:
+                        logger.debug(f"Complete slug found episodes: {url}")
+
+                        if query not in all_anime:
+                            all_anime[query] = {
+                                "base_title": query,
+                                "legendado": None,
+                                "dublado": None,
+                                "image": "",
+                            }
+
+                        if audio_type == "dublado":
+                            all_anime[query]["dublado"] = url
+                        else:
+                            all_anime[query]["legendado"] = url
+
+                except Exception as e:
+                    logger.debug(f"Complete slug failed for '{slug}': {e}")
+                    continue
+
+        # Deduplicate by URL before adding to repository
+        # Some anime might be found from multiple sources (API + homepage) with same URL
+        seen_urls: set[str] = set()
+        deduplicated_anime: dict[str, dict] = {}
+
+        for normalized_title, data in all_anime.items():
+            legendado_url = data["legendado"]
+            dublado_url = data["dublado"]
+
+            # Only keep URLs we haven't seen before
+            should_keep_legendado = legendado_url and legendado_url not in seen_urls
+            should_keep_dublado = dublado_url and dublado_url not in seen_urls
+
+            if should_keep_legendado:
+                seen_urls.add(legendado_url)
+
+            if should_keep_dublado:
+                seen_urls.add(dublado_url)
+
+            # Only add to deduplicated if at least one version is unique
+            if should_keep_legendado or should_keep_dublado:
+                deduplicated_anime[normalized_title] = {
+                    "base_title": data["base_title"],
+                    "image": data["image"],
+                    "legendado": legendado_url if should_keep_legendado else None,
+                    "dublado": dublado_url if should_keep_dublado else None,
+                }
+
+        # Add all deduplicated anime to repository
+        for normalized_title, data in deduplicated_anime.items():
+            # Add legendado version if found
+            if data["legendado"]:
+                title = data["base_title"]
+                rep.add_anime(title, data["legendado"], AnimesDigital.name)
+                logger.debug(f"Added legendado: '{title}' -> {data['legendado']}")
+
+            # Add dublado version if found (with " Dublado" suffix)
+            if data["dublado"]:
+                title = f"{data['base_title']} Dublado"
+                rep.add_anime(title, data["dublado"], AnimesDigital.name)
+                logger.debug(f"Added dublado: '{title}' -> {data['dublado']}")
 
     def _search_episodes_with_audio(
         self, search_query: str, audio_type: str = "dublado"
@@ -284,13 +467,12 @@ class AnimesDigital:
         AnimesDigital's series page (with ?odr=1 parameter) loads all episodes
         via JavaScript rendering. This is the most reliable approach.
 
-        Then supplements with homepage search to catch newly-published episodes
-        not yet indexed on the series page.
+        Attempts to fetch episodes from the provided URL, then supplements with
+        homepage search to catch newly-published episodes.
 
         CRITICAL: ?odr=1 parameter MUST be present to display all episodes
         """
         try:
-            # Step 1: Scrape the series page directly
             logger.debug(f"Scraping AnimesDigital series page for '{anime}'...")
             self._scrape_series_page(anime, url)
 
@@ -310,7 +492,7 @@ class AnimesDigital:
             # Step 2: Supplement with homepage search for newly-published episodes
             # Homepage "Últimos Episódios" may have episodes not yet on the series page
             logger.debug(f"Searching AnimesDigital homepage for new episodes of '{anime}'...")
-            # Detect audio type from anime title (Dublado vs Legendado)
+            # Detect audio type based on anime title
             audio_type = "dublado" if "dublado" in anime.lower() else "legendado"
             homepage_episodes = self.search_homepage_incremental(anime, audio_type=audio_type)
 
@@ -403,7 +585,6 @@ class AnimesDigital:
         Returns:
             List of dicts with 'title' and 'url' keys, sorted by episode number
         """
-        import re
 
         results = []
         seen_urls = set()  # Track to avoid duplicates
@@ -456,7 +637,6 @@ class AnimesDigital:
             anime: Anime title (needed to add episodes to repository)
             url: Series URL
         """
-        import re
         from concurrent.futures import ThreadPoolExecutor
         import asyncio
 
@@ -535,7 +715,6 @@ class AnimesDigital:
         2. Decoded MP4 sources - direct playback fallback
         3. Encoded MP4 sources - obfuscated playback fallback
         """
-        import re
         import html
 
         try:
@@ -616,7 +795,6 @@ class AnimesDigital:
             container: List to append video URL to
             event: Threading event to signal completion
         """
-        import re
 
         try:
             # Look for iframe src patterns
@@ -654,7 +832,6 @@ class AnimesDigital:
             Filtered to include only episodes matching the specified audio_type
             Empty list if no matches found or on error
         """
-        import re
         from fuzzywuzzy import fuzz
 
         try:
