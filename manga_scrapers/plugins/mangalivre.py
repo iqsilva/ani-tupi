@@ -256,74 +256,97 @@ class MangaLivre:
         Returns:
             List of image URLs (absolute URLs)
         """
-        try:
-            # Use DynamicFetcher to render the page with JavaScript
-            # Use Firefox for better library compatibility
-            tree = DynamicFetcher.fetch(chapter_url, timeout=15000, browser="firefox")
+        max_retries = 3
+        retry_count = 0
 
-            page_urls = []
+        while retry_count < max_retries:
+            try:
+                # Use DynamicFetcher to render the page with JavaScript
+                # Use Firefox for better library compatibility
+                # Increase timeout significantly for MangaLivre's slow loading
+                timeout = 30000 + (retry_count * 10000)  # 30s, 40s, 50s
 
-            # Extract all images from the page
-            all_images = tree.css("img")
+                if retry_count > 0:
+                    time.sleep(2)  # Wait before retrying
 
-            for img in all_images:
-                # Try multiple attributes where image URL might be
-                # WordPress lazy-loading uses data-src or data-lazy-src
-                img_url = (
-                    img.attrib.get("data-src")
-                    or img.attrib.get("data-lazy-src")
-                    or img.attrib.get("src")
-                    or img.attrib.get("data-original")
-                )
+                tree = DynamicFetcher.fetch(chapter_url, timeout=timeout, browser="firefox")
 
-                # Skip if no URL
-                if not img_url:
-                    continue
+                page_urls = []
 
-                # Strip whitespace
-                img_url = img_url.strip()
+                # Extract all images from the page
+                all_images = tree.css("img")
 
-                # Normalize URL - handle relative URLs
-                if not img_url.startswith("http"):
-                    if img_url.startswith("//"):
-                        img_url = "https:" + img_url
-                    elif img_url.startswith("/"):
-                        img_url = self.base_url + img_url
-                    else:
+                for img in all_images:
+                    # Try multiple attributes where image URL might be
+                    # WordPress lazy-loading uses data-src or data-lazy-src
+                    img_url = (
+                        img.attrib.get("data-src")
+                        or img.attrib.get("data-lazy-src")
+                        or img.attrib.get("src")
+                        or img.attrib.get("data-original")
+                    )
+
+                    # Skip if no URL
+                    if not img_url:
                         continue
 
-                # Filter for manga page images
-                # MangaLivre stores images in /wp-content/uploads/
-                is_manga_page = "/wp-content/uploads/" in img_url.lower()
+                    # Strip whitespace
+                    img_url = img_url.strip()
 
-                # Skip logos, banners, ads, and other non-manga content
-                is_noise = any(
-                    skip in img_url.lower()
-                    for skip in [
-                        "logo",
-                        "banner",
-                        "/ad/",
-                        "/ads/",
-                        "sidebar",
-                        "amazon",
-                        "cropped-",
-                        ".gif",
-                    ]
-                )
+                    # Normalize URL - handle relative URLs
+                    if not img_url.startswith("http"):
+                        if img_url.startswith("//"):
+                            img_url = "https:" + img_url
+                        elif img_url.startswith("/"):
+                            img_url = self.base_url + img_url
+                        else:
+                            continue
 
-                # Ensure it's an actual image file
-                is_image = any(
-                    img_url.lower().endswith(ext) for ext in [".jpg", ".jpeg", ".png", ".webp"]
-                )
+                    # Filter for manga page images
+                    # MangaLivre stores images in /wp-content/uploads/
+                    is_manga_page = "/wp-content/uploads/" in img_url.lower()
 
-                if is_manga_page and not is_noise and is_image and img_url not in page_urls:
-                    page_urls.append(img_url)
+                    # Skip logos, banners, ads, and other non-manga content
+                    is_noise = any(
+                        skip in img_url.lower()
+                        for skip in [
+                            "logo",
+                            "banner",
+                            "/ad/",
+                            "/ads/",
+                            "sidebar",
+                            "amazon",
+                            "cropped-",
+                            ".gif",
+                        ]
+                    )
 
-            return page_urls
+                    # Ensure it's an actual image file
+                    is_image = any(
+                        img_url.lower().endswith(ext) for ext in [".jpg", ".jpeg", ".png", ".webp"]
+                    )
 
-        except Exception as e:
-            print(f"⚠️  Erro ao buscar páginas do capítulo: {e}")
-            return []
+                    if is_manga_page and not is_noise and is_image and img_url not in page_urls:
+                        page_urls.append(img_url)
+
+                # If no pages found and we can retry, do so
+                if not page_urls and retry_count < max_retries - 1:
+                    retry_count += 1
+                    print(f"⚠️  Nenhuma página encontrada, tentativa {retry_count + 1}...")
+                    continue
+
+                return page_urls
+
+            except Exception as e:
+                retry_count += 1
+                if retry_count >= max_retries:
+                    print(
+                        f"⚠️  Erro ao buscar páginas do capítulo (após {max_retries} tentativas): {e}"
+                    )
+                    return []
+                print(f"⚠️  Erro ao buscar páginas do capítulo (tentativa {retry_count}): {e}")
+
+        return []
 
 
 def load(languages: set[str]):
