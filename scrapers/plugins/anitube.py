@@ -26,7 +26,14 @@ class AniTube:
                     if "episódio" in lower_title and "todos" not in lower_title:
                         if " – ep" in lower_title or "episódio " in lower_title:
                             continue
-                    rep.add_anime(title, link, self.name)
+                    title = (
+                        title.replace(" – Todos os Episódios", "")
+                        .replace(" – Todos Episódios", "")
+                        .replace(" todos os episodios", "")
+                        .replace(" todos episodios", "")
+                        .replace("&#8211;", "–")
+                    )
+                    rep.add_anime(title.strip(), link, self.name)
 
         _do_search(query)
         _do_search(f"{query} todos os episodios")
