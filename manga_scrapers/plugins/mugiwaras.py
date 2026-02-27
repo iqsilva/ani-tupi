@@ -237,9 +237,6 @@ class MugiwarasOficial:
                 for selector in selectors:
                     images = tree.css(selector)
                     if images:
-                        print(
-                            f"⚠️  DEBUG: Encontradas {len(images)} imagens com seletor '{selector}'"
-                        )
                         break
                 else:
                     # Fallback to all images if no specific selector worked
