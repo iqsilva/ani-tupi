@@ -207,79 +207,121 @@ class MugiwarasOficial:
         Returns:
             List of image URLs
         """
-        try:
-            # Use DynamicFetcher to handle age verification modal and render JavaScript
-            # Use Firefox for better library compatibility
-            tree = DynamicFetcher.fetch(chapter_url, timeout=15000, browser="firefox")
+        max_retries = 3
+        retry_count = 0
 
-            page_urls = []
+        while retry_count < max_retries:
+            try:
+                # Use DynamicFetcher to handle AJAX-loaded images and JavaScript rendering
+                # Increase timeout significantly to allow JavaScript to execute fully
+                # MugiwarasOficial loads chapter images via AJAX, requiring longer wait time
+                timeout = 30000 + (retry_count * 10000)  # 30s, 40s, 50s
 
-            # If specific selectors didn't work, try all images
-            # MugiwarasOficial has manga images directly in HTML
-            all_images = tree.css("img")
+                if retry_count > 0:
+                    time.sleep(2)  # Wait before retrying
 
-            for img in all_images:
-                # Try multiple attributes where image URL might be
-                # MugiwarasOficial uses data-src for lazy loading
-                img_url = (
-                    img.attrib.get("data-src")
-                    or img.attrib.get("data-lazy-src")
-                    or img.attrib.get("src")
-                    or img.attrib.get("data-original")
-                )
+                tree = DynamicFetcher.fetch(chapter_url, timeout=timeout, browser="firefox")
 
-                # Skip if no URL
-                if not img_url:
-                    continue
+                page_urls = []
 
-                # Strip whitespace (MugiwarasOficial has leading spaces in URLs!)
-                img_url = img_url.strip()
+                # Try multiple selectors for finding images
+                # MugiwarasOficial may load images via AJAX in different containers
+                selectors = [
+                    "img[class*='manga']",  # Manga-specific images
+                    "img[src*='/manga/']",  # Images with /manga/ in URL
+                    "div.reading-content img",  # Reading content container
+                    "div.post-content img",  # Post content container
+                    "div.entry-content img",  # Entry content container
+                ]
 
-                # Normalize URL - handle relative URLs
-                if not img_url.startswith("http"):
-                    if img_url.startswith("//"):
-                        img_url = "https:" + img_url
-                    elif img_url.startswith("/"):
-                        img_url = self.base_url + img_url
-                    else:
+                for selector in selectors:
+                    images = tree.css(selector)
+                    if images:
+                        print(
+                            f"⚠️  DEBUG: Encontradas {len(images)} imagens com seletor '{selector}'"
+                        )
+                        break
+                else:
+                    # Fallback to all images if no specific selector worked
+                    images = tree.css("img")
+
+                for img in images:
+                    # Try multiple attributes where image URL might be
+                    # MugiwarasOficial uses data-src for lazy loading
+                    img_url = (
+                        img.attrib.get("data-src")
+                        or img.attrib.get("data-lazy-src")
+                        or img.attrib.get("src")
+                        or img.attrib.get("data-original")
+                    )
+
+                    # Skip if no URL
+                    if not img_url:
                         continue
 
-                # Filter for manga page images
-                # MugiwarasOficial uses /WP-manga/ path for manga pages
-                is_manga_page = "/WP-manga/" in img_url or "/wp-manga/" in img_url.lower()
+                    # Strip whitespace (MugiwarasOficial has leading spaces in URLs!)
+                    img_url = img_url.strip()
 
-                # Skip logos, banners, ads, and invalid formats
-                # Note: .webp is NOT in noise list since manga pages use webp
-                is_noise = any(
-                    skip in img_url.lower()
-                    for skip in [
-                        "logo",
-                        "banner",
-                        "/ad/",
-                        "/ads/",
-                        "sidebar",
-                        "amazon",
-                        "cropped-",
-                        ".gif",
-                    ]
-                )
+                    # Normalize URL - handle relative URLs
+                    if not img_url.startswith("http"):
+                        if img_url.startswith("//"):
+                            img_url = "https:" + img_url
+                        elif img_url.startswith("/"):
+                            img_url = self.base_url + img_url
+                        else:
+                            continue
 
-                # Ensure it's an actual image file
-                is_image = any(
-                    img_url.lower().endswith(ext) for ext in [".jpg", ".jpeg", ".png", ".webp"]
-                )
+                    # Skip logos, banners, ads, and invalid formats
+                    is_noise = any(
+                        skip in img_url.lower()
+                        for skip in [
+                            "logo",
+                            "banner",
+                            "/ad/",
+                            "/ads/",
+                            "sidebar",
+                            "amazon",
+                            "cropped-",
+                            ".gif",
+                            "mugiwaras-removebg",
+                            "icon",
+                            "thumb",
+                        ]
+                    )
 
-                if is_manga_page and not is_noise and is_image and img_url not in page_urls:
-                    page_urls.append(img_url)
+                    # Ensure it's an actual image file
+                    is_image = any(
+                        img_url.lower().endswith(ext) for ext in [".jpg", ".jpeg", ".png", ".webp"]
+                    )
 
-            return page_urls
+                    # Accept any non-noise image from CDN or site
+                    if not is_noise and is_image and img_url not in page_urls:
+                        # Additional filter: exclude known UI images
+                        if (
+                            "uploads" not in img_url
+                            or "manga" in img_url.lower()
+                            or "chapter" in img_url.lower()
+                        ):
+                            page_urls.append(img_url)
 
-        except Exception as e:
-            print(f"⚠️  Erro ao buscar páginas do capítulo: {e}")
-            import traceback
+                # If no pages found and we can retry, do so
+                if not page_urls and retry_count < max_retries - 1:
+                    retry_count += 1
+                    print(f"⚠️  Nenhuma página encontrada, tentativa {retry_count + 1}...")
+                    continue
 
-            traceback.print_exc()
-            return []
+                return page_urls
+
+            except Exception as e:
+                retry_count += 1
+                if retry_count >= max_retries:
+                    print(
+                        f"⚠️  Erro ao buscar páginas do capítulo (após {max_retries} tentativas): {e}"
+                    )
+                    return []
+                print(f"⚠️  Erro ao buscar páginas do capítulo (tentativa {retry_count}): {e}")
+
+        return []
 
 
 def load(languages: set[str]):
