@@ -1,3 +1,4 @@
+import re
 import urllib.parse
 
 import requests
@@ -5,6 +6,13 @@ from playwright.sync_api import sync_playwright
 from scrapling.fetchers import DynamicFetcher
 
 from services.repository import rep
+
+
+def _extract_episode_number(title: str) -> int | None:
+    match = re.search(r"epis[óo]dio\s*(\d+)", title.lower())
+    if match:
+        return int(match.group(1))
+    return None
 
 
 class AniTube:
@@ -65,6 +73,15 @@ class AniTube:
                         titles.append(title.strip())
                         urls.append(href)
             browser.close()
+
+        if titles and urls:
+            first_ep_num = _extract_episode_number(titles[0])
+            if first_ep_num is not None and len(titles) > 1:
+                second_ep_num = _extract_episode_number(titles[1])
+                if second_ep_num is not None and first_ep_num > second_ep_num:
+                    titles = list(reversed(titles))
+                    urls = list(reversed(urls))
+
         rep.add_episode_list(anime, titles, urls, self.name)
 
     def search_player_src(self, url: str, container: list, event) -> None:
