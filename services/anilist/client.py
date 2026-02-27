@@ -5,6 +5,7 @@ and all anime/manga operations via mixins.
 """
 
 import json
+import time
 import webbrowser
 
 import requests
@@ -123,7 +124,7 @@ class AniListClient(AnimeOperationsMixin, MangaOperationsMixin):
             return False
 
     def _query(self, query: str, variables: dict | None = None, token: str | None = None) -> dict:
-        """Execute GraphQL query.
+        """Execute GraphQL query with retry on rate limit (429).
 
         Args:
             query: GraphQL query string
@@ -140,23 +141,39 @@ class AniListClient(AnimeOperationsMixin, MangaOperationsMixin):
         if use_token:
             headers["Authorization"] = f"Bearer {use_token}"
 
-        response = requests.post(
-            settings.anilist.api_url,
-            json={"query": query, "variables": variables or {}},
-            headers=headers,
-        )
+        max_retries = 3
+        base_wait = 1
 
-        if response.status_code != 200:
-            msg = f"Query failed with status {response.status_code}"
-            raise Exception(msg)
+        for attempt in range(max_retries):
+            response = requests.post(
+                settings.anilist.api_url,
+                json={"query": query, "variables": variables or {}},
+                headers=headers,
+            )
 
-        result = response.json()
+            # Handle rate limiting with exponential backoff
+            if response.status_code == 429:
+                if attempt < max_retries - 1:
+                    wait_time = base_wait * (2**attempt)
+                    time.sleep(wait_time)
+                    continue
+                msg = f"Query failed with status {response.status_code} (rate limited)"
+                raise Exception(msg)
 
-        if "errors" in result:
-            msg = f"GraphQL error: {result['errors']}"
-            raise Exception(msg)
+            if response.status_code != 200:
+                msg = f"Query failed with status {response.status_code}"
+                raise Exception(msg)
 
-        return result.get("data")
+            result = response.json()
+
+            if "errors" in result:
+                msg = f"GraphQL error: {result['errors']}"
+                raise Exception(msg)
+
+            return result.get("data")
+
+        # Should not reach here, but included for safety
+        raise Exception("Query failed after all retries")
 
     def get_viewer_info(self) -> AniListViewerInfo | None:
         """Get authenticated user info with statistics."""

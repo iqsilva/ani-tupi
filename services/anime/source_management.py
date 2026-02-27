@@ -9,7 +9,10 @@ import json
 from models.config import get_data_path
 from services.repository import rep
 from ui.components import loading, menu_navigate
-from services.anime.title_normalization import normalize_anime_title, normalize_title_for_dedup
+from services.anime.title_normalization import (
+    normalize_anime_title,
+    normalize_title_for_dedup,
+)
 from services.anime.mappings import (
     load_anilist_search_title,
 )
@@ -19,7 +22,10 @@ HISTORY_PATH = get_data_path()
 
 
 def switch_anime_source(
-    current_anime: str, args, anilist_id: int | None = None, display_title: str | None = None
+    current_anime: str,
+    args,
+    anilist_id: int | None = None,
+    display_title: str | None = None,
 ) -> tuple[str, int] | tuple[None, None]:
     """Allow user to switch to a different anime source/title.
 

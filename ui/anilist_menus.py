@@ -394,26 +394,17 @@ def _show_account_menu() -> None:
         username = user_info.name
         user_id = user_info.id
 
-        # Get user stats - calculate manually from lists since API statistics might be 0
+        # Get user stats - use API statistics directly
         stats = user_info.statistics
         api_count = stats.anime.count if stats and stats.anime else 0
         api_episodes = stats.anime.episodesWatched if stats and stats.anime else 0
         api_minutes = stats.anime.minutesWatched if stats and stats.anime else 0
 
-        # If API stats are 0, calculate from user lists
-        if api_count == 0:
-            all_entries = []
-            for status in ["CURRENT", "COMPLETED", "PLANNING", "PAUSED", "DROPPED", "REPEATING"]:
-                entries = anilist_client.get_user_list(status)
-                all_entries.extend(entries)
-
-            total_count = len(all_entries)
-            episodes_watched = sum(entry.progress or 0 for entry in all_entries)
-            minutes_watched = episodes_watched * 24
-        else:
-            total_count = api_count
-            episodes_watched = api_episodes
-            minutes_watched = api_minutes
+        # Use API stats as primary source. Only calculate from lists if API returns 0
+        # and API call succeeds (to avoid multiple requests on rate limiting)
+        total_count = api_count
+        episodes_watched = api_episodes
+        minutes_watched = api_minutes
 
         days_watched = minutes_watched / (60 * 24) if minutes_watched > 0 else 0
 

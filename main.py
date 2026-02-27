@@ -21,7 +21,7 @@ def handle_local_library(args) -> None:
     handle_local_library_playback(args)
 
 
-def show_main_menu():
+def show_main_menu() -> str | None:
     """Display main menu with options."""
     options = [
         "🔍 Buscar Anime",
@@ -57,7 +57,7 @@ def main_menu_flow(args) -> None:
         manage_sources_cmd(args)
 
 
-def cleanup_zombie_browsers():
+def cleanup_zombie_browsers() -> None:
     """Clean up any zombie browser processes from previous runs."""
     try:
         import subprocess

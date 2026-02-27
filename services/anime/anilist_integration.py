@@ -152,7 +152,8 @@ def offer_sequel_and_continue(
             # Find selected sequel (removing the ⏳ indicator if present)
             choice_clean = choice.replace(" ⏳", "")
             selected_sequel = next(
-                (s for s in sequels if anilist_client.format_title(s.title) == choice_clean), None
+                (s for s in sequels if anilist_client.format_title(s.title) == choice_clean),
+                None,
             )
             if selected_sequel:
                 sequel_title = anilist_client.format_title(selected_sequel.title)
@@ -166,7 +167,10 @@ def offer_sequel_and_continue(
                         "❌ Cancelar",
                     ]
                 else:
-                    action_options = ["📋 Adicionar à 'Planejo Assistir'", "❌ Cancelar"]
+                    action_options = [
+                        "📋 Adicionar à 'Planejo Assistir'",
+                        "❌ Cancelar",
+                    ]
                     sequel_title += " ⏳ (ainda não lançado)"
 
                 action_choice = menu_navigate(
@@ -868,7 +872,11 @@ def anilist_anime_flow(
     while True:
         # Ask what user wants to do with the episode
         episode_number = current_episode_idx + 1
-        action_options = ["▶️ Assistir agora", "📥 Baixar para assistir depois", "🔙 Voltar"]
+        action_options = [
+            "▶️ Assistir agora",
+            "📥 Baixar para assistir depois",
+            "🔙 Voltar",
+        ]
         action = menu_navigate(
             action_options, msg=f"O que deseja fazer com o episódio {episode_number}?"
         )

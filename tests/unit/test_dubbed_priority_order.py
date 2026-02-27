@@ -92,11 +92,20 @@ class TestGetPriorityOrderHelper:
             mock_settings.plugins.dubbed_priority_order = ["animesdigital", "animefire"]
 
             # Test uppercase
-            assert repo._get_priority_order("Anime DUBLADO") == ["animesdigital", "animefire"]
+            assert repo._get_priority_order("Anime DUBLADO") == [
+                "animesdigital",
+                "animefire",
+            ]
             # Test mixed case
-            assert repo._get_priority_order("Anime DuBlAdO") == ["animesdigital", "animefire"]
+            assert repo._get_priority_order("Anime DuBlAdO") == [
+                "animesdigital",
+                "animefire",
+            ]
             # Test lowercase
-            assert repo._get_priority_order("Anime dublado") == ["animesdigital", "animefire"]
+            assert repo._get_priority_order("Anime dublado") == [
+                "animesdigital",
+                "animefire",
+            ]
 
     def test_no_dubbed_priority_falls_back_to_standard(self):
         """Should fallback to standard priority when dubbed_priority_order is None."""
@@ -287,7 +296,7 @@ class TestSearchPlayerWithDubbed:
         with patch("services.repository.settings") as mock_settings:
             mock_settings.plugins.priority_order = ["goyabu", "animefire"]
             mock_settings.plugins.dubbed_priority_order = ["animesdigital", "animefire"]
-            mock_settings.performance.concurrent_timeout = 5
+            mock_settings.performance.http_timeout = 5
             mock_settings.performance.video_url_cache_ttl_seconds = 3600
 
             # Mock the cache manager

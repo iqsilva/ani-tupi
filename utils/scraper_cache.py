@@ -6,7 +6,11 @@ New code should use utils.cache instead.
 Cache settings (location, duration) are configured in config.py
 """
 
-from utils.cache import get_cache as _get_unified_cache, clear_cache_all, clear_cache_by_prefix
+from utils.cache import (
+    get_cache as _get_unified_cache,
+    clear_cache_all,
+    clear_cache_by_prefix,
+)
 from utils.anilist_discovery import get_anilist_id_from_title
 from models.models import ScraperCacheData
 

@@ -250,7 +250,10 @@ class TestPhase4IndependentDeletion:
             mock_settings.offline_sync.enable_file_cleanup = True
             mock_settings.offline_sync.delete_after_watch = False
 
-            with patch("services.local_anime_service.LocalAnimeService", return_value=mock_service):
+            with patch(
+                "services.local_anime_service.LocalAnimeService",
+                return_value=mock_service,
+            ):
                 handle_post_playback_confirmation(
                     anime_title="Dandadan",
                     episode_number=5,
@@ -280,7 +283,10 @@ class TestPhase4IndependentDeletion:
             mock_settings.offline_sync.delete_after_watch = True
             mock_settings.offline_sync.enable_file_cleanup = False
 
-            with patch("services.local_anime_service.LocalAnimeService", return_value=mock_service):
+            with patch(
+                "services.local_anime_service.LocalAnimeService",
+                return_value=mock_service,
+            ):
                 # No anilist_id - discovery failed
                 handle_post_playback_confirmation(
                     anime_title="Chainsaw Man Dublado",
@@ -317,7 +323,10 @@ class TestCompleteLocalPlaybackFlow:
             mock_settings.offline_sync.delete_after_watch = False
             mock_settings.offline_sync.enable_file_cleanup = False
 
-            with patch("services.local_anime_service.LocalAnimeService", return_value=mock_service):
+            with patch(
+                "services.local_anime_service.LocalAnimeService",
+                return_value=mock_service,
+            ):
                 result = handle_post_playback_confirmation(
                     anime_title="Unknown Title",
                     episode_number=1,
@@ -356,7 +365,10 @@ class TestCompleteLocalPlaybackFlow:
             mock_settings.offline_sync.delete_after_watch = True
             mock_settings.offline_sync.enable_file_cleanup = True
 
-            with patch("services.local_anime_service.LocalAnimeService", return_value=mock_service):
+            with patch(
+                "services.local_anime_service.LocalAnimeService",
+                return_value=mock_service,
+            ):
                 result = handle_post_playback_confirmation(
                     anime_title="Dandadan",
                     episode_number=5,

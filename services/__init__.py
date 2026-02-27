@@ -8,7 +8,13 @@ Core services for ani-tupi:
 - repository: Central data store
 """
 
-from services import anime_service, anilist_service, history_service, manga_service, repository
+from services import (
+    anime_service,
+    anilist_service,
+    history_service,
+    manga_service,
+    repository,
+)
 
 __all__ = [
     "anime_service",

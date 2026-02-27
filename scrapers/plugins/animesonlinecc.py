@@ -11,8 +11,7 @@ class AnimesOnlineCC:
 
     def search_anime(self, query: str) -> None:
         url = "https://animesonlinecc.to/search/" + "+".join(query.split())
-        fetcher = Fetcher()
-        tree = fetcher.get(url)
+        tree = Fetcher.get(url)
 
         divs = tree.css("div.data")
         titles_urls = []
@@ -32,12 +31,15 @@ class AnimesOnlineCC:
             rep.add_anime(title, url, AnimesOnlineCC.name)
 
         def parse_seasons(title, url):
-            tree = fetcher.get(url)
+            tree = Fetcher.get(url)
             num_seasons = len(tree.css("div.se-c"))
             if num_seasons > 1:
                 for n in range(2, num_seasons + 1):
                     rep.add_anime(
-                        title + " Temporada " + str(n), url, AnimesOnlineCC.name, {"season": n}
+                        title + " Temporada " + str(n),
+                        url,
+                        AnimesOnlineCC.name,
+                        {"season": n},
                     )
 
         with ThreadPool(cpu_count()) as pool:
@@ -45,8 +47,7 @@ class AnimesOnlineCC:
                 pool.apply(parse_seasons, args=(title, url))
 
     def search_episodes(self, anime: str, url: str, params: dict | None) -> None:
-        fetcher = Fetcher()
-        tree = fetcher.get(url)
+        tree = Fetcher.get(url)
 
         seasons = tree.css("ul.episodios")
         # Extract season number from params (backwards compatible with int)
@@ -66,8 +67,7 @@ class AnimesOnlineCC:
     def search_player_src(self, url: str, container: list, event) -> None:
         try:
             # Use DynamicFetcher to render page and extract iframe
-            # Use Firefox for better library compatibility
-            page = DynamicFetcher.fetch(url, timeout=15000, browser="firefox")
+            page = DynamicFetcher.fetch(url, timeout=15000)
 
             # Find iframe element
             iframe = page.css_first("iframe")

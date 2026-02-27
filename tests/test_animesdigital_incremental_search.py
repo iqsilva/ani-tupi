@@ -24,12 +24,12 @@ class TestAnimesDigitalIncrementalSearch:
 
     def _create_html_for_episode(self, title_text: str, episode_url: str) -> str:
         """Helper to create HTML for a single episode link."""
-        return f'''
+        return f"""
         <a href="{episode_url}">
             <img src="image.jpg" title="{title_text}" />
             HD
         </a>
-        '''
+        """
 
     @patch("scrapers.plugins.animesdigital.requests.get")
     def test_single_word_search(self, mock_get):

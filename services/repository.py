@@ -8,7 +8,10 @@ from concurrent.futures import ThreadPoolExecutor
 
 from models.config import settings
 from models.models import EpisodeData, SearchMetadata, SearchResults, AnimeSearchResult
-from services.anime.title_normalization import normalize_search_cache_key, normalize_title_for_dedup
+from services.anime.title_normalization import (
+    normalize_search_cache_key,
+    normalize_title_for_dedup,
+)
 
 
 class Repository:
@@ -111,7 +114,9 @@ class Repository:
             results.append(anime)
 
         return SearchResults(
-            query=query, results=tuple(results), metadata=self._last_search_metadata or {}
+            query=query,
+            results=tuple(results),
+            metadata=self._last_search_metadata or {},
         )
 
     @classmethod
@@ -376,9 +381,11 @@ class Repository:
                 future_to_source[future] = source_name
 
             # Wait for all tasks to complete with timeout
+            # Timeout for concurrent scraper requests: 6x http timeout to account for multiple parallel requests
+            timeout = settings.performance.http_timeout * 6
             done, not_done = wait(
                 future_to_source.keys(),
-                timeout=settings.performance.concurrent_timeout,
+                timeout=timeout,
                 return_when=ALL_COMPLETED,
             )
 
@@ -679,7 +686,10 @@ class Repository:
         if existing_index is not None:
             # Replace existing entry
             self.anime_episodes_titles[anime][existing_index] = episode_data.episode_titles
-            self.anime_episodes_urls[anime][existing_index] = (episode_data.episode_urls, source)
+            self.anime_episodes_urls[anime][existing_index] = (
+                episode_data.episode_urls,
+                source,
+            )
         else:
             # Add new entry
             self.anime_episodes_titles[anime].append(episode_data.episode_titles)
@@ -944,7 +954,8 @@ class Repository:
 
             # Sort sources by priority
             sorted_sources = sorted(
-                sources_urls.keys(), key=lambda s: priority_map.get(s, len(priority_order))
+                sources_urls.keys(),
+                key=lambda s: priority_map.get(s, len(priority_order)),
             )
 
             with ThreadPoolExecutor(max_workers=1) as executor:

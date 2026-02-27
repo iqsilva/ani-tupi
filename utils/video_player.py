@@ -140,7 +140,7 @@ class VideoPlayer:
                 try:
                     mpv_process.terminate()
                     mpv_process.wait(timeout=1)
-                except:  # noqa: E722
+                except subprocess.TimeoutExpired:
                     mpv_process.kill()
 
             return self._play_video_legacy(url, debug=False)
@@ -150,7 +150,7 @@ class VideoPlayer:
             if input_conf_path:
                 try:
                     Path(input_conf_path).unlink()
-                except:  # noqa: E722
+                except OSError:
                     pass
 
             if socket_path:
@@ -223,14 +223,14 @@ class VideoPlayer:
             try:
                 if player is not None:
                     player.terminate()
-            except:  # noqa: E722
+            except OSError:
                 pass
 
             # Clean up temporary input.conf file
             if input_conf_path:
                 try:
                     Path(input_conf_path).unlink()
-                except:  # noqa: E722
+                except OSError:
                     pass
 
     def _create_ipc_socket_path(self) -> str:
@@ -291,7 +291,11 @@ class VideoPlayer:
 
             # Write to temporary file
             with tempfile.NamedTemporaryFile(
-                mode="w", suffix=".txt", prefix="ani-tupi-chapters-", delete=False, encoding="utf-8"
+                mode="w",
+                suffix=".txt",
+                prefix="ani-tupi-chapters-",
+                delete=False,
+                encoding="utf-8",
             ) as f:
                 f.write("\n".join(chapters))
                 return f.name
@@ -649,7 +653,9 @@ shift+t script-message toggle-sub-dub
 
                                             if prev_url:
                                                 self._send_mpv_command(
-                                                    sock, "loadfile", [prev_url, "replace"]
+                                                    sock,
+                                                    "loadfile",
+                                                    [prev_url, "replace"],
                                                 )
                                                 self._send_mpv_command(
                                                     sock,
@@ -675,17 +681,23 @@ shift+t script-message toggle-sub-dub
                                                 )
                                         else:
                                             self._send_mpv_command(
-                                                sock, "show-text", ["Não há episódios anteriores"]
+                                                sock,
+                                                "show-text",
+                                                ["Não há episódios anteriores"],
                                             )
 
                                     elif action == "reload-episode":
                                         current_url = episode_context.get("url")
                                         if current_url:
                                             self._send_mpv_command(
-                                                sock, "loadfile", [current_url, "replace"]
+                                                sock,
+                                                "loadfile",
+                                                [current_url, "replace"],
                                             )
                                             self._send_mpv_command(
-                                                sock, "show-text", ["Reloading episode..."]
+                                                sock,
+                                                "show-text",
+                                                ["Reloading episode..."],
                                             )
                                             continue
 
@@ -713,7 +725,7 @@ shift+t script-message toggle-sub-dub
             if hasattr(mpv_process, "stderr") and mpv_process.stderr:
                 try:
                     stderr_output = mpv_process.stderr.read()
-                except:
+                except (OSError, ValueError):
                     pass
 
             if exit_code != 0 or "error" in stderr_output.lower():
@@ -761,7 +773,7 @@ shift+t script-message toggle-sub-dub
             if sock:
                 try:
                     sock.close()
-                except:
+                except OSError:
                     pass
 
     def _send_mpv_command(self, sock: socket.socket, command: str, args: list) -> None:

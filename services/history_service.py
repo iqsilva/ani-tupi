@@ -444,7 +444,8 @@ def save_history_from_event(
         # Save with action metadata in a separate tracking object
         # Keep the original history format intact for backward compatibility
         _history_store.set(
-            anime_title, [int(time.time()), episode_idx, anilist_id, source, total_episodes]
+            anime_title,
+            [int(time.time()), episode_idx, anilist_id, source, total_episodes],
         )
         logger.info(f"Saved history for '{anime_title}' Ep {episode_idx + 1} (action: {action})")
     except PersistenceError as e:

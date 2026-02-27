@@ -197,9 +197,16 @@ class TestAnimeOperationsMixinAiringQuery:
                     "progress": i,
                     "media": {
                         "id": 1000 + i,
-                        "title": {"romaji": f"Anime {i}", "english": None, "native": None},
+                        "title": {
+                            "romaji": f"Anime {i}",
+                            "english": None,
+                            "native": None,
+                        },
                         "averageScore": 50 + (i % 50),
-                        "nextAiringEpisode": {"episode": i + 10, "airingAt": 1704067200},
+                        "nextAiringEpisode": {
+                            "episode": i + 10,
+                            "airingAt": 1704067200,
+                        },
                     },
                 }
             )
@@ -224,7 +231,11 @@ class TestAnimeOperationsMixinAiringQuery:
                                 "progress": 5,
                                 "media": {
                                     "id": 1,
-                                    "title": {"romaji": "Test", "english": None, "native": None},
+                                    "title": {
+                                        "romaji": "Test",
+                                        "english": None,
+                                        "native": None,
+                                    },
                                     "averageScore": None,  # Null score
                                     "status": None,  # Null status
                                     "nextAiringEpisode": {

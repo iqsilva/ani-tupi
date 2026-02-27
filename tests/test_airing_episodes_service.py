@@ -30,7 +30,11 @@ class TestAiringEpisodesServiceGapCalculation:
                 "progress": 12,
                 "media": {
                     "id": 1,
-                    "title": {"romaji": "Jujutsu Kaisen", "english": None, "native": None},
+                    "title": {
+                        "romaji": "Jujutsu Kaisen",
+                        "english": None,
+                        "native": None,
+                    },
                     "averageScore": 82,
                     "nextAiringEpisode": {"episode": 15, "airingAt": 1772916627},
                 },
@@ -55,7 +59,11 @@ class TestAiringEpisodesServiceFiltering:
                 "progress": 12,
                 "media": {
                     "id": 1,
-                    "title": {"romaji": "Finished Anime", "english": None, "native": None},
+                    "title": {
+                        "romaji": "Finished Anime",
+                        "english": None,
+                        "native": None,
+                    },
                     "averageScore": 82,
                     "nextAiringEpisode": None,  # No airing episode
                 },
@@ -64,7 +72,11 @@ class TestAiringEpisodesServiceFiltering:
                 "progress": 5,
                 "media": {
                     "id": 2,
-                    "title": {"romaji": "Airing Anime", "english": None, "native": None},
+                    "title": {
+                        "romaji": "Airing Anime",
+                        "english": None,
+                        "native": None,
+                    },
                     "averageScore": 75,
                     "nextAiringEpisode": {"episode": 10, "airingAt": 1772916627},
                 },
@@ -105,7 +117,11 @@ class TestAiringEpisodesServiceFiltering:
                 "progress": 5,
                 "media": {
                     "id": 1,
-                    "title": {"romaji": "Invalid Episode", "english": None, "native": None},
+                    "title": {
+                        "romaji": "Invalid Episode",
+                        "english": None,
+                        "native": None,
+                    },
                     "averageScore": 75,
                     "nextAiringEpisode": {"episode": 0, "airingAt": None},
                 },
@@ -200,7 +216,11 @@ class TestAiringEpisodesServiceTitleExtraction:
                 "progress": 5,
                 "media": {
                     "id": 1,
-                    "title": {"romaji": None, "english": "Attack on Titan", "native": None},
+                    "title": {
+                        "romaji": None,
+                        "english": "Attack on Titan",
+                        "native": None,
+                    },
                     "averageScore": 82,
                     "nextAiringEpisode": {"episode": 10, "airingAt": 1772916627},
                 },
@@ -319,7 +339,11 @@ class TestAiringEpisodesServiceEdgeCases:
                 "progress": 10,
                 "media": {
                     "id": 1,
-                    "title": {"romaji": "Latest Anime", "english": None, "native": None},
+                    "title": {
+                        "romaji": "Latest Anime",
+                        "english": None,
+                        "native": None,
+                    },
                     "averageScore": 82,
                     "nextAiringEpisode": {"episode": 10, "airingAt": 1772916627},
                 },
@@ -338,7 +362,11 @@ class TestAiringEpisodesServiceEdgeCases:
                 "progress": 12,
                 "media": {
                     "id": 165847,
-                    "title": {"romaji": "Jujutsu Kaisen", "english": None, "native": None},
+                    "title": {
+                        "romaji": "Jujutsu Kaisen",
+                        "english": None,
+                        "native": None,
+                    },
                     "averageScore": 82,
                     "nextAiringEpisode": {"episode": 15, "airingAt": 1772916627},
                 },

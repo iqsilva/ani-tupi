@@ -213,40 +213,6 @@ class PerformanceSettings(BaseModel):
         description="Number of retry attempts for failed HTTP requests",
     )
 
-    # Browser Pool Settings
-    browser_pool_size: int = Field(
-        3,
-        ge=1,
-        le=8,
-        description="Maximum number of Chrome instances in browser pool for parallel scraping",
-    )
-    browser_max_age: int = Field(
-        300,
-        ge=60,
-        le=1800,
-        description="Maximum age of browser instances before cleanup (seconds)",
-    )
-    browser_health_check_timeout: int = Field(
-        10,
-        ge=1,
-        le=30,
-        description="Timeout for getting browser from pool (seconds)",
-    )
-
-    # Concurrent Execution Settings
-    max_concurrent_scrapers: int = Field(
-        3,
-        ge=1,
-        le=10,
-        description="Maximum number of scrapers running concurrently",
-    )
-    concurrent_timeout: int = Field(
-        90,
-        ge=15,
-        le=180,
-        description="Timeout for concurrent scraper operations (seconds). Browser-based scrapers need extra time for startup.",
-    )
-
     # Cache Settings (additional to existing cache settings)
     search_cache_ttl: int = Field(
         300,

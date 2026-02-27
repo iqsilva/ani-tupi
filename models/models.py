@@ -366,7 +366,8 @@ class AniListAnime(BaseModel):
     season: str | None = Field(None, description="Season (WINTER, SPRING, SUMMER, FALL)")
     type: str | None = Field(None, description="Media type")
     status: str | None = Field(
-        None, description="Media status (FINISHED, RELEASING, NOT_YET_RELEASED, CANCELLED, HIATUS)"
+        None,
+        description="Media status (FINISHED, RELEASING, NOT_YET_RELEASED, CANCELLED, HIATUS)",
     )
     startDate: dict[str, int | None] | None = Field(
         None, description="Start date with year, month, day"
@@ -477,7 +478,8 @@ class AniListRelationNode(BaseModel):
     title: AniListTitle = Field(..., description="Title object")
     episodes: int | None = Field(None, description="Total episodes")
     status: str | None = Field(
-        None, description="Media status (FINISHED, RELEASING, NOT_YET_RELEASED, CANCELLED, HIATUS)"
+        None,
+        description="Media status (FINISHED, RELEASING, NOT_YET_RELEASED, CANCELLED, HIATUS)",
     )
     startDate: dict[str, int | None] | None = Field(
         None, description="Start date with year, month, day"
@@ -655,7 +657,8 @@ class SearchResults(BaseModel, frozen=True):
 
     query: str = Field(..., min_length=1, description="Original search query")
     results: tuple[AnimeSearchResult, ...] = Field(
-        default_factory=tuple, description="Immutable tuple of AnimeSearchResult objects"
+        default_factory=tuple,
+        description="Immutable tuple of AnimeSearchResult objects",
     )
     metadata: dict[str, Any] = Field(default_factory=dict, description="Search metadata")
 
@@ -707,7 +710,8 @@ class EpisodeList(BaseModel, frozen=True):
 
     anime_title: str = Field(..., min_length=1, description="Title of the anime")
     episodes: tuple[tuple[str, list[str], str], ...] = Field(
-        default_factory=tuple, description="Immutable tuple of (title, urls, source) tuples"
+        default_factory=tuple,
+        description="Immutable tuple of (title, urls, source) tuples",
     )
 
     def get_episode_titles(self) -> list[str]:

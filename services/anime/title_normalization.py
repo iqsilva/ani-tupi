@@ -110,7 +110,9 @@ def normalize_anime_title(title: str, is_english: bool = False):
     # This preserves "2" from "2nd Season" or "Season 2"
     extracted_season = None
     season_match = re.search(
-        r"(?:Season\s+|Temporada\s+)(\d+)|(\d+)(?:st|nd|rd|th)?\s+Season", title, re.IGNORECASE
+        r"(?:Season\s+|Temporada\s+)(\d+)|(\d+)(?:st|nd|rd|th)?\s+Season",
+        title,
+        re.IGNORECASE,
     )
     if season_match:
         extracted_season = season_match.group(1) or season_match.group(2)

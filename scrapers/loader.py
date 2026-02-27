@@ -61,7 +61,7 @@ class PluginProtocol(Protocol):
 # Note: PluginInterface alias removed to enforce structural typing
 
 
-def get_resource_path(relative_path):
+def get_resource_path(relative_path: str) -> str:
     """Get the path to resources, whether running as script or executable."""
     if hasattr(sys, "_MEIPASS"):
         # PyInstaller executable
@@ -71,7 +71,7 @@ def get_resource_path(relative_path):
     return join(dirname(abspath(__file__)), relative_path)
 
 
-def load_plugins(languages: dict, plugins=None) -> None:
+def load_plugins(languages: dict, plugins: list[str] | None = None) -> None:
     """Load plugins based on preferences and language filters.
 
     Respects plugin priority order from preferences if configured.
@@ -102,7 +102,10 @@ def load_plugins(languages: dict, plugins=None) -> None:
     if plugins is None:
         # Load preferences to get disabled plugins and priority order
         try:
-            from plugin_manager import load_plugin_preferences, get_plugin_priority_order
+            from plugin_manager import (
+                load_plugin_preferences,
+                get_plugin_priority_order,
+            )
 
             prefs = load_plugin_preferences()
             disabled_plugins = set(prefs.disabled_plugins)

@@ -463,7 +463,9 @@ def _continue_manga_flow(
                                 manga_url = f"https://mangadex.org/title/{selected_manga.id}"
 
                             chapters = service.get_chapters(
-                                selected_manga.id, manga_url=manga_url, source=fallback_source
+                                selected_manga.id,
+                                manga_url=manga_url,
+                                source=fallback_source,
                             )
                             # Only use this source if we got chapters
                             if chapters:
@@ -875,7 +877,10 @@ def _download_single_chapter(
             image_files.extend(output_path.glob(ext))
 
         if len(image_files) == 0:
-            return False, f"Nenhuma imagem válida baixada para capítulo {chapter.number}"
+            return (
+                False,
+                f"Nenhuma imagem válida baixada para capítulo {chapter.number}",
+            )
 
         if len(image_files) < len(pages) * 0.5:  # Less than 50% success rate
             return (
@@ -1219,7 +1224,8 @@ def _process_chapter(
             # Ask if user completed the chapter
             confirm_options = ["✅ Sim, li até o final", "❌ Não, parei antes"]
             confirm = menu_navigate(
-                confirm_options, f"Você leu o capítulo {selected_chapter.number} até o final?"
+                confirm_options,
+                f"Você leu o capítulo {selected_chapter.number} até o final?",
             )
 
             if confirm == "✅ Sim, li até o final":

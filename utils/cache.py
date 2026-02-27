@@ -251,7 +251,10 @@ class HybridCache(Cache):
     """
 
     def __init__(
-        self, cache_dir: Optional[Path] = None, memory_size_mb: int = 50, default_ttl: int = 3600
+        self,
+        cache_dir: Optional[Path] = None,
+        memory_size_mb: int = 50,
+        default_ttl: int = 3600,
     ):
         """Initialize hybrid cache.
 

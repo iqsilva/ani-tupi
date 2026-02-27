@@ -175,7 +175,11 @@ class TestGetWatchingWithAwaitingEpisodes:
                     "progress": 10,
                     "media": {
                         "id": 1001,
-                        "title": {"romaji": "Completed Anime", "english": None, "native": None},
+                        "title": {
+                            "romaji": "Completed Anime",
+                            "english": None,
+                            "native": None,
+                        },
                         "averageScore": 85,
                         "nextAiringEpisode": None,
                     },

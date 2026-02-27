@@ -92,7 +92,10 @@ def download_chapter(
         image_files = _get_image_files(output_path)
 
         if len(image_files) == 0:
-            return False, f"Nenhuma imagem válida baixada para capítulo {chapter.number}"
+            return (
+                False,
+                f"Nenhuma imagem válida baixada para capítulo {chapter.number}",
+            )
 
         if len(image_files) < len(pages) * 0.5:
             return (
