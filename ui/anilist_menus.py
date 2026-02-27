@@ -573,26 +573,7 @@ def _show_anime_list(list_type: str) -> tuple[str, int] | None:
         options = []
         anime_map = {}  # option -> (display_title, search_title, id, progress, episodes)
 
-        # Pre-fetch skip icons ONLY for watching and planning lists
-        # IMPORTANT: Do NOT fetch skip icons for other lists (Completed, Dropped, Paused, etc.)
-        skip_icons_map = {}
-        should_show_skip_icons = list_type in ("CURRENT", "PLANNING")
-
-        if should_show_skip_icons:
-            anime_skip_data = []
-            for item in anime_list:
-                if hasattr(item, "media"):
-                    media = item.media
-                else:
-                    media = item
-                if media and media.id_mal:
-                    anime_skip_data.append((anilist_client.format_title(media.title), media.id_mal))
-
-            if anime_skip_data:
-                # tqdm progress bar will show internally
-                skip_icons_map = _get_aniskip_icons_batch(anime_skip_data, use_progress_bar=True)
-
-        # Now build menu with pre-loaded skip icons
+        # Build menu
         for item in anime_list:
             # Handle different response formats
             if hasattr(item, "media"):  # User list format (AniListMediaListEntry)
@@ -624,12 +605,6 @@ def _show_anime_list(list_type: str) -> tuple[str, int] | None:
             score = media.averageScore
             if score:
                 display += f" ⭐{score}%"
-
-            # Add skip icon if available (only for watching and planning lists)
-            if should_show_skip_icons:
-                skip_icon = skip_icons_map.get(display_title, "")
-                if skip_icon:
-                    display = f"{skip_icon}{display}"
 
             options.append(display)
             anime_map[display] = (
