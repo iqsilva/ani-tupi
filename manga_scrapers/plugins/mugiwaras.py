@@ -1,13 +1,18 @@
 """MugiwarasOficial.com manga scraper.
 
 Scrapes manga from https://mugiwarasoficial.com/ (Brazilian Portuguese site).
-Uses Scrapling.Fetcher for search and DynamicFetcher for AJAX-loaded chapters.
+Uses Scrapling.StealthyFetcher for search and DynamicFetcher for AJAX-loaded chapters.
+Adaptive CSS selectors survive website design changes.
 """
 
 import re
+import time
 from typing import Any
 
-from scrapling import Fetcher, DynamicFetcher
+from scrapling.fetchers import StealthyFetcher, DynamicFetcher
+
+# Enable adaptive mode for future-proof scraping
+StealthyFetcher.adaptive = True
 
 
 class MugiwarasOficial:
@@ -19,7 +24,7 @@ class MugiwarasOficial:
 
     def __init__(self):
         """Initialize scraper with Scrapling Fetcher."""
-        self.fetcher = Fetcher()
+        pass  # Use Fetcher.get() directly, no instance needed
 
     def search_manga(self, query: str) -> list[dict[str, Any]]:
         """Search for manga by title.
@@ -34,22 +39,24 @@ class MugiwarasOficial:
             # Use WordPress search endpoint
             search_url = f"{self.base_url}/?s={query.replace(' ', '+')}&post_type=wp-manga"
 
-            # Fetch with Scrapling Fetcher
-            tree = self.fetcher.get(search_url, timeout=10)
+            # Fetch with adaptive StealthyFetcher for robustness against design changes
+            tree = StealthyFetcher.fetch(search_url, headless=True, adaptive=True)
 
             results = []
 
             # Parse manga results from Madara theme
             # Each manga is in a div with class "row c-tabs-item__content"
-            manga_items = tree.css("div.row.c-tabs-item__content")
+            # Using adaptive=True to survive website design changes
+            manga_items = tree.css("div.row.c-tabs-item__content", adaptive=True, auto_save=True)
 
             for item in manga_items:
                 try:
                     # Extract title and URL from the link
-                    link = item.css_first("div.post-title a")
-                    if not link:
+                    links = item.css("div.post-title a")
+                    if not links:
                         continue
 
+                    link = links[0]
                     title = str(link.text).strip()
                     url = link.attrib.get("href", "")
 
@@ -57,9 +64,9 @@ class MugiwarasOficial:
                         continue
 
                     # Extract latest chapter info (optional)
-                    latest_chapter = item.css_first("span.chapter a")
+                    latest_chapters = item.css("span.chapter a")
                     latest_chapter_text = (
-                        str(latest_chapter.text).strip() if latest_chapter else None
+                        str(latest_chapters[0].text).strip() if latest_chapters else None
                     )
 
                     # Extract manga ID from URL (slug)
@@ -99,75 +106,96 @@ class MugiwarasOficial:
         Returns:
             List of chapters with "url" field extracted from HTML href attributes
         """
-        try:
-            # Use DynamicFetcher to render the page and wait for AJAX-loaded chapters
-            # Use Firefox for better library compatibility
-            tree = DynamicFetcher.fetch(manga_url, timeout=15000, browser="firefox")
+        max_retries = 3
+        retry_count = 0
 
-            chapters = []
+        while retry_count < max_retries:
+            try:
+                # Use DynamicFetcher to render the page and wait for AJAX-loaded chapters
+                # Use Firefox for better library compatibility
+                # Increase timeout on retry attempts and add small delay between retries
+                if retry_count > 0:
+                    time.sleep(2)  # Wait before retrying
 
-            # Extract chapter list
-            chapter_items = tree.css("li.wp-manga-chapter")
+                timeout = 15000 + (retry_count * 5000)
+                tree = DynamicFetcher.fetch(manga_url, timeout=timeout, browser="firefox")
 
-            for item in chapter_items:
-                try:
-                    link = item.css_first("a")
-                    if not link:
-                        continue
+                chapters = []
 
-                    chapter_url = link.attrib.get("href", "")
-                    chapter_title = str(link.text).strip()
+                # Extract chapter list
+                chapter_items = tree.css("li.wp-manga-chapter")
 
-                    if not chapter_url:
-                        continue
-
-                    # Extract chapter number from title or URL
-                    # Typical format: "Capítulo 222 PT-BR" or "capitulo-222-pt-br"
-                    number_match = re.search(r"(\d+(?:\.\d+)?)", chapter_title)
-                    if number_match:
-                        chapter_number = number_match.group(1)
-                    else:
-                        # Try extracting from URL
-                        url_match = re.search(r"capitulo-(\d+(?:\.\d+)?)", chapter_url)
-                        if url_match:
-                            chapter_number = url_match.group(1)
-                        else:
-                            continue  # Skip if no number found
-
-                    # Generate chapter ID from URL
-                    chapter_id = chapter_url.rstrip("/").split("/")[-1]
-
-                    # Clean chapter title (remove "Capítulo X PT-BR")
-                    clean_title = re.sub(
-                        r"capítulo\s+\d+(\.\d+)?\s*-?\s*pt-br",
-                        "",
-                        chapter_title,
-                        flags=re.IGNORECASE,
-                    ).strip()
-                    if clean_title and clean_title != chapter_title:
-                        final_title = clean_title
-                    else:
-                        final_title = None
-
-                    chapters.append(
-                        {
-                            "id": chapter_id,
-                            "number": chapter_number,
-                            "title": final_title,
-                            "url": chapter_url,
-                        }
-                    )
-                except Exception:
+                # If no chapters found and we can retry, do so
+                if not chapter_items and retry_count < max_retries - 1:
+                    retry_count += 1
+                    print(f"⚠️  Nenhum capítulo encontrado, tentativa {retry_count + 1}...")
                     continue
 
-            # Sort chapters by number (descending - latest first)
-            chapters.sort(key=lambda c: float(c["number"]), reverse=True)
+                for item in chapter_items:
+                    try:
+                        links = item.css("a")
+                        if not links:
+                            continue
 
-            return chapters
+                        link = links[0]
+                        chapter_url = link.attrib.get("href", "")
+                        chapter_title = str(link.text).strip()
 
-        except Exception as e:
-            print(f"⚠️  Erro ao buscar capítulos: {e}")
-            return []
+                        if not chapter_url:
+                            continue
+
+                        # Extract chapter number from title or URL
+                        # Typical format: "Capítulo 222 PT-BR" or "capitulo-222-pt-br"
+                        number_match = re.search(r"(\d+(?:\.\d+)?)", chapter_title)
+                        if number_match:
+                            chapter_number = number_match.group(1)
+                        else:
+                            # Try extracting from URL
+                            url_match = re.search(r"capitulo-(\d+(?:\.\d+)?)", chapter_url)
+                            if url_match:
+                                chapter_number = url_match.group(1)
+                            else:
+                                continue  # Skip if no number found
+
+                        # Generate chapter ID from URL
+                        chapter_id = chapter_url.rstrip("/").split("/")[-1]
+
+                        # Clean chapter title (remove "Capítulo X PT-BR")
+                        clean_title = re.sub(
+                            r"capítulo\s+\d+(\.\d+)?\s*-?\s*pt-br",
+                            "",
+                            chapter_title,
+                            flags=re.IGNORECASE,
+                        ).strip()
+                        if clean_title and clean_title != chapter_title:
+                            final_title = clean_title
+                        else:
+                            final_title = None
+
+                        chapters.append(
+                            {
+                                "id": chapter_id,
+                                "number": chapter_number,
+                                "title": final_title,
+                                "url": chapter_url,
+                            }
+                        )
+                    except Exception:
+                        continue
+
+                # Sort chapters by number (descending - latest first)
+                chapters.sort(key=lambda c: float(c["number"]), reverse=True)
+
+                return chapters
+
+            except Exception as e:
+                retry_count += 1
+                if retry_count >= max_retries:
+                    print(f"⚠️  Erro ao buscar capítulos (após {max_retries} tentativas): {e}")
+                    return []
+                print(f"⚠️  Erro ao buscar capítulos (tentativa {retry_count}): {e}")
+
+        return []
 
     def get_chapter_pages(self, chapter_id: str, chapter_url: str) -> list[str]:
         """Fetch image URLs for a chapter.
