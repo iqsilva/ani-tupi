@@ -1,13 +1,18 @@
 """MangaLivre.blog manga scraper.
 
 Scrapes manga from https://mangalivre.blog/ (Brazilian Portuguese site).
-Uses Scrapling.Fetcher for search and DynamicFetcher for AJAX-loaded chapters.
+Uses Scrapling.StealthyFetcher for search and DynamicFetcher for AJAX-loaded chapters.
+Adaptive CSS selectors survive website design changes.
 """
 
 import re
+import time
 from typing import Any
 
-from scrapling import Fetcher, DynamicFetcher
+from scrapling.fetchers import StealthyFetcher, DynamicFetcher
+
+# Enable adaptive mode for future-proof scraping
+StealthyFetcher.adaptive = True
 
 
 class MangaLivre:
@@ -19,7 +24,7 @@ class MangaLivre:
 
     def __init__(self):
         """Initialize scraper with Scrapling Fetcher."""
-        self.fetcher = Fetcher()
+        pass  # Use Fetcher.get() directly, no instance needed
 
     def search_manga(self, query: str) -> list[dict[str, Any]]:
         """Search for manga by title.
@@ -40,75 +45,112 @@ class MangaLivre:
                 }
             ]
         """
-        try:
-            # Use WordPress search endpoint
-            search_url = f"{self.base_url}/?s={query.replace(' ', '+')}&post_type=wp-manga"
+        max_retries = 3
+        retry_count = 0
 
-            # Fetch with Scrapling Fetcher
-            tree = self.fetcher.get(search_url, timeout=10)
+        while retry_count < max_retries:
+            try:
+                # Use WordPress search endpoint
+                search_url = f"{self.base_url}/?s={query.replace(' ', '+')}&post_type=wp-manga"
 
-            results = []
+                # Add delay before retry to avoid rate limiting
+                if retry_count > 0:
+                    time.sleep(2)
 
-            # Parse manga results from WordPress theme
-            # Search results use div.manga-card structure
-            manga_cards = tree.css("div.manga-card")
+                # Fetch with adaptive StealthyFetcher for robustness against design changes
+                # Increase timeout on retry attempts
+                timeout = 30000 + (retry_count * 10000)  # 30s, 40s, 50s
+                tree = StealthyFetcher.fetch(
+                    search_url, headless=True, adaptive=True, timeout=timeout
+                )
 
-            for card in manga_cards:
-                try:
-                    # Extract link and title
-                    link = card.css_first("a")
-                    if not link:
+                results = []
+
+                # Parse manga results from WordPress theme
+                # Search results use div.manga-card structure
+                # Using adaptive=True to survive website design changes
+                manga_cards = tree.css("div.manga-card", adaptive=True, auto_save=True)
+
+                for card in manga_cards:
+                    try:
+                        # Extract link and title
+                        links = card.css("a")
+                        if not links:
+                            continue
+
+                        link = links[0]
+                        url = link.attrib.get("href", "")
+                        if not url:
+                            continue
+
+                        # Extract title - try multiple selectors
+                        # MangaLivre uses h2, h3, h4 or spans for titles
+                        h2s = card.css("h2")
+                        h3s = card.css("h3")
+                        h4s = card.css("h4")
+                        span_titles = card.css("span[class*='title']")
+                        title_spans = card.css(".title")
+
+                        title_elem = (
+                            h2s[0]
+                            if h2s
+                            else (
+                                h3s[0]
+                                if h3s
+                                else (
+                                    h4s[0]
+                                    if h4s
+                                    else (
+                                        span_titles[0]
+                                        if span_titles
+                                        else (title_spans[0] if title_spans else None)
+                                    )
+                                )
+                            )
+                        )
+                        title = str(title_elem.text) if title_elem else str(link.text)
+                        title = title.strip()
+
+                        if not title or title.isspace():
+                            continue
+
+                        # Extract description if available
+                        desc_elems = card.css("p")
+                        description = str(desc_elems[0].text).strip() if desc_elems else None
+
+                        # Extract status if available
+                        status_elems = card.css("span")
+                        status = (
+                            str(status_elems[0].text).strip().lower() if status_elems else "ongoing"
+                        )
+
+                        # Extract manga ID from URL (slug)
+                        manga_id = url.rstrip("/").split("/")[-1]
+
+                        results.append(
+                            {
+                                "id": manga_id,
+                                "title": title,
+                                "url": url,
+                                "description": description,
+                                "status": status,
+                                "year": None,  # Not available in search results
+                            }
+                        )
+                    except Exception:
+                        # Skip malformed entries
                         continue
 
-                    url = link.attrib.get("href", "")
-                    if not url:
-                        continue
+                return results
 
-                    # Extract title - try multiple selectors
-                    # MangaLivre uses h2, h3, h4 or spans for titles
-                    title_elem = (
-                        card.css_first("h2")
-                        or card.css_first("h3")
-                        or card.css_first("h4")
-                        or card.css_first("span[class*='title']")
-                        or card.css_first(".title")
-                    )
-                    title = str(title_elem.text) if title_elem else str(link.text)
-                    title = title.strip()
+            except Exception as e:
+                retry_count += 1
+                if retry_count >= max_retries:
+                    print(f"⚠️  Erro ao buscar mangá (após {max_retries} tentativas): {e}")
+                    return []
+                print(f"⚠️  Erro ao buscar mangá (tentativa {retry_count}): {e}")
 
-                    if not title or title.isspace():
-                        continue
-
-                    # Extract description if available
-                    desc_elem = card.css_first("p")
-                    description = str(desc_elem.text).strip() if desc_elem else None
-
-                    # Extract status if available
-                    status_elem = card.css_first("span")
-                    status = str(status_elem.text).strip().lower() if status_elem else "ongoing"
-
-                    # Extract manga ID from URL (slug)
-                    manga_id = url.rstrip("/").split("/")[-1]
-
-                    results.append(
-                        {
-                            "id": manga_id,
-                            "title": title,
-                            "url": url,
-                            "description": description,
-                            "status": status,
-                            "year": None,  # Not available in search results
-                        }
-                    )
-                except Exception:
-                    # Skip malformed entries
-                    continue
-
-            return results
-
-        except Exception as e:
-            print(f"⚠️  Erro ao buscar mangá: {e}")
-            return []
+        return []
 
     def get_chapters(self, manga_id: str, manga_url: str) -> list[dict[str, Any]]:
         """Fetch chapter list for a manga.
@@ -143,10 +185,11 @@ class MangaLivre:
 
             for item in chapter_items:
                 try:
-                    link = item.css_first("a")
-                    if not link:
+                    links = item.css("a")
+                    if not links:
                         continue
 
+                    link = links[0]
                     chapter_url = link.attrib.get("href", "")
                     chapter_title = str(link.text).strip()
 
