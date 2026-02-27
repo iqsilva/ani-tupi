@@ -163,12 +163,13 @@ class PluginSettings(BaseModel):
         description="Path to plugin preferences (active/inactive sources)",
     )
     disabled_plugins: list[str] = Field(
-        default_factory=lambda: ["animesdigital"],
+        default_factory=list,
         description="List of disabled plugin names (e.g., ['animesonlinecc'])",
     )
     priority_order: list[str] = Field(
         default_factory=lambda: [
             "anitube",
+            "animesdigital",
             "animefire",
             "animesonlinecc",
         ],
