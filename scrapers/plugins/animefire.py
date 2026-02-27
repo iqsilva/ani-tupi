@@ -1,8 +1,11 @@
 import json
 
-from scrapling import Fetcher, DynamicFetcher
+from scrapling.fetchers import StealthyFetcher, DynamicFetcher
 
 from services.repository import rep
+
+# Enable adaptive mode for future-proof scraping
+StealthyFetcher.adaptive = True
 
 
 class AnimeFire:
@@ -11,25 +14,24 @@ class AnimeFire:
 
     def search_anime(self, query: str) -> None:
         url = "https://animefire.plus/pesquisar/" + "-".join(query.split())
-        tree = Fetcher.get(url)
+        tree = StealthyFetcher.fetch(url, headless=True, adaptive=True)
         target_class = "col-6 col-sm-4 col-md-3 col-lg-2 mb-1 minWDanime divCardUltimosEps"
         titles_urls = []
-        for div in tree.css(f"div.{target_class.replace(' ', '.')}"):
+        for div in tree.css(f"div.{target_class.replace(' ', '.')}", adaptive=True, auto_save=True):
             # Use css()[0] instead of css_first() for scrapling compatibility
-            article_results = div.css("article a")
+            article_results = div.css("article a", adaptive=True)
             article = article_results[0] if article_results else None
             if article is not None:
                 href = article.attrib.get("href")
                 if href:
                     titles_urls.append(href)
-        titles = [str(h3.text) for h3 in tree.css("h3.animeTitle")]
+        titles = [str(h3.text) for h3 in tree.css("h3.animeTitle", adaptive=True, auto_save=True)]
         for title, url in zip(titles, titles_urls, strict=False):
             if url:  # Only add if url is not None
                 rep.add_anime(title, url, self.name)
 
     def search_episodes(self, anime: str, url: str, params: dict | None) -> None:
-        fetcher = Fetcher()
-        tree = fetcher.get(url)
+        tree = StealthyFetcher.fetch(url, headless=True, adaptive=True)
         links = tree.css("a.lEp.epT.divNumEp.smallbox.px-2.mx-1.text-left.d-flex")
         episode_links = [href for a in links if (href := a.attrib.get("href")) is not None]
         opts = [str(a.text) for a in links]
@@ -51,14 +53,14 @@ class AnimeFire:
                 if api_url:
                     try:
                         # Fetch the API endpoint to get video URLs
-                        api_response = Fetcher.get(api_url)
-                        # Parse JSON from response body
-                        body_str = (
-                            api_response.body.decode("utf-8")
-                            if isinstance(api_response.body, bytes)
-                            else api_response.body
-                        )
-                        video_data = json.loads(body_str)
+                        api_response = StealthyFetcher.fetch(api_url, headless=True, adaptive=True)
+                        # Parse JSON from response
+                        if hasattr(api_response, "json"):
+                            video_data = api_response.json()
+                        elif hasattr(api_response, "text"):
+                            video_data = json.loads(api_response.text)
+                        else:
+                            video_data = json.loads(str(api_response))
 
                         if isinstance(video_data, dict) and "data" in video_data:
                             videos = video_data["data"]

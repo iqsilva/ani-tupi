@@ -1,8 +1,11 @@
-from scrapling import Fetcher, DynamicFetcher
+from scrapling.fetchers import StealthyFetcher, DynamicFetcher
 from multiprocessing.pool import ThreadPool
 from os import cpu_count
 
 from services.repository import rep
+
+# Enable adaptive mode for future-proof scraping
+StealthyFetcher.adaptive = True
 
 
 class AnimesOnlineCC:
@@ -11,15 +14,16 @@ class AnimesOnlineCC:
 
     def search_anime(self, query: str) -> None:
         url = "https://animesonlinecc.to/search/" + "+".join(query.split())
-        tree = Fetcher.get(url)
+        tree = StealthyFetcher.fetch(url, headless=True, adaptive=True)
 
-        divs = tree.css("div.data")
+        divs = tree.css("div.data", adaptive=True, auto_save=True)
         titles_urls = []
         titles = []
         for div in divs:
-            n = div.css_first("h3 a")
-            if not n:
+            ns = div.css("h3 a")
+            if not ns:
                 continue
+            n = ns[0]
             url = n.attrib.get("href")
             title = str(n.text)
             if not url or not title:
@@ -31,7 +35,7 @@ class AnimesOnlineCC:
             rep.add_anime(title, url, AnimesOnlineCC.name)
 
         def parse_seasons(title, url):
-            tree = Fetcher.get(url)
+            tree = StealthyFetcher.fetch(url, headless=True, adaptive=True)
             num_seasons = len(tree.css("div.se-c"))
             if num_seasons > 1:
                 for n in range(2, num_seasons + 1):
@@ -47,18 +51,19 @@ class AnimesOnlineCC:
                 pool.apply(parse_seasons, args=(title, url))
 
     def search_episodes(self, anime: str, url: str, params: dict | None) -> None:
-        tree = Fetcher.get(url)
+        tree = StealthyFetcher.fetch(url, headless=True, adaptive=True)
 
-        seasons = tree.css("ul.episodios")
+        seasons = tree.css("ul.episodios", adaptive=True, auto_save=True)
         # Extract season number from params (backwards compatible with int)
         season = params if isinstance(params, int) else (params.get("season") if params else None)
         season_idx = season - 1 if season is not None else 0
         season_ul = seasons[season_idx] if season_idx < len(seasons) else seasons[0]
 
         urls, titles = [], []
-        for div in season_ul.css("div.episodiotitle"):
-            anchor = div.css_first("a")
-            if anchor:
+        for div in season_ul.css("div.episodiotitle", adaptive=True):
+            anchors = div.css("a")
+            if anchors:
+                anchor = anchors[0]
                 urls.append(anchor.attrib.get("href"))
                 titles.append(str(anchor.text))
 
@@ -70,7 +75,11 @@ class AnimesOnlineCC:
             page = DynamicFetcher.fetch(url, timeout=15000)
 
             # Find iframe element
-            iframe = page.css_first("iframe")
+            iframes = page.css("iframe")
+            if not iframes:
+                iframe = None
+            else:
+                iframe = iframes[0]
             if not iframe:
                 raise Exception("iframe not found in animesonlinecc page.")
 
