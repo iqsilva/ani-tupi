@@ -235,13 +235,6 @@ ANI_TUPI__LOG_LEVEL=debug
 export ANI_TUPI__PLUGINS__PRIORITY_ORDER='["animesdigital", "goyabu", "animefire", "animesonlinecc"]'
 ```
 
-**Dubbed Anime Priority** (optional, when anime title contains "Dublado"):
-```bash
-export ANI_TUPI__PLUGINS__DUBBED_PRIORITY_ORDER='["animesdigital", "animefire", "goyabu"]'
-```
-
-When title contains "Dublado", the `dubbed_priority_order` is used for source selection. Otherwise, standard `priority_order` applies.
-
 ---
 
 ## How to Extend

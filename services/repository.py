@@ -50,24 +50,6 @@ class Repository:
     def register(self, plugin) -> None:
         self.sources[plugin.name] = plugin
 
-    def _get_priority_order(self, anime_title: str) -> list[str]:
-        """Get appropriate priority order based on audio type (dubbed vs subtitled).
-
-        Checks if the anime title contains "Dublado" (dubbed marker) and returns
-        the dubbed-specific priority order if configured, otherwise falls back to
-        the standard priority order.
-
-        Args:
-            anime_title: The anime title (may contain "Dublado" suffix)
-
-        Returns:
-            Appropriate priority_order list for this audio type
-        """
-        is_dubbed = "dublado" in anime_title.lower()
-        if is_dubbed and settings.plugins.dubbed_priority_order:
-            return settings.plugins.dubbed_priority_order
-        return settings.plugins.priority_order
-
     def get_active_sources(self) -> list[str]:
         """Get list of currently registered plugin names.
 
@@ -792,7 +774,7 @@ class Repository:
             return None
 
         # Get appropriate priority order based on anime type
-        priority_order = self._get_priority_order(anime)
+        priority_order = settings.plugins.priority_order
         available_sources.sort(
             key=lambda x: (
                 priority_order.index(x[1]) if x[1] in priority_order else len(priority_order)
@@ -848,7 +830,7 @@ class Repository:
             return None
 
         # Get appropriate priority order based on anime type
-        priority_order = self._get_priority_order(anime)
+        priority_order = settings.plugins.priority_order
         available_sources.sort(
             key=lambda x: (
                 priority_order.index(x[1]) if x[1] in priority_order else len(priority_order)
@@ -875,7 +857,7 @@ class Repository:
 
         # Sort selected_urls by priority BEFORE processing
         # This ensures highest-priority sources are tried first
-        priority_order = self._get_priority_order(anime) or []
+        priority_order = settings.plugins.priority_order
         priority_map = {name: idx for idx, name in enumerate(priority_order)}
         selected_urls.sort(key=lambda x: priority_map.get(x[1], len(priority_order)))
 
@@ -944,7 +926,7 @@ class Repository:
                     # Don't re-raise - let other sources try
 
             # Organize URLs by source following priority order
-            priority_order = self._get_priority_order(anime) or []
+            priority_order = settings.plugins.priority_order
             priority_map = {name: idx for idx, name in enumerate(priority_order)}
 
             # Group URLs by source
