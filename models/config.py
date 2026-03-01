@@ -87,7 +87,7 @@ class CacheSettings(BaseModel):
     )
     episodes_cache_enabled: bool = Field(
         False,
-        description="Enable episodes cache (disabled by default due to stability issues)",
+        description="Enable episodes cache (disabled by default due to new episode needed to be fetched)",
     )
     # TTL Configuration
     search_cache_ttl_seconds: int = Field(
@@ -106,7 +106,7 @@ class CacheSettings(BaseModel):
         description="Time-to-live for video URLs cache in seconds (default: 2 hours)",
     )
     cache_max_size_bytes: int = Field(
-        52_428_800,  # 50 MB
+        50 * 1024 * 1024,  # 50 MB
         ge=1_000_000,
         description="Maximum cache size in bytes before LRU eviction (default: 50 MB)",
     )
@@ -134,7 +134,6 @@ class SearchSettings(BaseModel):
     progressive_search_min_words: int = Field(
         1,  # Changed from 2 to support single-word anime like "Dandadan"
         ge=1,
-        le=10,
         description="Minimum words to use in progressive search",
     )
     top_results_limit: int = Field(
