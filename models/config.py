@@ -75,11 +75,6 @@ class CacheSettings(BaseModel):
         default_factory=lambda: get_data_path() / "cache",
         description="Path to cache directory (unified backends)",
     )
-    # Kept for migration compatibility
-    cache_file: Path = Field(
-        default_factory=lambda: get_data_path() / "scraper_cache.json",
-        description="Path to legacy JSON cache file (deprecated, for migration only)",
-    )
     anilist_auto_discover: bool = Field(
         True,
         description="Auto-discover AniList ID for manual searches via fuzzy matching",
