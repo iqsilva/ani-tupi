@@ -55,7 +55,8 @@ class AniTube:
             .replace("- todos episodios", "")
             .strip()
         )
-        episodes_url = f"{url}?ord=1"
+        separator = "&" if "?" in url else "?"
+        episodes_url = f"{url}{separator}ord=1"
 
         with sync_playwright() as p:
             browser = p.chromium.launch(headless=True)

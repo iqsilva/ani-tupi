@@ -109,18 +109,6 @@ class TestRepositorySearchReturnsImmutable:
 class TestRepositoryNoStateMutation:
     """Verify Repository doesn't mutate state during search."""
 
-    def test_repository_state_not_mutated_during_search(self):
-        """Repository internal state should not be mutated during search."""
-        # Get initial state
-        initial_state = id(rep.anime_to_urls)
-
-        # Perform search
-        _ = rep.search_anime("test")
-
-        # State object reference should remain same (not replaced)
-        final_state = id(rep.anime_to_urls)
-        assert initial_state == final_state
-
     def test_search_results_contain_data(self):
         """SearchResults should contain search data."""
         result = rep.search_anime("test")

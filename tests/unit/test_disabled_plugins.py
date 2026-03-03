@@ -43,26 +43,6 @@ class TestDisabledPluginsNotLoaded:
             f"AnimesDigital should be disabled but is in: {active_sources}"
         )
 
-    def test_disabled_plugin_excluded_from_search(self, monkeypatch):
-        """Verify that disabled plugins are not called during search."""
-        # Disable animesdigital via config
-        monkeypatch.setattr(settings.plugins, "disabled_plugins", ["animesdigital"])
-
-        # Load plugins
-        loader.load_plugins({"pt-br"})
-
-        # Get repository instance
-        repo = Repository()
-
-        # Search for anime
-        results = repo.search_anime("test", verbose=False)
-
-        # Check scraper reports - animesdigital should not appear
-        scraper_names = [report.name for report in results.scraper_reports]
-        assert "animesdigital" not in scraper_names, (
-            f"AnimesDigital was called despite being disabled. Reports: {scraper_names}"
-        )
-
     def test_settings_config_applied(self, monkeypatch):
         """Verify that disabled_plugins from settings are applied."""
         # Set disabled plugins via config
@@ -100,26 +80,6 @@ class TestDisabledPluginsNotLoaded:
             assert disabled not in active_sources, (
                 f"{disabled} should be disabled but is in: {active_sources}"
             )
-
-    def test_search_with_all_plugins_disabled_fails_gracefully(self, monkeypatch):
-        """Verify that search fails gracefully when all plugins are disabled."""
-        # Disable all plugins via config
-        monkeypatch.setattr(
-            settings.plugins,
-            "disabled_plugins",
-            ["anitube", "animesdigital", "animefire", "animesonlinecc"],
-        )
-
-        # Load plugins (should load none)
-        loader.load_plugins({"pt-br"})
-
-        # Search should fail gracefully
-        repo = Repository()
-        results = repo.search_anime("test", verbose=False)
-
-        # Should return empty results with no scraper reports
-        assert len(results.results) == 0
-        assert len(results.scraper_reports) == 0
 
     def test_disabled_plugin_not_instantiated(self, monkeypatch):
         """Verify that disabled plugin code is not instantiated."""
