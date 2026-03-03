@@ -1009,16 +1009,13 @@ def _show_airing_episodes() -> None:
         anime_map = {}
 
         for entry in airing_anime:
-            # Format: "Title - Próximo Ep X sai em Xh Ym, você viu Y (Z atrasado) ⭐Score%"
+            # Format: "(Z atrasado) Title - Próximo Ep X sai em Xh Ym, você viu Y ⭐Score%"
             time_until = _format_time_until_airing(entry.airing_at)
             status_str = f"Próximo Ep {entry.next_episode_number} sai {time_until}, você viu {entry.progress}"
 
-            if entry.episodes_behind > 0:
-                status_str += f" ({entry.episodes_behind} atrasado)"
-            else:
-                status_str += " (0 atrasado)"
+            prefix = f"({entry.episodes_behind} atrasado) " if entry.episodes_behind > 0 else ""
 
-            display = f"{entry.title} - {status_str}"
+            display = f"{prefix}{entry.title} - {status_str}"
 
             if entry.average_score:
                 display += f" ⭐{entry.average_score}%"

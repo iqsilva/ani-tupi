@@ -112,13 +112,13 @@ class AiringEpisodesService:
                 title_obj = media.get("title", {})
                 if isinstance(title_obj, dict):
                     title = (
-                        title_obj.get("romaji")
-                        or title_obj.get("english")
+                        title_obj.get("english")
+                        or title_obj.get("romaji")
                         or title_obj.get("native")
                         or "Unknown"
                     )
                 elif isinstance(title_obj, AniListTitle):
-                    title = title_obj.romaji or title_obj.english or title_obj.native or "Unknown"
+                    title = title_obj.english or title_obj.romaji or title_obj.native or "Unknown"
                 else:
                     title = str(title_obj)
 
