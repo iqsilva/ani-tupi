@@ -55,10 +55,12 @@ class AniTube:
             .replace("- todos episodios", "")
             .strip()
         )
+        episodes_url = f"{url}?ord=1"
+
         with sync_playwright() as p:
             browser = p.chromium.launch(headless=True)
             page = browser.new_page()
-            page.goto(url)
+            page.goto(episodes_url)
             page.wait_for_load_state("networkidle", timeout=30000)
 
             episode_links = page.query_selector_all("a[title*='Episódio']")
