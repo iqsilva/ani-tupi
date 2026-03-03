@@ -116,7 +116,6 @@ class VideoPlayer:
                 skip_times,
                 anime_title=anime_title,
                 episode_number=episode_number,
-                source=source,
             )
 
             # Start monitoring events
@@ -419,7 +418,6 @@ shift+t script-message toggle-sub-dub
         skip_times: Optional[SkipTimes] = None,
         anime_title: str | None = None,
         episode_number: int | None = None,
-        source: str | None = None,
     ) -> subprocess.Popen:
         """Launch MPV process with IPC socket support.
 
@@ -451,10 +449,9 @@ shift+t script-message toggle-sub-dub
             "--ytdl-format=bestvideo[height<=1080]+bestaudio/best",
         ]
 
-        # Add custom window title if anime info is available
-        if anime_title and episode_number and source:
-            window_title = f"{anime_title} - Ep {episode_number} - {source}"
-            mpv_args.append(f"--title={window_title}")
+        if anime_title and episode_number:
+            media_title = f"{anime_title} Episode {episode_number}"
+            mpv_args.append(f"--force-media-title={media_title}")
 
         # Add skip.lua script if skip times are available
         if skip_times:

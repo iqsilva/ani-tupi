@@ -24,7 +24,7 @@ Guidance for developing ani-tupi: a Brazilian Portuguese CLI for anime and manga
 
 ### 3. Self-Improvement Loop
 
-- After ANY correction from the user, update `tasks/lessons.md` with the pattern
+- After ANY correction from the user, update `<spec-path>/lessons.md` with the pattern
 - Write rules for yourself that prevent the same mistake
 - Ruthlessly iterate on these lessons until mistake rate drops
 - Review lessons at session start for relevant project
@@ -49,15 +49,6 @@ Guidance for developing ani-tupi: a Brazilian Portuguese CLI for anime and manga
 - Point at logs, errors, failing tests — then resolve them
 - Zero context switching required from the user
 - Go fix failing CI tests without being told how
-
-### Task Management
-
-1. **Plan First**: Write plan to `tasks/todo.md` with checkable items
-2. **Verify Plan**: Check in before starting implementation
-3. **Track Progress**: Mark items complete as you go
-4. **Explain Changes**: High-level summary at each step
-5. **Document Results**: Add review section to `tasks/todo.md`
-6. **Capture Lessons**: Update `tasks/lessons.md` after corrections
 
 ### Core Execution Principles
 
@@ -145,7 +136,7 @@ AnimesDigital: "Anime A: Revolucao Dublado"
 AnimeOnlineCC: "Anime A - Revolucao Dublado"
 AnimeFireTV:   "Anime A | Revolucao Dublado"
 
-Result: Single entry "Anime A: Revolucao Dublado [animesdigital, animesonlinecc, animefiretv]"
+Result: Single entry "anime a revolucao dublado [animesdigital, animesonlinecc, animefiretv]"
 ```
 
 **How it works:**
@@ -157,10 +148,10 @@ Result: Single entry "Anime A: Revolucao Dublado [animesdigital, animesonlinecc,
 **Examples of merged titles:**
 ```
 "Jujutsu Kaisen Season 2 Dublado" + "Jujutsu Kaisen 2nd Season"
-→ "Jujutsu Kaisen 2 [both sources]"
+→ "jujutsu kaisen 2 [both sources]"
 
 "Hell's Paradise: Jigokuraku" + "Hell's Paradise - Jigokuraku"
-→ "Hell's Paradise: Jigokuraku [both sources]"
+→ "hell s paradise jigokuraku [both sources]"
 ```
 
 Why? Reduces cognitive load during search. Users see one entry per anime with all available sources, not 3-4 duplicate entries with slight title variations.
