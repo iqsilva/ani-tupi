@@ -10,6 +10,7 @@ build/
 *.egg
 log.txt
 .beads/
+.serena
 
 
 # Virtual environmentsn
