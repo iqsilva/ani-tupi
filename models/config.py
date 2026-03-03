@@ -152,10 +152,6 @@ class SearchSettings(BaseModel):
 class PluginSettings(BaseModel):
     """Plugin/scraper management settings."""
 
-    preferences_file: Path = Field(
-        default_factory=lambda: get_data_path() / "plugin_preferences.json",
-        description="Path to plugin preferences (active/inactive sources)",
-    )
     disabled_plugins: list[str] = Field(
         default_factory=list,
         description="List of disabled plugin names (e.g., ['animesonlinecc'])",

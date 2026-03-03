@@ -98,37 +98,28 @@ def load_plugins(languages: dict, plugins: list[str] | None = None) -> None:
         file[:-3] for file in listdir(path) if isfile(join(path, file)) and file not in system
     ]
 
-    # Apply filtering based on preferences
+    # Apply filtering based on configuration
     if plugins is None:
-        # Load preferences to get disabled plugins and priority order
-        try:
-            from plugin_manager import (
-                load_plugin_preferences,
-                get_plugin_priority_order,
-            )
+        # Get disabled plugins and priority order from settings
+        from models.config import settings
 
-            prefs = load_plugin_preferences()
-            disabled_plugins = set(prefs.disabled_plugins)
+        disabled_plugins = set(settings.plugins.disabled_plugins)
 
-            # Filter out disabled plugins
-            plugins = [p for p in all_plugin_files if p not in disabled_plugins]
+        # Filter out disabled plugins
+        plugins = [p for p in all_plugin_files if p not in disabled_plugins]
 
-            # Apply priority ordering if configured
-            priority_order = get_plugin_priority_order()
-            if priority_order:
-                # Sort plugins by priority order
-                # Plugins in priority_order come first (in order), others come after
-                def priority_key(plugin):
-                    if plugin in priority_order:
-                        return (0, priority_order.index(plugin))
-                    else:
-                        return (1, plugin)
+        # Apply priority ordering if configured
+        priority_order = settings.plugins.priority_order
+        if priority_order:
+            # Sort plugins by priority order
+            # Plugins in priority_order come first (in order), others come after
+            def priority_key(plugin):
+                if plugin in priority_order:
+                    return (0, priority_order.index(plugin))
+                else:
+                    return (1, plugin)
 
-                plugins = sorted(plugins, key=priority_key)
-
-        except Exception:
-            # If preferences can't be loaded, load all plugins
-            plugins = all_plugin_files
+            plugins = sorted(plugins, key=priority_key)
     else:
         # Use explicit plugin list (for debug mode)
         pass
