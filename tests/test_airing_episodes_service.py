@@ -188,7 +188,7 @@ class TestAiringEpisodesServiceTitleExtraction:
     def test_extracts_romaji_title_when_available(
         self, airing_episodes_service, mock_anilist_client
     ):
-        """Test that romaji title is preferred when available."""
+        """Test that english title is preferred when available, falling back to romaji."""
         mock_anilist_client.get_airing_episodes_for_watching.return_value = [
             {
                 "progress": 5,
@@ -207,7 +207,7 @@ class TestAiringEpisodesServiceTitleExtraction:
 
         result = airing_episodes_service.get_watching_with_airing_episodes()
 
-        assert result[0].title == "Jujutsu Kaisen"
+        assert result[0].title == "Sorcery Fight"
 
     def test_falls_back_to_english_title(self, airing_episodes_service, mock_anilist_client):
         """Test fallback to english title when romaji is None."""
