@@ -12,6 +12,9 @@ Guidance for developing ani-tupi: a Brazilian Portuguese CLI for anime and manga
 - Use worktrees for parallel development on independent features
 - Each worktree has its own branch, isolated from main working directory
 - Clean up worktrees when done to keep repository tidy
+- Create worktree on feature branch: isolates changes from main working directory
+- Test and iterate before pushing to avoid conflicts
+- Useful for testing CI/CD or working on multiple features simultaneously
 
 ### 1. Plan Mode Default
 
