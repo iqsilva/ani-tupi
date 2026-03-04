@@ -17,7 +17,7 @@ def get_token_from_user(auth_url: str) -> str | None:
         Token string if provided, None if cancelled
     """
     print("\n" + "=" * 70)
-    print("🔐 AniList Authentication Required")
+    print("🔐 AniList Authentication")
     print("=" * 70)
     print("\n1. Visit this URL in your browser:\n")
     print(f"   {auth_url}\n")
@@ -27,7 +27,7 @@ def get_token_from_user(auth_url: str) -> str | None:
 
     try:
         # Use getpass to mask token input (similar to password input)
-        token = getpass.getpass("Paste token here: ").strip()
+        token = getpass.getpass("Paste token here (letters wont appear): ").strip()
         return token if token else None
     except (KeyboardInterrupt, EOFError):
         print("\n❌ Authentication cancelled.")
