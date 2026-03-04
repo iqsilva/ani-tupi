@@ -8,6 +8,11 @@ Guidance for developing ani-tupi: a Brazilian Portuguese CLI for anime and manga
 
 **Everything starts with execution discipline.** These principles prevent mistakes, reduce rework, and ensure high-quality contributions.
 
+### Git Worktrees
+- Use worktrees for parallel development on independent features
+- Each worktree has its own branch, isolated from main working directory
+- Clean up worktrees when done to keep repository tidy
+
 ### 1. Plan Mode Default
 
 - **Enter plan mode for ANY non-trivial task** (3+ steps or architectural decisions)
