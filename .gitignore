@@ -21,7 +21,6 @@ env/
 ENV/
 
 # UV
-uv.lock
 
 # IDEs
 .vscode/
