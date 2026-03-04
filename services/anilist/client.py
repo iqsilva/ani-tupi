@@ -6,7 +6,6 @@ and all anime/manga operations via mixins.
 
 import json
 import time
-import webbrowser
 
 import requests
 
@@ -18,6 +17,7 @@ from services.anilist.formatters import (
 )
 from services.anilist.anime_operations import AnimeOperationsMixin
 from services.anilist.manga_operations import MangaOperationsMixin
+from utils.headless_detector import get_token_from_user
 
 
 class AniListClient(AnimeOperationsMixin, MangaOperationsMixin):
@@ -56,36 +56,60 @@ class AniListClient(AnimeOperationsMixin, MangaOperationsMixin):
         """Check if user has valid token."""
         return self.token is not None
 
-    def authenticate(self) -> bool:
-        """OAuth authentication flow (same method as viu-media/viu).
+    def authenticate(self, max_retries: int = 3) -> bool:
+        """OAuth authentication flow (headless mode).
 
-        Opens browser for authorization, user copies token from URL.
+        Displays authorization URL and waits for token input via stdin.
+        Supports token pasted from URL fragment or raw token string.
+
+        Args:
+            max_retries: Maximum number of token input attempts
+
+        Returns:
+            True if authentication successful, False otherwise
         """
         # Build OAuth URL
         auth_url = f"{settings.anilist.auth_url}?client_id={settings.anilist.client_id}&response_type=token"
 
-        # Open browser
-        webbrowser.open(auth_url, new=2)
+        # Try to get token from user (up to max_retries times)
+        for attempt in range(max_retries):
+            token_input = get_token_from_user(auth_url)
 
-        # Get token from user
-        token_input = input("\nCole o token aqui: ").strip()
+            if not token_input:
+                # User cancelled
+                return False
 
-        # Parse token from URL if needed (same as viu does)
-        token = self._parse_token(token_input)
+            # Parse token from URL if needed
+            token = self._parse_token(token_input)
 
-        if not token:
-            return False
+            if not token:
+                remaining = max_retries - attempt - 1
+                if remaining > 0:
+                    print(
+                        f"\n❌ Invalid token format. Please try again ({remaining} attempts left).\n"
+                    )
+                continue
 
-        # Validate token
-        if self._validate_token(token):
-            self.token = token
+            # Validate token
+            if self._validate_token(token):
+                self.token = token
 
-            # Get and display user info
-            user_info = self.get_viewer_info()
-            if user_info:
-                self.user_id = user_info.id  # Save user ID for queries
-                self._save_token(token, self.user_id)  # Save both token and user_id
-            return True
+                # Get and display user info
+                user_info = self.get_viewer_info()
+                if user_info:
+                    self.user_id = user_info.id  # Save user ID for queries
+                    self._save_token(token, self.user_id)  # Save both token and user_id
+                    print(f"\n✅ Authentication successful! Welcome, {user_info.name}!")
+                return True
+
+            # Token validation failed
+            remaining = max_retries - attempt - 1
+            if remaining > 0:
+                print(
+                    f"\n❌ Token validation failed. Please check the token and try again ({remaining} attempts left).\n"
+                )
+
+        print("\n❌ Authentication failed after maximum retry attempts.")
         return False
 
     def _parse_token(self, token_input: str) -> str:

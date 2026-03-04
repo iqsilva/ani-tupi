@@ -384,6 +384,62 @@ Blue Lock - Ep 11 aired, você viu 11 (0 atrasado) ⭐75%
 uv run pytest tests/test_airing_episodes_service.py tests/test_anilist_airing_query.py -v
 ```
 
+### AniList Authentication (Headless Mode)
+
+Authentication works in all environments—local terminal, SSH session, container, or CI/CD pipeline. No browser required.
+
+**How It Works**:
+1. User runs `uv run ani-tupi` and selects AniList menu
+2. System displays authorization URL and prompts for token
+3. User visits URL in any browser (on same device or different machine)
+4. User authorizes the application
+5. User copies token from redirect URL and pastes into terminal
+6. Token is validated and stored locally
+
+**Authentication Flow**:
+```
+$ uv run ani-tupi
+[Select "Autenticar com AniList"]
+
+================================================
+🔐 AniList Authentication Required
+================================================
+
+1. Visit this URL in your browser:
+
+   https://anilist.co/api/v2/oauth/authorize?client_id=...&response_type=token
+
+2. Authorize the application
+3. Copy the access token from the URL (or from the page)
+4. Paste it below when prompted
+
+Paste token here: ••••••••••••••••••••
+✅ Authentication successful! Welcome, YourName!
+```
+
+**Token Input**:
+- Token input is masked with `●●●●` characters for security (uses Python's `getpass`)
+- Supports raw tokens or full URLs with token fragment
+- Validates token by making test GraphQL query to AniList
+- Auto-retries up to 3 times on invalid token
+
+**Troubleshooting Auth Failures**:
+- **"Token validation failed"**: Token is expired, revoked, or malformed. Get a fresh token from the auth URL.
+- **"Invalid token format"**: User may have copied partial token. Try copying the full URL from browser address bar.
+- **Network error during validation**: Check internet connection and retry. Auth succeeds only if token validates with AniList API.
+- **Token in SSH session**: Works the same—open auth URL on local computer, copy token, paste in SSH terminal.
+
+**Architecture**:
+- `services/anilist/client.py`: `authenticate()` method handles headless flow
+- `utils/headless_detector.py`: `get_token_from_user()` displays URL and prompts for input
+- Token stored in: `~/.local/state/ani-tupi/anilist_token.json`
+- Token includes: `access_token` and `user_id` (for faster queries)
+
+**Testing**:
+```bash
+uv run pytest tests/test_anilist_authentication.py -v
+```
+
 ---
 
 ## Development Workflow
@@ -436,6 +492,19 @@ self.cache.set(cache_key, results, ttl=settings.cache_duration_hours)
 ```python
 PRIORITY = ["zathura", "evince", "your-reader-name", "xdg-open"]
 ```
+
+### AniList Authentication Fails
+
+**Root Causes**:
+1. Invalid token—expired, revoked, or malformed
+2. Network error during token validation
+3. Wrong authorization step—user didn't authorize application
+
+**Solution**:
+- Delete stored token: `rm ~/.local/state/ani-tupi/anilist_token.json`
+- Re-run `uv run ani-tupi` and select AniList menu
+- Follow auth flow again: visit URL, authorize, copy token, paste
+- If still failing, check network connection: `curl https://graphql.anilist.co`
 
 ### AniList Sync Fails
 
