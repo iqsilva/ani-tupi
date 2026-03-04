@@ -50,10 +50,28 @@ Guidance for developing ani-tupi: a Brazilian Portuguese CLI for anime and manga
 - Zero context switching required from the user
 - Go fix failing CI tests without being told how
 
+### 7. Specification Discipline
+
+Ask these four clarifying questions before ANY implementation:
+
+1. **"What happens when it fails?"** — Define edge cases, error modes, and failure paths
+2. **"How do we know it's working?"** — Establish concrete acceptance criteria and verification methods
+3. **"What does 'done' look like?"** — Define exact completion criteria, not fuzzy statements
+4. **"Can you show me an example?"** — Ground discussions in concrete instances, not abstractions
+
+**Apply these principles:**
+- Use precise terminology over vague language (NOT "priority: high", YES "priority_level: 1"; NOT "timeout: short", YES "timeout_seconds: 30")
+- Require exact numbers/enums in specs, not relative language
+- Document edge cases explicitly (what breaks? what's unsupported?)
+- Design error paths before happy paths—assume failures will occur
+- For mission-critical specs affecting multiple components: state requirements at least twice using formal language, include concrete examples
+
+**Why?** Most failures happen because someone was afraid to ask an obvious question. Clarifying questions prevent half-understood requirements that waste effort later.
+
 ### Core Execution Principles
 
 - **Simplicity First**: Make every change as simple as possible. Impact minimal code.
-- **No Laziness**: Find root causes. No temporary fixes. Senior developer standards.
+- **No Laziness**: Find root causes. No temporary fixes. Senior developer standards. Design defensive architecture: error paths before happy paths, explicit edge case handling.
 - **Minimal Impact**: Changes should only touch what's necessary. Avoid introducing bugs.
 
 ---
