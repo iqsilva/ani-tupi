@@ -1,6 +1,17 @@
 # CHANGELOG
 
 
+## v0.2.2 (2026-03-04)
+
+### Bug Fixes
+
+- Simplify sed command to update pyproject.toml version
+  ([`f6818c4`](https://github.com/levyvix/ani-tupi/commit/f6818c4f64bd7603953d5ecf801b6982396a2f48))
+
+Use more straightforward regex pattern that matches line prefix instead of trying to match quoted
+  version strings.
+
+
 ## v0.2.1 (2026-03-04)
 
 ### Bug Fixes
