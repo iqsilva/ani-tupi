@@ -1,6 +1,17 @@
 # CHANGELOG
 
 
+## v0.2.1 (2026-03-04)
+
+### Bug Fixes
+
+- Use GITHUB_TOKEN for git operations in release workflow
+  ([`b9ff8f4`](https://github.com/levyvix/ani-tupi/commit/b9ff8f4e4ccdadf4f5f949070cfd186e738c1fda))
+
+- Change from persist-credentials: false to token-based auth - Ensure git push can authenticate
+  using GITHUB_TOKEN - Allows release workflow to push tags and commits back to repo
+
+
 ## v0.2.0 (2026-03-04)
 
 ### Bug Fixes
