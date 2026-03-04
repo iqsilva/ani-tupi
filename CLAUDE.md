@@ -471,6 +471,49 @@ uv remove package-name                   # Remove dependency
 uv sync --upgrade                        # Update all
 ```
 
+**Release and Versioning**:
+
+Versions are automatically bumped based on conventional commit messages using semantic versioning (MAJOR.MINOR.PATCH). The release workflow runs automatically when commits are pushed to main after CI passes.
+
+```bash
+# Commits that trigger version bumps:
+feat: ...          # Bumps MINOR (0.1.0 → 0.2.0)
+fix: ...           # Bumps PATCH (0.1.0 → 0.1.1)
+BREAKING CHANGE:   # Bumps MAJOR (0.1.0 → 1.0.0)
+```
+
+**How to Use**:
+
+Just write conventional commits and push to main/master:
+
+```bash
+# Feature release (bumps minor: 0.2.2 → 0.3.0)
+git commit -m "feat: add new capability"
+
+# Patch release (bumps patch: 0.2.2 → 0.2.3)
+git commit -m "fix: resolve issue"
+
+# Major release (bumps major: 0.2.2 → 1.0.0)
+git commit -m "feat: breaking change
+
+BREAKING CHANGE: description of breaking change"
+
+git push origin master
+# → CI runs → Release workflow triggers → v0.3.0 published!
+```
+
+**Release Workflow**:
+- Triggers automatically after CI passes on main branch
+- Calculates next version from commit history since last release
+- Creates git tag (e.g., `v0.2.0`) and GitHub Release
+- Generates release notes from commit messages
+- Updates CHANGELOG.md
+
+**Configuration**:
+- Release rules: `.releaserc.json` (what triggers bumps)
+- Workflow: `.github/workflows/release.yml` (GitHub Actions)
+- Always use conventional commits to get the correct version bump
+
 ---
 
 ## Known Issues & Solutions
