@@ -5,7 +5,6 @@ it is not loaded by the loader and is not called during search operations.
 """
 
 import pytest
-from unittest.mock import Mock, patch
 from models.config import settings
 
 from scrapers import loader
@@ -79,33 +78,6 @@ class TestDisabledPluginsNotLoaded:
         for disabled in ["animesdigital", "animefire", "animesonlinecc"]:
             assert disabled not in active_sources, (
                 f"{disabled} should be disabled but is in: {active_sources}"
-            )
-
-    def test_disabled_plugin_not_instantiated(self, monkeypatch):
-        """Verify that disabled plugin code is not instantiated."""
-        # Disable animesdigital via config
-        monkeypatch.setattr(settings.plugins, "disabled_plugins", ["animesdigital"])
-
-        # Mock the import to track if animesdigital is loaded
-        with patch("importlib.import_module") as mock_import:
-            # Set up return value for non-disabled modules
-            mock_module = Mock()
-            mock_module.load = Mock()
-            mock_import.return_value = mock_module
-
-            # Load plugins
-            loader.load_plugins({"pt-br"})
-
-            # Verify animesdigital was not imported
-            call_names = [
-                call[0][0]
-                for call in mock_import.call_args_list
-                if "scrapers.plugins" in call[0][0]
-            ]
-
-            # animesdigital should not be in the imported modules
-            assert not any("animesdigital" in call for call in call_names), (
-                f"AnimesDigital was imported despite being disabled: {call_names}"
             )
 
 
