@@ -1,11 +1,8 @@
 import json
 
-from scrapling.fetchers import StealthyFetcher, DynamicFetcher
+from scrapling.fetchers import DynamicFetcher
 
 from services.repository import rep
-
-# Enable adaptive mode for future-proof scraping
-StealthyFetcher.adaptive = True
 
 
 class AnimeFire:
@@ -14,7 +11,7 @@ class AnimeFire:
 
     def search_anime(self, query: str) -> None:
         url = "https://animefire.plus/pesquisar/" + "-".join(query.split())
-        tree = StealthyFetcher.fetch(url, headless=True, adaptive=True)
+        tree = DynamicFetcher.fetch(url, timeout=20000)
         target_class = "col-6 col-sm-4 col-md-3 col-lg-2 mb-1 minWDanime divCardUltimosEps"
         titles_urls = []
         for div in tree.css(f"div.{target_class.replace(' ', '.')}", adaptive=True, auto_save=True):
@@ -31,7 +28,7 @@ class AnimeFire:
                 rep.add_anime(title, url, self.name)
 
     def search_episodes(self, anime: str, url: str, params: dict | None) -> None:
-        tree = StealthyFetcher.fetch(url, headless=True, adaptive=True)
+        tree = DynamicFetcher.fetch(url, timeout=20000)
         links = tree.css("a.lEp.epT.divNumEp.smallbox.px-2.mx-1.text-left.d-flex")
         episode_links = [href for a in links if (href := a.attrib.get("href")) is not None]
         opts = [str(a.text) for a in links]
@@ -53,7 +50,7 @@ class AnimeFire:
                 if api_url:
                     try:
                         # Fetch the API endpoint to get video URLs
-                        api_response = StealthyFetcher.fetch(api_url, headless=True, adaptive=True)
+                        api_response = DynamicFetcher.fetch(api_url, timeout=15000)
                         # Parse JSON from response
                         if hasattr(api_response, "json"):
                             video_data = api_response.json()
