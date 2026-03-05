@@ -599,9 +599,55 @@ export ANI_TUPI__PLUGINS__PRIORITY_ORDER='["animesdigital", "animefire"]'
 
 ## Testing Strategy
 
-- **Unit tests** for services (mock scrapers, cache, API clients)
-- **Integration tests** for plugin loading (verify scrapers are discoverable)
-- **E2E tests** for critical flows (search → select → play/read)
+**Principle: NO MOCKING BY DEFAULT. Use real implementations. Only mock external tools, APIs, and destructive operations.**
+
+### The Rule
+- **Start with real code**: Every test should exercise actual functions and services
+- **Only mock externals**: HTTP calls, database connections, external APIs (AniList, AniSkip)
+- **Use temp directories instead of mocking**: Never mock file operations—use `temp_dir` fixture
+- **Never mock internal services**: If you're mocking a service layer or plugin, you're not testing integration
+
+### Test Approach
+- **Integration tests** with real services, plugins, and storage (NEVER mock these)
+- **Mock external APIs only**: AniList GraphQL, AniSkip, external video providers, HTTP requests
+- **Mock destructive operations**: Never delete real files—use temporary directories with auto-cleanup
+- **Real plugin loading**: Load actual scrapers from `scrapers/plugins/` directory
+- **Real storage**: Use temporary directories for cache/downloads (auto-cleanup via pytest fixtures)
+
+### Available Fixtures (in `tests/conftest.py`)
+```python
+@pytest.fixture
+def repository:
+    """Real Repository with plugins loaded from scrapers/plugins/"""
+    pass
+
+@pytest.fixture
+def temp_dir:
+    """Temporary directory auto-cleaned up after test"""
+    pass
+
+@pytest.fixture
+def test_settings:
+    """Real AppSettings using temp directories"""
+    pass
+```
+
+### Refactoring Pattern
+Old (excessive mocks):
+```python
+# Mock both scraper AND repository = no real integration testing
+with patch.object(scraper, 'search') as mock_search:
+    mock_search.return_value = [...]
+    result = repository.search_anime("query")
+```
+
+New (real integration):
+```python
+# Use real repository with real scrapers, mock only external API
+with patch.object(httpx.Client, "get") as mock_http:  # External API mock only
+    mock_http.return_value = Mock(status_code=200, json=lambda: {...})
+    result = repository.search_anime("query")  # Real scrapers, real business logic
+```
 
 Goal: 80%+ coverage on service layer (business logic). CLI layer and utilities need less coverage (tested manually).
 

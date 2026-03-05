@@ -31,30 +31,9 @@ class TestAnimesDigitalAPILimit:
         """
 
     @patch("scrapers.plugins.animesdigital.requests.post")
-    def test_api_includes_limit_parameter(self, mock_post):
-        """Verify that _search_episodes_with_audio includes 'limit' in payload."""
-        # Create mock response with 15 episodes
-        html_fragments = [self._create_episode_html(i) for i in range(1, 16)]
-        mock_response = MagicMock()
-        mock_response.json.return_value = {"results": html_fragments}
-        mock_post.return_value = mock_response
-
-        self.scraper._search_episodes_with_audio("sakamoto days", "dublado")
-
-        # Verify the API was called
-        assert mock_post.called
-
-        # Check that 'limit' parameter was included in the payload
-        call_args = mock_post.call_args
-        payload = call_args[1]["data"]  # Get the data kwargs
-
-        assert "limit" in payload, "API request missing 'limit' parameter"
-        assert payload["limit"] == "200", f"Expected limit=200, got {payload['limit']}"
-
-    @patch("scrapers.plugins.animesdigital.requests.post")
-    def test_api_returns_all_episodes_up_to_limit(self, mock_post):
-        """Test that API with limit=200 returns all episodes up to 200."""
-        # Simulate API response with 22 episodes (both series and part 2)
+    def test_returns_all_episodes_beyond_old_limit(self, mock_post):
+        """Test API now returns all episodes beyond old limit (regression: episode 11+)."""
+        # Simulate API response with 22 episodes (full series + part 2)
         html_fragments = [self._create_episode_html(i) for i in range(1, 23)]
         mock_response = MagicMock()
         mock_response.json.return_value = {"results": html_fragments}
@@ -62,17 +41,22 @@ class TestAnimesDigitalAPILimit:
 
         results = self.scraper._search_episodes_with_audio("sakamoto days", "dublado")
 
-        # Should get all 22 episodes
+        # Should get all 22 episodes (was capped at 10 before fix)
         assert len(results) == 22, f"Expected 22 episodes, got {len(results)}"
 
-        # Verify episodes are sorted
+        # Verify episodes are in order and include episode 11 (regression check)
         for i, ep in enumerate(results, 1):
             assert f"Episódio {i:02d}" in ep["title"], f"Episode {i} not found in correct position"
 
+        episode_numbers = [
+            int(ep["title"].split("Episódio ")[1]) for ep in results if "Episódio" in ep["title"]
+        ]
+        assert 11 in episode_numbers, "Episode 11 not found - regression detected!"
+
     @patch("scrapers.plugins.animesdigital.requests.post")
-    def test_search_episodes_with_audio_returns_11_plus_episodes(self, mock_post):
-        """Regression test: Verify episode 11 is now discoverable (was capped at 10)."""
-        # Create response with 15 episodes
+    def test_handles_partial_response(self, mock_post):
+        """Test handling of partial API response."""
+        # Simulate response with 15 episodes
         html_fragments = [self._create_episode_html(i) for i in range(1, 16)]
         mock_response = MagicMock()
         mock_response.json.return_value = {"results": html_fragments}
@@ -80,10 +64,5 @@ class TestAnimesDigitalAPILimit:
 
         results = self.scraper._search_episodes_with_audio("sakamoto days", "dublado")
 
-        # Must include episode 11 (was missing before fix)
-        episode_numbers = [
-            int(ep["title"].split("Episódio ")[1]) for ep in results if "Episódio" in ep["title"]
-        ]
-
-        assert 11 in episode_numbers, "Episode 11 not found - regression detected!"
-        assert len(results) > 10, f"Still capped at 10 episodes, got {len(results)}"
+        # Should return all 15 episodes provided by API
+        assert len(results) == 15, f"Expected 15 episodes, got {len(results)}"

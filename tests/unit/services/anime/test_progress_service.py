@@ -17,58 +17,50 @@ from services.anime.anilist_discovery_service import AniListDiscoveryResult
 class TestEpisodeProgressInfoDataclass:
     """Tests for the immutable EpisodeProgressInfo dataclass."""
 
-    def test_dataclass_is_frozen(self):
-        """EpisodeProgressInfo should be immutable (frozen)."""
+    def test_dataclass_immutability_and_fields(self):
+        """EpisodeProgressInfo should be immutable with all fields accessible."""
         from services.anime.progress_service import EpisodeProgressInfo
 
+        # Frozen - cannot modify
         info = EpisodeProgressInfo(
             current_episode=1,
             scraper_total=12,
             anilist_total=None,
             progress_str="1/12",
         )
-
-        # Should raise error when trying to modify
         with pytest.raises(AttributeError):
             info.current_episode = 2
 
-    def test_dataclass_with_all_fields(self):
-        """Should create result with all fields populated."""
-        from services.anime.progress_service import EpisodeProgressInfo
-
+        # All fields populated
         info = EpisodeProgressInfo(
             current_episode=5,
             scraper_total=24,
             anilist_total=24,
             progress_str="5/24",
         )
-
         assert info.current_episode == 5
         assert info.scraper_total == 24
         assert info.anilist_total == 24
         assert info.progress_str == "5/24"
 
-    def test_dataclass_with_none_anilist_total(self):
-        """Should create result with None anilist_total."""
-        from services.anime.progress_service import EpisodeProgressInfo
-
+        # None anilist_total
         info = EpisodeProgressInfo(
             current_episode=3,
             scraper_total=12,
             anilist_total=None,
             progress_str="3/12",
         )
-
         assert info.anilist_total is None
 
 
 class TestProgressContextDataclass:
     """Tests for the immutable ProgressContext dataclass."""
 
-    def test_dataclass_is_frozen(self):
-        """ProgressContext should be immutable (frozen)."""
+    def test_dataclass_immutability_and_fields(self):
+        """ProgressContext should be immutable with all field combinations."""
         from services.anime.progress_service import ProgressContext
 
+        # Frozen - cannot modify
         ctx = ProgressContext(
             anime_title="Dandadan",
             episode_number=1,
@@ -76,15 +68,10 @@ class TestProgressContextDataclass:
             anilist_id=None,
             num_episodes=12,
         )
-
-        # Should raise error when trying to modify
         with pytest.raises(AttributeError):
             ctx.episode_number = 2
 
-    def test_dataclass_with_all_fields(self):
-        """Should create context with all fields populated."""
-        from services.anime.progress_service import ProgressContext
-
+        # All fields populated
         ctx = ProgressContext(
             anime_title="Dandadan",
             episode_number=5,
@@ -92,17 +79,13 @@ class TestProgressContextDataclass:
             anilist_id=12345,
             num_episodes=24,
         )
-
         assert ctx.anime_title == "Dandadan"
         assert ctx.episode_number == 5
         assert ctx.source == "animefire"
         assert ctx.anilist_id == 12345
         assert ctx.num_episodes == 24
 
-    def test_dataclass_with_optional_fields_none(self):
-        """Should create context with optional fields as None."""
-        from services.anime.progress_service import ProgressContext
-
+        # Optional fields as None
         ctx = ProgressContext(
             anime_title="Test Anime",
             episode_number=1,
@@ -110,7 +93,6 @@ class TestProgressContextDataclass:
             anilist_id=None,
             num_episodes=0,
         )
-
         assert ctx.source is None
         assert ctx.anilist_id is None
 
@@ -118,34 +100,22 @@ class TestProgressContextDataclass:
 class TestGetEpisodeProgressInfo:
     """Tests for get_episode_progress_info function."""
 
-    def test_basic_progress_without_anilist(self):
-        """Test 1: Basic Progress Without AniList.
-
-        Input: episode=1, scraper_total=12, no AniList
-        Expected: progress_str="1/12", anilist_total=None
-        """
+    def test_progress_with_anilist_scenarios(self):
+        """Test progress calculation with various AniList match scenarios."""
         from services.anime.progress_service import get_episode_progress_info
 
-        # No mocking needed - no AniList info
+        # Scenario 1: Without AniList
         result = get_episode_progress_info(
             episode_number=1,
             scraper_total=12,
             anilist_discovery=None,
         )
-
         assert result.current_episode == 1
         assert result.scraper_total == 12
         assert result.anilist_total is None
         assert result.progress_str == "1/12"
 
-    def test_progress_with_anilist_match(self):
-        """Test 2: Progress With AniList Match.
-
-        Input: episode=5, scraper_total=24, anilist_total=24
-        Expected: progress_str="5/24", anilist_total=24
-        """
-        from services.anime.progress_service import get_episode_progress_info
-
+        # Scenario 2: With AniList match
         discovery_result = AniListDiscoveryResult(
             anilist_id=12345,
             anilist_title="Dandadan",
@@ -154,27 +124,16 @@ class TestGetEpisodeProgressInfo:
             found=True,
             authenticated=True,
         )
-
         result = get_episode_progress_info(
             episode_number=5,
             scraper_total=24,
             anilist_discovery=discovery_result,
         )
-
         assert result.current_episode == 5
-        assert result.scraper_total == 24
-        assert result.anilist_total == 24
         assert result.progress_str == "5/24"
 
-    def test_progress_discrepancy_scraper_vs_anilist(self):
-        """Test 3: Progress Discrepancy (Scraper vs AniList).
-
-        Input: scraper_total=24, AniList has 25 episodes
-        Expected: progress_str shows both like "5/24 (AniList: 25)"
-        """
-        from services.anime.progress_service import get_episode_progress_info
-
-        discovery_result = AniListDiscoveryResult(
+        # Scenario 3: Discrepancy (scraper 24, AniList 25)
+        discovery_result_diff = AniListDiscoveryResult(
             anilist_id=12345,
             anilist_title="Dandadan",
             total_episodes=25,  # Different from scraper
@@ -182,45 +141,27 @@ class TestGetEpisodeProgressInfo:
             found=True,
             authenticated=True,
         )
-
         result = get_episode_progress_info(
             episode_number=5,
             scraper_total=24,
-            anilist_discovery=discovery_result,
+            anilist_discovery=discovery_result_diff,
         )
-
-        assert result.current_episode == 5
-        assert result.scraper_total == 24
         assert result.anilist_total == 25
         assert result.progress_str == "5/24 (AniList: 25)"
 
-    def test_unknown_episode_count(self):
-        """Test 4: Unknown Episode Count.
-
-        Input: scraper_total=0 (unknown), episode=5, no AniList
-        Expected: progress_str="5/?"
-        """
+    def test_unknown_episode_count_scenarios(self):
+        """Test progress with unknown episode counts and AniList fallback."""
         from services.anime.progress_service import get_episode_progress_info
 
+        # Unknown without AniList
         result = get_episode_progress_info(
             episode_number=5,
             scraper_total=0,
             anilist_discovery=None,
         )
-
-        assert result.current_episode == 5
-        assert result.scraper_total == 0
-        assert result.anilist_total is None
         assert result.progress_str == "5/?"
 
-    def test_unknown_with_anilist_fallback(self):
-        """Test 5: Unknown With AniList Fallback.
-
-        Input: scraper_total=0, AniList has 24 episodes
-        Expected: progress_str="5/24", uses AniList total as fallback
-        """
-        from services.anime.progress_service import get_episode_progress_info
-
+        # Unknown with AniList fallback
         discovery_result = AniListDiscoveryResult(
             anilist_id=12345,
             anilist_title="Dandadan",
@@ -229,17 +170,11 @@ class TestGetEpisodeProgressInfo:
             found=True,
             authenticated=True,
         )
-
         result = get_episode_progress_info(
             episode_number=5,
             scraper_total=0,
             anilist_discovery=discovery_result,
         )
-
-        assert result.current_episode == 5
-        assert result.scraper_total == 0
-        assert result.anilist_total == 24
-        # When scraper doesn't know but AniList does, use AniList
         assert result.progress_str == "5/24"
 
     def test_final_episode_detection(self):

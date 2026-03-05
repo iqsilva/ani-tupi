@@ -158,9 +158,9 @@ class PluginSettings(BaseModel):
     )
     priority_order: list[str] = Field(
         default_factory=lambda: [
-            "anitube",
             "animesdigital",
             "animefire",
+            "anitube",
             "animesonlinecc",
         ],
         description="Priority order for scraper sources (first = highest priority)",

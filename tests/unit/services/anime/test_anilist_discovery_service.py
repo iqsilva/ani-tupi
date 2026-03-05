@@ -119,13 +119,13 @@ class TestDiscoverAnilistInfo:
     @patch("services.anime.anilist_discovery_service.normalize_title_for_search")
     @patch("services.anime.anilist_discovery_service.auto_discover_anilist_id")
     @patch("services.anime.anilist_discovery_service.anilist_client")
-    def test_authenticated_exact_match(
+    def test_authenticated_successful_discovery(
         self, mock_anilist, mock_auto_discover, mock_normalize, mock_get_metadata
     ):
-        """When authenticated and match found, return complete result."""
+        """Successful discovery returns complete result with title normalization."""
         from services.anime.anilist_discovery_service import discover_anilist_info
 
-        # Setup
+        # Setup: Authenticated, title normalization, and metadata retrieval
         mock_anilist.is_authenticated.return_value = True
         mock_normalize.return_value = "dandadan"
         mock_auto_discover.return_value = [
@@ -142,8 +142,8 @@ class TestDiscoverAnilistInfo:
         )
         mock_anilist.format_title.return_value = "Dandadan"
 
-        # Execute
-        result = discover_anilist_info("Dandadan")
+        # Execute with title containing suffix (tests normalization)
+        result = discover_anilist_info("dandadan (Dublado)")
 
         # Verify
         assert result.authenticated is True
@@ -151,116 +151,47 @@ class TestDiscoverAnilistInfo:
         assert result.anilist_id == 12345
         assert result.anilist_title == "Dandadan"
         assert result.total_episodes == 12
-
-    @patch("services.anime.anilist_discovery_service.get_anilist_metadata")
-    @patch("services.anime.anilist_discovery_service.normalize_title_for_search")
-    @patch("services.anime.anilist_discovery_service.auto_discover_anilist_id")
-    @patch("services.anime.anilist_discovery_service.anilist_client")
-    def test_authenticated_fuzzy_match_with_normalization(
-        self, mock_anilist, mock_auto_discover, mock_normalize, mock_get_metadata
-    ):
-        """When title has Portuguese suffix, should normalize before search."""
-        from services.anime.anilist_discovery_service import discover_anilist_info
-
-        # Setup: Title with Portuguese suffix
-        mock_anilist.is_authenticated.return_value = True
-        mock_normalize.return_value = "dandadan"  # Normalized title
-        mock_auto_discover.return_value = [
-            AniListSearchResult(anilist_id=12345, score=90, title="Dandadan")
-        ]
-        mock_get_metadata.return_value = AniListAnime(
-            id=12345,
-            title=AniListTitle(romaji="Dandadan", english="Dandadan", native=None),
-            episodes=12,
-            averageScore=85,
-            seasonYear=2024,
-            season="FALL",
-            type="ANIME",
-        )
-        mock_anilist.format_title.return_value = "Dandadan"
-
-        # Execute with title containing suffix
-        result = discover_anilist_info("dandadan (Dublado)")
-
         # Verify normalization was called with original title
         mock_normalize.assert_called_once_with("dandadan (Dublado)")
         # Verify auto_discover was called with normalized title
         mock_auto_discover.assert_called_once_with("dandadan")
-        assert result.found is True
-
-    @patch("services.anime.anilist_discovery_service.normalize_title_for_search")
-    @patch("services.anime.anilist_discovery_service.auto_discover_anilist_id")
-    @patch("services.anime.anilist_discovery_service.anilist_client")
-    def test_api_error_returns_graceful_result(
-        self, mock_anilist, mock_auto_discover, mock_normalize
-    ):
-        """When API call fails, should return graceful result, not raise exception."""
-        from services.anime.anilist_discovery_service import discover_anilist_info
-
-        # Setup: API raises exception
-        mock_anilist.is_authenticated.return_value = True
-        mock_normalize.return_value = "dandadan"
-        mock_auto_discover.side_effect = Exception("Network error")
-
-        # Execute - should NOT raise exception
-        result = discover_anilist_info("Dandadan")
-
-        # Verify graceful degradation
-        assert result.authenticated is True
-        assert result.found is False
-        assert result.anilist_id is None
-        assert result.anilist_title is None
 
     @patch("services.anime.anilist_discovery_service.get_anilist_metadata")
     @patch("services.anime.anilist_discovery_service.normalize_title_for_search")
     @patch("services.anime.anilist_discovery_service.auto_discover_anilist_id")
     @patch("services.anime.anilist_discovery_service.anilist_client")
-    def test_metadata_error_returns_partial_result(
+    def test_error_handling_graceful_degradation(
         self, mock_anilist, mock_auto_discover, mock_normalize, mock_get_metadata
     ):
-        """When auto_discover works but get_metadata fails, return partial result."""
+        """Test graceful error handling in various failure scenarios."""
         from services.anime.anilist_discovery_service import discover_anilist_info
 
-        # Setup: Discovery works but metadata fetch fails
+        # Scenario 1: API discovery fails - return no match
         mock_anilist.is_authenticated.return_value = True
         mock_normalize.return_value = "dandadan"
+        mock_auto_discover.side_effect = Exception("Network error")
+        result = discover_anilist_info("Dandadan")
+        assert result.authenticated is True
+        assert result.found is False
+        assert result.anilist_id is None
+
+        # Scenario 2: Discovery succeeds but metadata fetch fails - return partial result
+        mock_auto_discover.side_effect = None
         mock_auto_discover.return_value = [
             AniListSearchResult(anilist_id=12345, score=95, title="Dandadan")
         ]
         mock_get_metadata.side_effect = Exception("Metadata fetch failed")
-
-        # Execute
         result = discover_anilist_info("Dandadan")
-
-        # Verify partial result (has ID but no title/episodes)
         assert result.authenticated is True
         assert result.found is True
         assert result.anilist_id == 12345
         assert result.anilist_title is None
         assert result.total_episodes is None
 
-    @patch("services.anime.anilist_discovery_service.get_anilist_metadata")
-    @patch("services.anime.anilist_discovery_service.normalize_title_for_search")
-    @patch("services.anime.anilist_discovery_service.auto_discover_anilist_id")
-    @patch("services.anime.anilist_discovery_service.anilist_client")
-    def test_metadata_returns_none(
-        self, mock_anilist, mock_auto_discover, mock_normalize, mock_get_metadata
-    ):
-        """When get_metadata returns None, return partial result with ID only."""
-        from services.anime.anilist_discovery_service import discover_anilist_info
-
-        # Setup: Discovery works but metadata returns None
-        mock_anilist.is_authenticated.return_value = True
-        mock_normalize.return_value = "dandadan"
-        mock_auto_discover.return_value = [
-            AniListSearchResult(anilist_id=12345, score=95, title="Dandadan")
-        ]
+        # Scenario 3: Discovery succeeds but metadata returns None - return partial result
+        mock_get_metadata.side_effect = None
         mock_get_metadata.return_value = None
-
-        # Execute
         result = discover_anilist_info("Dandadan")
-
-        # Verify partial result
         assert result.authenticated is True
         assert result.found is True
         assert result.anilist_id == 12345

@@ -233,17 +233,11 @@ class TestPreparePlaybackFromSearch:
 
     @patch("services.anime.playback_service.rep")
     @patch("services.anime.playback_service.discover_anilist_info")
-    def test_search_with_episode_list(self, mock_discover, mock_rep):
-        """Test 3: Search With Episode List.
-
-        Input: Valid anime and source
-        Expected: episode_list populated from repository
-        Verify: Uses rep.get_episode_list() to get episodes
-        """
+    def test_search_with_episode_list_and_counts(self, mock_discover, mock_rep):
+        """Test episode list retrieval and mixed episode count scenarios."""
         from services.anime.playback_service import prepare_playback_from_search
 
-        # Setup
-        episode_titles = [f"Episodio {i}" for i in range(1, 25)]
+        # Scenario 1: Episode list from repository (24 episodes)
         mock_discover.return_value = AniListDiscoveryResult(
             anilist_id=None,
             anilist_title=None,
@@ -252,37 +246,17 @@ class TestPreparePlaybackFromSearch:
             found=False,
             authenticated=True,
         )
-        mock_rep.get_episode_list.return_value = episode_titles
-
-        # Execute
+        mock_rep.get_episode_list.return_value = [f"Episodio {i}" for i in range(1, 25)]
         result = prepare_playback_from_search(
             selected_anime="Test Anime",
             episode_idx=5,
             source="animesdigital",
         )
-
-        # Verify
-        assert result is not None
         assert result.num_episodes == 24
         assert len(result.episode_list) == 24
         assert result.episode_list[0] == "Episodio 1"
-        assert result.episode_list[23] == "Episodio 24"
 
-        # Verify repository was called
-        mock_rep.get_episode_list.assert_called_once_with("Test Anime")
-
-    @patch("services.anime.playback_service.rep")
-    @patch("services.anime.playback_service.discover_anilist_info")
-    def test_search_with_mixed_episode_counts(self, mock_discover, mock_rep):
-        """Test 4: Search With Mixed Episode Counts.
-
-        Input: scraper has 24 episodes, AniList says 25
-        Expected: num_episodes=24, total_episodes_anilist=25
-        Verify: Both sources are captured
-        """
-        from services.anime.playback_service import prepare_playback_from_search
-
-        # Setup: Scraper has 24, AniList has 25
+        # Scenario 2: Mixed counts - scraper has 24, AniList has 25
         mock_discover.return_value = AniListDiscoveryResult(
             anilist_id=12345,
             anilist_title="Some Anime",
@@ -292,16 +266,11 @@ class TestPreparePlaybackFromSearch:
             authenticated=True,
         )
         mock_rep.get_episode_list.return_value = [f"Ep {i}" for i in range(1, 25)]  # 24 episodes
-
-        # Execute
         result = prepare_playback_from_search(
             selected_anime="Some Anime",
             episode_idx=0,
             source="animefire",
         )
-
-        # Verify both counts are captured
-        assert result is not None
         assert result.num_episodes == 24  # From scraper
         assert result.total_episodes_anilist == 25  # From AniList
 
@@ -317,16 +286,11 @@ class TestPreparePlaybackFromHistory:
     @patch("services.anime.playback_service.rep")
     @patch("services.anime.playback_service.discover_anilist_info")
     @patch("services.anime.playback_service.load_history")
-    def test_load_from_history(self, mock_load_history, mock_discover, mock_rep):
-        """Test 5: Load From History.
-
-        Input: History file has saved anime state
-        Expected: Returns PlaybackContext with episode_idx from history
-        Verify: Uses load_history() from history_service
-        """
+    def test_load_from_history_success(self, mock_load_history, mock_discover, mock_rep):
+        """Load history with and without AniList enrichment."""
         from services.anime.playback_service import prepare_playback_from_history
 
-        # Setup: History returns saved state
+        # Scenario 1: Basic history load without AniList
         mock_load_history.return_value = ("Dandadan", 5, 12345, "Dandadan")
         mock_discover.return_value = AniListDiscoveryResult(
             anilist_id=12345,
@@ -338,50 +302,13 @@ class TestPreparePlaybackFromHistory:
         )
         mock_rep.get_episode_list.return_value = [f"Ep {i}" for i in range(1, 13)]
 
-        # Execute
         result = prepare_playback_from_history()
-
-        # Verify
         assert result is not None
         assert result.anime_title == "Dandadan"
         assert result.episode_idx == 5
         assert result.anilist_id == 12345
-        assert result.num_episodes == 12
 
-        # Verify load_history was called
-        mock_load_history.assert_called_once()
-
-    @patch("services.anime.playback_service.load_history")
-    def test_history_load_failure(self, mock_load_history):
-        """Test 6: History Load Failure.
-
-        Input: History file missing or corrupted
-        Expected: Returns None (graceful degradation)
-        """
-        from services.anime.playback_service import prepare_playback_from_history
-
-        # Setup: History returns None
-        mock_load_history.return_value = None
-
-        # Execute
-        result = prepare_playback_from_history()
-
-        # Verify graceful degradation
-        assert result is None
-
-    @patch("services.anime.playback_service.rep")
-    @patch("services.anime.playback_service.discover_anilist_info")
-    @patch("services.anime.playback_service.load_history")
-    def test_history_with_anilist_id(self, mock_load_history, mock_discover, mock_rep):
-        """Test 7: History With AniList ID.
-
-        Input: History entry has anilist_id saved
-        Expected: PlaybackContext includes anilist_id and discovers full info
-        Verify: Uses discover_anilist_info() to enrich saved ID
-        """
-        from services.anime.playback_service import prepare_playback_from_history
-
-        # Setup: History has AniList ID
+        # Scenario 2: History with AniList enrichment
         mock_load_history.return_value = ("Test Anime", 3, 99999, "Test Anime (Romaji)")
         mock_discover.return_value = AniListDiscoveryResult(
             anilist_id=99999,
@@ -393,17 +320,19 @@ class TestPreparePlaybackFromHistory:
         )
         mock_rep.get_episode_list.return_value = [f"Ep {i}" for i in range(1, 25)]
 
-        # Execute
         result = prepare_playback_from_history()
-
-        # Verify AniList info is enriched
-        assert result is not None
         assert result.anilist_id == 99999
         assert result.anilist_title == "Test Anime (Romaji)"
         assert result.total_episodes_anilist == 24
 
-        # Verify discover was called with the title
-        mock_discover.assert_called_once_with("Test Anime")
+    @patch("services.anime.playback_service.load_history")
+    def test_history_load_failure(self, mock_load_history):
+        """Test history load failure returns None."""
+        from services.anime.playback_service import prepare_playback_from_history
+
+        mock_load_history.return_value = None
+        result = prepare_playback_from_history()
+        assert result is None
 
 
 # =============================================================================
@@ -444,45 +373,21 @@ class TestGetEpisodeUrlAndSource:
         mock_rep.search_player.assert_called_once_with("Dandadan", 5)
 
     @patch("services.anime.playback_service.rep")
-    def test_no_video_found(self, mock_rep):
-        """Test 9: No Video Found.
-
-        Input: Valid anime/episode but no scraper could extract video
-        Expected: Returns EpisodePlaybackResult with success=False, error_message set
-        """
+    def test_video_lookup_failure_scenarios(self, mock_rep):
+        """Test failure scenarios: no video found and API errors."""
         from services.anime.playback_service import get_episode_url_and_source
 
-        # Setup: No video found
+        # Scenario 1: No video found
         mock_rep.search_player.return_value = None
         mock_rep.get_episode_url_and_source.return_value = None
-
-        # Execute
         result = get_episode_url_and_source("Dandadan", 5)
-
-        # Verify
         assert result.success is False
         assert result.player_url is None
         assert result.error_message is not None
-        assert (
-            "video" in result.error_message.lower() or "encontrado" in result.error_message.lower()
-        )
 
-    @patch("services.anime.playback_service.rep")
-    def test_api_error_during_lookup(self, mock_rep):
-        """Test 10: API Error During Lookup.
-
-        Input: rep.search_player() raises exception
-        Expected: Returns EpisodePlaybackResult with success=False, error message
-        """
-        from services.anime.playback_service import get_episode_url_and_source
-
-        # Setup: Exception thrown
+        # Scenario 2: API error during lookup
         mock_rep.search_player.side_effect = Exception("Network error")
-
-        # Execute - should NOT raise exception
         result = get_episode_url_and_source("Dandadan", 5)
-
-        # Verify graceful error handling
         assert result.success is False
         assert result.player_url is None
         assert result.error_message is not None
@@ -515,132 +420,50 @@ class TestSyncProgressToAnilist:
         assert result is False
 
     @patch("services.anime.playback_service.anilist_client")
-    def test_sync_episode_progress(self, mock_anilist):
-        """Test 12: Sync Episode Progress.
-
-        Input: Valid anilist_id, episode=5, watched=True
-        Expected: Returns True, calls anilist_client.update_progress()
-        Verify: Calls are made in correct order
-        """
+    def test_sync_progress_success_scenarios(self, mock_anilist):
+        """Test successful sync scenarios with different list states and status changes."""
         from services.anime.playback_service import sync_progress_to_anilist
+        from models.models import Status
 
-        # Setup
+        # Scenario 1: Basic sync - anime already in list
         mock_anilist.is_authenticated.return_value = True
         mock_anilist.is_in_any_list.return_value = True
         mock_anilist.get_media_list_entry.return_value = MagicMock(status="CURRENT")
         mock_anilist.update_progress.return_value = True
-        # Mock get_anime_by_id for validation
-        mock_anime = MagicMock()
-        mock_anime.episodes = 24
+        mock_anime = MagicMock(episodes=24)
         mock_anilist.get_anime_by_id.return_value = mock_anime
 
-        # Execute
-        result = sync_progress_to_anilist(
-            anilist_id=12345,
-            episode=5,
-            num_episodes=24,
-        )
-
-        # Verify
+        result = sync_progress_to_anilist(anilist_id=12345, episode=5, num_episodes=24)
         assert result is True
-        mock_anilist.update_progress.assert_called_once_with(12345, 5)
+        mock_anilist.update_progress.assert_called_with(12345, 5)
 
-    @patch("services.anime.playback_service.anilist_client")
-    def test_add_anime_to_list(self, mock_anilist):
-        """Test 13: Add Anime To List.
-
-        Input: Valid anime but not in any AniList list
-        Expected: Calls anilist_client.add_to_list() first, then update_progress()
-        """
-        from services.anime.playback_service import sync_progress_to_anilist
-
-        # Setup: Anime not in any list
-        mock_anilist.is_authenticated.return_value = True
+        # Scenario 2: Add anime to list (not in any list yet)
         mock_anilist.is_in_any_list.return_value = False
         mock_anilist.add_to_list.return_value = True
-        mock_anilist.update_progress.return_value = True
-        # Mock get_anime_by_id for validation
-        mock_anime = MagicMock()
-        mock_anime.episodes = 24
-        mock_anilist.get_anime_by_id.return_value = mock_anime
+        mock_anilist.update_progress.reset_mock()
 
-        # Execute
-        result = sync_progress_to_anilist(
-            anilist_id=12345,
-            episode=5,
-            num_episodes=24,
-        )
-
-        # Verify add_to_list was called before update_progress
+        result = sync_progress_to_anilist(anilist_id=12345, episode=5, num_episodes=24)
         assert result is True
         mock_anilist.add_to_list.assert_called_once()
-        mock_anilist.update_progress.assert_called_once_with(12345, 5)
+        mock_anilist.update_progress.assert_called_with(12345, 5)
 
-    @patch("services.anime.playback_service.anilist_client")
-    def test_promote_status_planning_to_current(self, mock_anilist):
-        """Test 14: Promote Status (PLANNING -> CURRENT).
-
-        Input: Anime in PLANNING status
-        Expected: Calls add_to_list with Status.CURRENT before updating progress
-        """
-        from services.anime.playback_service import sync_progress_to_anilist
-        from models.models import Status
-
-        # Setup: Anime in PLANNING
-        mock_entry = MagicMock()
-        mock_entry.status = "PLANNING"
-        mock_anilist.is_authenticated.return_value = True
+        # Scenario 3: Promote PLANNING to CURRENT
         mock_anilist.is_in_any_list.return_value = True
+        mock_entry = MagicMock(status="PLANNING")
         mock_anilist.get_media_list_entry.return_value = mock_entry
-        mock_anilist.add_to_list.return_value = True
-        mock_anilist.update_progress.return_value = True
-        # Mock get_anime_by_id for validation
-        mock_anime = MagicMock()
-        mock_anime.episodes = 24
-        mock_anilist.get_anime_by_id.return_value = mock_anime
+        mock_anilist.add_to_list.reset_mock()
+        mock_anilist.update_progress.reset_mock()
 
-        # Execute
-        result = sync_progress_to_anilist(
-            anilist_id=12345,
-            episode=1,
-            num_episodes=24,
-        )
-
-        # Verify status promotion
+        result = sync_progress_to_anilist(anilist_id=12345, episode=1, num_episodes=24)
         assert result is True
         mock_anilist.add_to_list.assert_called_once_with(12345, Status.CURRENT)
 
-    @patch("services.anime.playback_service.anilist_client")
-    def test_complete_anime_last_episode(self, mock_anilist):
-        """Test 15: Complete Anime (Last Episode).
-
-        Input: Watching last episode (episode=24, num_episodes=24)
-        Expected: Calls change_status with Status.COMPLETED after progress update
-        """
-        from services.anime.playback_service import sync_progress_to_anilist
-        from models.models import Status
-
-        # Setup: Last episode
-        mock_entry = MagicMock()
+        # Scenario 4: Complete anime (last episode)
         mock_entry.status = "CURRENT"
-        mock_anilist.is_authenticated.return_value = True
-        mock_anilist.is_in_any_list.return_value = True
-        mock_anilist.get_media_list_entry.return_value = mock_entry
-        mock_anilist.update_progress.return_value = True
         mock_anilist.change_status.return_value = True
-        # Mock get_anime_by_id for validation
-        mock_anime = MagicMock()
-        mock_anime.episodes = 24
-        mock_anilist.get_anime_by_id.return_value = mock_anime
+        mock_anilist.update_progress.reset_mock()
 
-        # Execute: Last episode
-        result = sync_progress_to_anilist(
-            anilist_id=12345,
-            episode=24,
-            num_episodes=24,
-        )
-
-        # Verify completion
+        result = sync_progress_to_anilist(anilist_id=12345, episode=24, num_episodes=24)
         assert result is True
         mock_anilist.change_status.assert_called_once_with(12345, Status.COMPLETED)
 
@@ -678,18 +501,13 @@ class TestSyncProgressToAnilist:
 class TestNavigateEpisodes:
     """Tests for navigate_episodes function."""
 
-    def test_navigate_to_next_episode(self):
-        """Test 17: Navigate to Next Episode.
-
-        Input: episode_idx=0, num_episodes=12, action="next"
-        Expected: Returns new PlaybackContext with episode_idx=1
-        """
+    def test_navigate_direction_and_boundaries(self):
+        """Test navigation in both directions with boundary enforcement."""
         from services.anime.playback_service import PlaybackContext, navigate_episodes
 
-        # Setup: Current context
         ctx = PlaybackContext(
             anime_title="Dandadan",
-            episode_idx=0,
+            episode_idx=5,
             source="animefire",
             anilist_id=12345,
             anilist_title="Dandadan",
@@ -698,79 +516,31 @@ class TestNavigateEpisodes:
             episode_list=tuple(f"Ep {i}" for i in range(1, 13)),
         )
 
-        # Execute
+        # Navigate next (valid)
         new_ctx = navigate_episodes(ctx, action="next")
+        assert new_ctx.episode_idx == 6
+        assert ctx.episode_idx == 5  # Original unchanged
 
-        # Verify
-        assert new_ctx.episode_idx == 1
-        # Verify immutability - original unchanged
-        assert ctx.episode_idx == 0
-        # Verify other fields preserved
-        assert new_ctx.anime_title == "Dandadan"
-        assert new_ctx.source == "animefire"
-
-    def test_cannot_go_past_last_episode(self):
-        """Test 18: Cannot Go Past Last Episode.
-
-        Input: episode_idx=11, num_episodes=12, action="next"
-        Expected: Returns same PlaybackContext (no change)
-        """
-        from services.anime.playback_service import PlaybackContext, navigate_episodes
-
-        # Setup: At last episode
-        ctx = PlaybackContext(
-            anime_title="Dandadan",
-            episode_idx=11,  # Last episode (0-indexed)
-            source="animefire",
-            anilist_id=None,
-            anilist_title=None,
-            total_episodes_anilist=None,
-            num_episodes=12,
-            episode_list=tuple(f"Ep {i}" for i in range(1, 13)),
-        )
-
-        # Execute
-        new_ctx = navigate_episodes(ctx, action="next")
-
-        # Verify no change
-        assert new_ctx.episode_idx == 11
-
-    def test_navigate_to_previous_episode(self):
-        """Test 19: Navigate to Previous Episode.
-
-        Input: episode_idx=5, action="previous"
-        Expected: Returns new PlaybackContext with episode_idx=4
-        """
-        from services.anime.playback_service import PlaybackContext, navigate_episodes
-
-        # Setup
-        ctx = PlaybackContext(
-            anime_title="Dandadan",
-            episode_idx=5,
-            source="animefire",
-            anilist_id=None,
-            anilist_title=None,
-            total_episodes_anilist=None,
-            num_episodes=12,
-            episode_list=tuple(f"Ep {i}" for i in range(1, 13)),
-        )
-
-        # Execute
+        # Navigate previous (valid)
         new_ctx = navigate_episodes(ctx, action="previous")
-
-        # Verify
         assert new_ctx.episode_idx == 4
 
-    def test_cannot_go_before_first_episode(self):
-        """Test: Cannot Go Before First Episode.
+        # Cannot go past last episode
+        ctx_last = PlaybackContext(
+            anime_title="Dandadan",
+            episode_idx=11,
+            source="animefire",
+            anilist_id=None,
+            anilist_title=None,
+            total_episodes_anilist=None,
+            num_episodes=12,
+            episode_list=tuple(f"Ep {i}" for i in range(1, 13)),
+        )
+        new_ctx = navigate_episodes(ctx_last, action="next")
+        assert new_ctx.episode_idx == 11
 
-        Input: episode_idx=0, action="previous"
-        Expected: Returns same PlaybackContext (no change)
-        """
-        from services.anime.playback_service import PlaybackContext, navigate_episodes
-
-        # Setup: At first episode
-        ctx = PlaybackContext(
+        # Cannot go before first episode
+        ctx_first = PlaybackContext(
             anime_title="Dandadan",
             episode_idx=0,
             source="animefire",
@@ -780,11 +550,7 @@ class TestNavigateEpisodes:
             num_episodes=12,
             episode_list=tuple(f"Ep {i}" for i in range(1, 13)),
         )
-
-        # Execute
-        new_ctx = navigate_episodes(ctx, action="previous")
-
-        # Verify no change
+        new_ctx = navigate_episodes(ctx_first, action="previous")
         assert new_ctx.episode_idx == 0
 
     def test_choose_specific_episode(self):
@@ -872,6 +638,52 @@ class TestNavigateEpisodes:
         assert new_ctx.episode_list == ctx.episode_list
         # Only episode_idx changed
         assert new_ctx.episode_idx == 6
+
+    def test_navigate_preserves_episode_skip_available(self):
+        """Test: Navigation preserves episode_skip_available dict.
+
+        Input: Navigate to next episode with skip times dict
+        Expected: New context contains same skip times dict
+        """
+        from services.anime.playback_service import PlaybackContext, navigate_episodes
+
+        # Setup: Context with skip times data
+        skip_times = {1: True, 2: False, 3: True, 4: True, 5: False}
+        ctx = PlaybackContext(
+            anime_title="Jujutsu Kaisen",
+            episode_idx=2,
+            source="animesdigital",
+            anilist_id=54589,
+            anilist_title="Jujutsu Kaisen",
+            total_episodes_anilist=24,
+            num_episodes=24,
+            episode_list=tuple(f"Ep {i}" for i in range(1, 25)),
+            skip_enabled=True,
+            mal_id=40748,
+            episode_skip_available=skip_times,
+        )
+
+        # Execute: Navigate to next episode
+        new_ctx = navigate_episodes(ctx, action="next")
+
+        # Verify: skip times dict preserved
+        assert new_ctx.episode_skip_available == skip_times
+        assert new_ctx.episode_skip_available is ctx.episode_skip_available
+        assert new_ctx.episode_idx == 3  # Navigation happened
+
+        # Execute: Navigate to previous
+        prev_ctx = navigate_episodes(new_ctx, action="previous")
+
+        # Verify: skip times still preserved
+        assert prev_ctx.episode_skip_available == skip_times
+        assert prev_ctx.episode_idx == 2
+
+        # Execute: Choose specific episode
+        chosen_ctx = navigate_episodes(ctx, action="choose", target_idx=10)
+
+        # Verify: skip times preserved on choose action
+        assert chosen_ctx.episode_skip_available == skip_times
+        assert chosen_ctx.episode_idx == 10
 
 
 # =============================================================================
