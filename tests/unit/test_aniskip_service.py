@@ -48,8 +48,9 @@ def test_get_skip_times_success(aniskip_service):
     assert result.ed_end == 1420.0
 
 
-def test_get_skip_times_not_found(aniskip_service):
-    """Test handling of 404 (no skip data available)."""
+def test_get_skip_times_error_scenarios(aniskip_service):
+    """Test handling of various error scenarios (404, 500, timeout, network)."""
+    # Scenario 1: 404 Not Found
     with patch.object(httpx.Client, "get") as mock_get:
         mock_response = Mock()
         mock_response.status_code = 404
@@ -57,14 +58,10 @@ def test_get_skip_times_not_found(aniskip_service):
         mock_get.return_value.raise_for_status.side_effect = httpx.HTTPStatusError(
             "Not Found", request=Mock(), response=mock_response
         )
-
         result = aniskip_service.get_skip_times(mal_id=99999, episode=1)
+        assert result is None
 
-    assert result is None
-
-
-def test_get_skip_times_api_error(aniskip_service):
-    """Test handling of API errors (500, etc)."""
+    # Scenario 2: 500 Server Error
     with patch.object(httpx.Client, "get") as mock_get:
         mock_response = Mock()
         mock_response.status_code = 500
@@ -72,30 +69,20 @@ def test_get_skip_times_api_error(aniskip_service):
         mock_get.return_value.raise_for_status.side_effect = httpx.HTTPStatusError(
             "Server Error", request=Mock(), response=mock_response
         )
-
         result = aniskip_service.get_skip_times(mal_id=12345, episode=1)
+        assert result is None
 
-    assert result is None
-
-
-def test_get_skip_times_timeout(aniskip_service):
-    """Test handling of timeout."""
+    # Scenario 3: Timeout
     with patch.object(httpx.Client, "get") as mock_get:
         mock_get.side_effect = httpx.TimeoutException("Timeout")
-
         result = aniskip_service.get_skip_times(mal_id=12345, episode=1)
+        assert result is None
 
-    assert result is None
-
-
-def test_get_skip_times_network_error(aniskip_service):
-    """Test handling of network errors."""
+    # Scenario 4: Network Error
     with patch.object(httpx.Client, "get") as mock_get:
         mock_get.side_effect = httpx.ConnectError("Connection failed")
-
         result = aniskip_service.get_skip_times(mal_id=12345, episode=1)
-
-    assert result is None
+        assert result is None
 
 
 def test_get_skip_times_cache(aniskip_service):
