@@ -37,63 +37,42 @@ class TestPluginRegistry:
         registry2 = PluginRegistry()
         assert registry1 is registry2
 
-    def test_register_plugin(self, registry):
-        """Should register a plugin."""
-        plugin = MockPlugin("animefire")
-        registry.register(plugin)
-
-        assert registry.get_plugin("animefire") is plugin
-
-    def test_register_multiple_plugins(self, registry):
-        """Should register multiple plugins."""
+    def test_register_single_and_multiple_plugins(self, registry):
+        """Should register single and multiple plugins."""
         plugin1 = MockPlugin("animefire")
-        plugin2 = MockPlugin("animesonlinecc")
-
         registry.register(plugin1)
-        registry.register(plugin2)
+        assert registry.get_plugin("animefire") is plugin1
 
+        plugin2 = MockPlugin("animesonlinecc")
+        registry.register(plugin2)
         assert registry.get_plugin("animefire") is plugin1
         assert registry.get_plugin("animesonlinecc") is plugin2
 
-    def test_get_active_sources(self, registry):
-        """Should return sorted list of registered plugin names."""
-        registry.register(MockPlugin("zulu"))
-        registry.register(MockPlugin("alpha"))
-        registry.register(MockPlugin("mike"))
+    def test_get_active_sources_and_all_plugins(self, registry):
+        """Should return sorted sources and dict of all plugins (empty and populated)."""
+        # Empty case
+        assert registry.get_active_sources() == []
+        assert registry.get_all_plugins() == {}
 
-        sources = registry.get_active_sources()
+        # Populated case
+        plugin1 = MockPlugin("zulu")
+        plugin2 = MockPlugin("alpha")
+        plugin3 = MockPlugin("mike")
+        registry.register(plugin1)
+        registry.register(plugin2)
+        registry.register(plugin3)
 
-        assert sources == ["alpha", "mike", "zulu"]
-
-    def test_get_active_sources_empty(self, registry):
-        """Should return empty list when no plugins registered."""
-        sources = registry.get_active_sources()
-        assert sources == []
+        assert registry.get_active_sources() == ["alpha", "mike", "zulu"]
+        assert registry.get_all_plugins() == {
+            "zulu": plugin1,
+            "alpha": plugin2,
+            "mike": plugin3,
+        }
 
     def test_get_plugin_not_found(self, registry):
         """Should return None for non-existent plugin."""
         plugin = registry.get_plugin("nonexistent")
         assert plugin is None
-
-    def test_get_all_plugins(self, registry):
-        """Should return dict of all registered plugins."""
-        plugin1 = MockPlugin("animefire")
-        plugin2 = MockPlugin("animesonlinecc")
-
-        registry.register(plugin1)
-        registry.register(plugin2)
-
-        all_plugins = registry.get_all_plugins()
-
-        assert all_plugins == {
-            "animefire": plugin1,
-            "animesonlinecc": plugin2,
-        }
-
-    def test_get_all_plugins_empty(self, registry):
-        """Should return empty dict when no plugins registered."""
-        all_plugins = registry.get_all_plugins()
-        assert all_plugins == {}
 
     def test_reset_singleton(self):
         """Should clear singleton instance on reset."""

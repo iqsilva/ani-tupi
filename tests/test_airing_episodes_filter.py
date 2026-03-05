@@ -90,96 +90,46 @@ class TestGetWatchingWithAwaitingEpisodes:
             },
         }
 
-    def test_no_entries_returns_empty(self):
-        """Test that empty API response returns empty list."""
+    def test_empty_responses_and_no_matching_entries(self):
+        """Test empty result with empty API response or no matching entries."""
+        # Empty API response
         with patch.object(self.service.client, "get_airing_episodes_for_watching", return_value=[]):
             result = self.service.get_watching_with_airing_episodes()
+            assert result == []
 
-        assert result == []
+        # No entries match filter (all aired or hiatus)
+        now = int(time.time())
+        with patch.object(
+            self.service.client,
+            "get_airing_episodes_for_watching",
+            return_value=[
+                self._create_entry(1001, "Already Aired", 10, 11, now - 86400),
+                self._create_entry(1002, "On Hiatus", 5, 6, now + (200 * 24 * 60 * 60)),
+            ],
+        ):
+            result = self.service.get_watching_with_airing_episodes()
+            assert len(result) == 0
 
-    def test_awaiting_episode_included(self):
-        """Test that awaiting episode is included in results."""
+    def test_filter_comprehensive_scenario(self):
+        """Test filtering with mix of awaiting, aired, hiatus, and no-airing entries."""
         now = int(time.time())
         in_30_days = now + (30 * 24 * 60 * 60)
-
-        with patch.object(
-            self.service.client,
-            "get_airing_episodes_for_watching",
-            return_value=[
-                self._create_entry(
-                    anilist_id=1001,
-                    title="Test Anime",
-                    progress=5,
-                    next_episode=6,
-                    airing_at=in_30_days,
-                ),
-            ],
-        ):
-            result = self.service.get_watching_with_airing_episodes()
-
-        assert len(result) == 1
-        assert result[0].anilist_id == 1001
-        assert result[0].title == "Test Anime"
-
-    def test_already_aired_excluded(self):
-        """Test that already-aired episode is excluded."""
-        now = int(time.time())
-        past_time = now - 86400  # 1 day ago
-
-        with patch.object(
-            self.service.client,
-            "get_airing_episodes_for_watching",
-            return_value=[
-                self._create_entry(
-                    anilist_id=1001,
-                    title="Test Anime",
-                    progress=10,
-                    next_episode=11,
-                    airing_at=past_time,
-                ),
-            ],
-        ):
-            result = self.service.get_watching_with_airing_episodes()
-
-        assert len(result) == 0
-
-    def test_hiatus_excluded(self):
-        """Test that anime on hiatus (90+ days) is excluded."""
-        now = int(time.time())
+        past_time = now - 86400
         in_200_days = now + (200 * 24 * 60 * 60)
 
         with patch.object(
             self.service.client,
             "get_airing_episodes_for_watching",
             return_value=[
-                self._create_entry(
-                    anilist_id=1001,
-                    title="Test Anime Hiatus",
-                    progress=5,
-                    next_episode=6,
-                    airing_at=in_200_days,
-                ),
-            ],
-        ):
-            result = self.service.get_watching_with_airing_episodes()
-
-        assert len(result) == 0
-
-    def test_no_next_airing_excluded(self):
-        """Test that entries without nextAiringEpisode are excluded."""
-        with patch.object(
-            self.service.client,
-            "get_airing_episodes_for_watching",
-            return_value=[
+                self._create_entry(1001, "Awaiting 1", 5, 6, in_30_days),
+                self._create_entry(1002, "Already Aired", 10, 11, past_time),
+                self._create_entry(1003, "Awaiting 2", 15, 17, in_30_days),
+                self._create_entry(1004, "On Hiatus", 3, 4, in_200_days),
                 {
                     "progress": 10,
                     "media": {
-                        "id": 1001,
-                        "title": {
-                            "romaji": "Completed Anime",
-                            "english": None,
-                            "native": None,
-                        },
+                        "id": 1005,
+                        "title": {"romaji": "Completed", "english": None, "native": None},
                         "averageScore": 85,
                         "nextAiringEpisode": None,
                     },
@@ -188,58 +138,12 @@ class TestGetWatchingWithAwaitingEpisodes:
         ):
             result = self.service.get_watching_with_airing_episodes()
 
-        assert len(result) == 0
-
-    def test_mixed_entries_filters_correctly(self):
-        """Test filtering with mix of awaiting, aired, and hiatus anime."""
-        now = int(time.time())
-        in_30_days = now + (30 * 24 * 60 * 60)
-        past_time = now - 86400
-        in_200_days = now + (200 * 24 * 60 * 60)
-
-        with patch.object(
-            self.service.client,
-            "get_airing_episodes_for_watching",
-            return_value=[
-                self._create_entry(
-                    anilist_id=1001,
-                    title="Awaiting Anime 1",
-                    progress=5,
-                    next_episode=6,
-                    airing_at=in_30_days,
-                ),
-                self._create_entry(
-                    anilist_id=1002,
-                    title="Already Aired",
-                    progress=10,
-                    next_episode=11,
-                    airing_at=past_time,
-                ),
-                self._create_entry(
-                    anilist_id=1003,
-                    title="Awaiting Anime 2",
-                    progress=15,
-                    next_episode=17,
-                    airing_at=in_30_days,
-                ),
-                self._create_entry(
-                    anilist_id=1004,
-                    title="On Hiatus",
-                    progress=3,
-                    next_episode=4,
-                    airing_at=in_200_days,
-                ),
-            ],
-        ):
-            result = self.service.get_watching_with_airing_episodes()
-
         # Should only include awaiting anime (1001, 1003)
         assert len(result) == 2
-        assert result[0].anilist_id in (1001, 1003)
-        assert result[1].anilist_id in (1001, 1003)
+        assert all(r.anilist_id in (1001, 1003) for r in result)
 
-    def test_sorting_preserved_on_filtered(self):
-        """Test that filtered results are still sorted by episodes_behind."""
+    def test_sorting_and_episodes_behind_calculation(self):
+        """Test sorting by episodes_behind and correct calculation."""
         now = int(time.time())
         in_30_days = now + (30 * 24 * 60 * 60)
 
@@ -247,66 +151,17 @@ class TestGetWatchingWithAwaitingEpisodes:
             self.service.client,
             "get_airing_episodes_for_watching",
             return_value=[
-                self._create_entry(
-                    anilist_id=1001,
-                    title="Behind 3 Episodes",
-                    progress=6,
-                    next_episode=10,  # 10 - 1 - 6 = 3 behind
-                    airing_at=in_30_days,
-                ),
-                self._create_entry(
-                    anilist_id=1002,
-                    title="Behind 1 Episode",
-                    progress=8,
-                    next_episode=10,  # 10 - 1 - 8 = 1 behind
-                    airing_at=in_30_days,
-                ),
-                self._create_entry(
-                    anilist_id=1003,
-                    title="Behind 5 Episodes",
-                    progress=4,
-                    next_episode=10,  # 10 - 1 - 4 = 5 behind
-                    airing_at=in_30_days,
-                ),
+                self._create_entry(1001, "Behind 3", 6, 10, in_30_days),  # 3 behind
+                self._create_entry(1002, "Behind 1", 8, 10, in_30_days),  # 1 behind
+                self._create_entry(1003, "Behind 5", 4, 10, in_30_days),  # 5 behind
+                self._create_entry(1004, "Behind 4", 10, 15, in_30_days),  # 4 behind
             ],
         ):
             result = self.service.get_watching_with_airing_episodes()
 
-        assert len(result) == 3
+        assert len(result) == 4
         # Should be sorted by episodes_behind descending
-        assert result[0].episodes_behind == 5  # Most behind first
-        assert result[1].episodes_behind == 3
-        assert result[2].episodes_behind == 1  # Least behind last
-
-    def test_empty_when_no_awaiting_anime(self):
-        """Test empty result when all anime are either aired or hiatus."""
-        now = int(time.time())
-        past_time = now - 86400
-        in_200_days = now + (200 * 24 * 60 * 60)
-
-        with patch.object(
-            self.service.client,
-            "get_airing_episodes_for_watching",
-            return_value=[
-                self._create_entry(
-                    anilist_id=1001,
-                    title="Already Aired",
-                    progress=10,
-                    next_episode=11,
-                    airing_at=past_time,
-                ),
-                self._create_entry(
-                    anilist_id=1002,
-                    title="On Hiatus",
-                    progress=5,
-                    next_episode=6,
-                    airing_at=in_200_days,
-                ),
-            ],
-        ):
-            result = self.service.get_watching_with_airing_episodes()
-
-        assert len(result) == 0
+        assert [r.episodes_behind for r in result] == [5, 4, 3, 1]
 
     def test_malformed_entry_skipped(self):
         """Test that malformed entries are skipped gracefully."""
@@ -317,44 +172,11 @@ class TestGetWatchingWithAwaitingEpisodes:
             self.service.client,
             "get_airing_episodes_for_watching",
             return_value=[
-                {
-                    "progress": 5,
-                    "media": None,  # Malformed
-                },
-                self._create_entry(
-                    anilist_id=1001,
-                    title="Valid Anime",
-                    progress=5,
-                    next_episode=6,
-                    airing_at=in_30_days,
-                ),
+                {"progress": 5, "media": None},  # Malformed
+                self._create_entry(1001, "Valid", 5, 6, in_30_days),
             ],
         ):
             result = self.service.get_watching_with_airing_episodes()
 
         assert len(result) == 1
         assert result[0].anilist_id == 1001
-
-    def test_episodes_behind_calculated_correctly(self):
-        """Test correct episodes_behind calculation on filtered results."""
-        now = int(time.time())
-        in_30_days = now + (30 * 24 * 60 * 60)
-
-        with patch.object(
-            self.service.client,
-            "get_airing_episodes_for_watching",
-            return_value=[
-                self._create_entry(
-                    anilist_id=1001,
-                    title="Test",
-                    progress=10,
-                    next_episode=15,
-                    airing_at=in_30_days,
-                ),
-            ],
-        ):
-            result = self.service.get_watching_with_airing_episodes()
-
-        assert len(result) == 1
-        # episodes_behind = (next_episode - 1) - progress = (15 - 1) - 10 = 4
-        assert result[0].episodes_behind == 4
