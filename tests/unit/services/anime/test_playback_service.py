@@ -639,6 +639,52 @@ class TestNavigateEpisodes:
         # Only episode_idx changed
         assert new_ctx.episode_idx == 6
 
+    def test_navigate_preserves_episode_skip_available(self):
+        """Test: Navigation preserves episode_skip_available dict.
+
+        Input: Navigate to next episode with skip times dict
+        Expected: New context contains same skip times dict
+        """
+        from services.anime.playback_service import PlaybackContext, navigate_episodes
+
+        # Setup: Context with skip times data
+        skip_times = {1: True, 2: False, 3: True, 4: True, 5: False}
+        ctx = PlaybackContext(
+            anime_title="Jujutsu Kaisen",
+            episode_idx=2,
+            source="animesdigital",
+            anilist_id=54589,
+            anilist_title="Jujutsu Kaisen",
+            total_episodes_anilist=24,
+            num_episodes=24,
+            episode_list=tuple(f"Ep {i}" for i in range(1, 25)),
+            skip_enabled=True,
+            mal_id=40748,
+            episode_skip_available=skip_times,
+        )
+
+        # Execute: Navigate to next episode
+        new_ctx = navigate_episodes(ctx, action="next")
+
+        # Verify: skip times dict preserved
+        assert new_ctx.episode_skip_available == skip_times
+        assert new_ctx.episode_skip_available is ctx.episode_skip_available
+        assert new_ctx.episode_idx == 3  # Navigation happened
+
+        # Execute: Navigate to previous
+        prev_ctx = navigate_episodes(new_ctx, action="previous")
+
+        # Verify: skip times still preserved
+        assert prev_ctx.episode_skip_available == skip_times
+        assert prev_ctx.episode_idx == 2
+
+        # Execute: Choose specific episode
+        chosen_ctx = navigate_episodes(ctx, action="choose", target_idx=10)
+
+        # Verify: skip times preserved on choose action
+        assert chosen_ctx.episode_skip_available == skip_times
+        assert chosen_ctx.episode_idx == 10
+
 
 # =============================================================================
 # Edge Cases and Error Handling

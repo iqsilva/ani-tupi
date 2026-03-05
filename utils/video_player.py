@@ -57,6 +57,7 @@ class VideoPlayer:
         debug: bool = False,
         anilist_id: int | None = None,
         anilist_episodes: int | None = None,
+        mal_id: int | None = None,
         skip_times: Optional[SkipTimes] = None,
     ) -> VideoPlaybackResult:
         """Play a single episode with optional IPC support for episode navigation.
@@ -71,6 +72,7 @@ class VideoPlayer:
             debug: Skip playback and return simulated result
             anilist_id: AniList ID for syncing progress (optional)
             anilist_episodes: Total episodes from AniList (optional, for display)
+            mal_id: MyAnimeList ID for AniSkip integration (optional)
 
         Returns:
             VideoPlaybackResult with exit code, action, and optional data
@@ -101,6 +103,9 @@ class VideoPlayer:
             "source": source,
             "url": url,
             "anilist_id": anilist_id,
+            "mal_id": mal_id,
+            "skip_cache": {},
+            "skip_lua_path": str(self._get_skip_lua_path()),
         }
 
         try:
@@ -506,6 +511,60 @@ shift+t script-message toggle-sub-dub
         except Exception as e:
             raise OSError(f"Failed to launch MPV: {e}") from e
 
+    def _fetch_skip_times_for_episode(
+        self,
+        mal_id: int | None,
+        episode_number: int,
+        skip_cache: dict,
+    ) -> Optional["SkipTimes"]:
+        """Fetch skip times for a specific episode dynamically.
+
+        This method is called when the user navigates to a new episode during
+        playback. It fetches skip times asynchronously without blocking the player.
+
+        Args:
+            mal_id: MyAnimeList ID for the anime
+            episode_number: Episode number to fetch skip times for (1-indexed)
+            skip_cache: Cache dict mapping episode_number → SkipTimes
+
+        Returns:
+            SkipTimes object if available, None otherwise
+        """
+        if not mal_id:
+            return None
+
+        # Check cache first
+        if episode_number in skip_cache:
+            return skip_cache[episode_number]
+
+        try:
+            from services.anime.aniskip_service import AniSkipService
+
+            aniskip = AniSkipService()
+            skip_times = aniskip.get_skip_times(mal_id, episode_number)
+
+            # Cache the result (even if None)
+            skip_cache[episode_number] = skip_times
+
+            if skip_times:
+                import logging
+
+                logger = logging.getLogger(__name__)
+                logger.debug(
+                    f"Fetched skip times for episode {episode_number}: "
+                    f"OP={skip_times.op_start}-{skip_times.op_end}, "
+                    f"ED={skip_times.ed_start}-{skip_times.ed_end}"
+                )
+
+            return skip_times
+
+        except Exception as e:
+            import logging
+
+            logger = logging.getLogger(__name__)
+            logger.warning(f"Failed to fetch skip times for episode {episode_number}: {e}")
+            return None
+
     def _ipc_event_loop(
         self,
         mpv_process: subprocess.Popen,
@@ -605,9 +664,55 @@ shift+t script-message toggle-sub-dub
                                                 "show-text",
                                                 [f"▶️ Reproduzindo Episódio {progress_str}"],
                                             )
+                                            # Update MPV title to show new episode number
+                                            new_title = (
+                                                f"{anime_title} Episode {next_episode_number}"
+                                            )
+                                            self._send_mpv_command(
+                                                sock,
+                                                "set_property",
+                                                ["force-media-title", new_title],
+                                            )
                                             episode_context["episode_number"] = next_episode_number
                                             episode_context["url"] = next_url
                                             print(f"▶️  Reproduzindo Episódio {progress_str}")
+
+                                            # Fetch skip times dynamically for next episode
+                                            mal_id = episode_context.get("mal_id")
+                                            skip_cache = episode_context.get("skip_cache", {})
+                                            skip_lua_path = episode_context.get("skip_lua_path")
+
+                                            # If mal_id is None, try to discover it
+                                            if not mal_id and anime_title:
+                                                from services.anime.anilist_discovery_service import (
+                                                    discover_anilist_info,
+                                                )
+
+                                                try:
+                                                    result = discover_anilist_info(anime_title)
+                                                    if result.found:
+                                                        mal_id = result.mal_id
+                                                        episode_context["mal_id"] = mal_id
+                                                except Exception:
+                                                    pass
+
+                                            if mal_id:
+                                                print(
+                                                    f"Fetching skip times for ep {next_episode_number}: mal_id={mal_id}, cache={skip_cache}"
+                                                )
+                                                skip_times = self._fetch_skip_times_for_episode(
+                                                    mal_id, next_episode_number, skip_cache
+                                                )
+                                                if skip_times and skip_lua_path:
+                                                    if self._update_skip_lua_with_times(
+                                                        skip_lua_path, skip_times
+                                                    ):
+                                                        self._send_mpv_command(
+                                                            sock,
+                                                            "show-text",
+                                                            ["⏭️ Skip times carregados", "3000"],
+                                                        )
+
                                             continue
                                         else:
                                             self._send_mpv_command(
@@ -659,11 +764,57 @@ shift+t script-message toggle-sub-dub
                                                     "show-text",
                                                     [f"⏪ Voltando para Episódio {progress_str}"],
                                                 )
+                                                # Update MPV title to show new episode number
+                                                new_title = (
+                                                    f"{anime_title} Episode {prev_episode_number}"
+                                                )
+                                                self._send_mpv_command(
+                                                    sock,
+                                                    "set_property",
+                                                    ["force-media-title", new_title],
+                                                )
                                                 episode_context["episode_number"] = (
                                                     prev_episode_number
                                                 )
                                                 episode_context["url"] = prev_url
                                                 print(f"⏪ Voltando para Episódio {progress_str}")
+
+                                                # Fetch skip times dynamically for previous episode
+                                                mal_id = episode_context.get("mal_id")
+                                                skip_cache = episode_context.get("skip_cache", {})
+                                                skip_lua_path = episode_context.get("skip_lua_path")
+
+                                                # If mal_id is None, try to discover it
+                                                if not mal_id and anime_title:
+                                                    from services.anime.anilist_discovery_service import (
+                                                        discover_anilist_info,
+                                                    )
+
+                                                    try:
+                                                        result = discover_anilist_info(anime_title)
+                                                        if result.found:
+                                                            mal_id = result.mal_id
+                                                            episode_context["mal_id"] = mal_id
+                                                    except Exception:
+                                                        pass
+
+                                                if mal_id:
+                                                    print(
+                                                        f"Fetching skip times for ep {prev_episode_number}: mal_id={mal_id}, cache={skip_cache}"
+                                                    )
+                                                    skip_times = self._fetch_skip_times_for_episode(
+                                                        mal_id, prev_episode_number, skip_cache
+                                                    )
+                                                    if skip_times and skip_lua_path:
+                                                        if self._update_skip_lua_with_times(
+                                                            skip_lua_path, skip_times
+                                                        ):
+                                                            self._send_mpv_command(
+                                                                sock,
+                                                                "show-text",
+                                                                ["⏭️ Skip times carregados", "3000"],
+                                                            )
+
                                                 continue
                                             else:
                                                 self._send_mpv_command(
@@ -772,6 +923,80 @@ shift+t script-message toggle-sub-dub
                     sock.close()
                 except OSError:
                     pass
+
+    def _update_skip_lua_with_times(
+        self,
+        skip_lua_path: str,
+        skip_times: "SkipTimes",
+    ) -> bool:
+        """Update skip.lua file with new skip times.
+
+        The skip.lua script reads skip times from the file to apply them during
+        playback. This method updates the file atomically so MPV can reload it.
+
+        Args:
+            skip_lua_path: Path to skip.lua file
+            skip_times: SkipTimes object with op_start, op_end, ed_start, ed_end
+
+        Returns:
+            True if update succeeded, False otherwise
+        """
+        try:
+            from pathlib import Path
+            import tempfile
+
+            skip_lua_file = Path(skip_lua_path)
+
+            # Format skip times as Lua table
+            lua_times = {}
+            if skip_times.op_start is not None and skip_times.op_end is not None:
+                lua_times["op_start"] = float(skip_times.op_start)
+                lua_times["op_end"] = float(skip_times.op_end)
+            if skip_times.ed_start is not None and skip_times.ed_end is not None:
+                lua_times["ed_start"] = float(skip_times.ed_start)
+                lua_times["ed_end"] = float(skip_times.ed_end)
+
+            if not lua_times:
+                return False
+
+            # Generate Lua table format
+            lua_lines = ["-- Skip times"]
+            lua_lines.append("return {")
+            for key, value in lua_times.items():
+                lua_lines.append(f"    {key} = {value},")
+            lua_lines.append("}")
+
+            new_content = "\n".join(lua_lines) + "\n"
+
+            # Atomic write: write to temp file, then rename
+            with tempfile.NamedTemporaryFile(
+                mode="w",
+                suffix=".lua",
+                dir=skip_lua_file.parent,
+                delete=False,
+                encoding="utf-8",
+            ) as tmp:
+                tmp.write(new_content)
+                tmp_path = tmp.name
+
+            # Atomic rename
+            import os
+
+            os.replace(tmp_path, skip_lua_path)
+
+            import logging
+
+            logger = logging.getLogger(__name__)
+            logger.debug(f"Updated skip.lua with times: {lua_times}")
+
+            return True
+
+        except Exception as e:
+            import logging
+
+            logger = logging.getLogger(__name__)
+            logger.warning(f"Failed to update skip.lua: {e}")
+            return False
 
     def _send_mpv_command(self, sock: socket.socket, command: str, args: list) -> None:
         """Send JSON-RPC command to MPV via IPC socket."""

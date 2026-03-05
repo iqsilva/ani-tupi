@@ -599,12 +599,18 @@ export ANI_TUPI__PLUGINS__PRIORITY_ORDER='["animesdigital", "animefire"]'
 
 ## Testing Strategy
 
-**Principle: Use real implementations, mock only externals and destructive operations.**
+**Principle: NO MOCKING BY DEFAULT. Use real implementations. Only mock external tools, APIs, and destructive operations.**
+
+### The Rule
+- **Start with real code**: Every test should exercise actual functions and services
+- **Only mock externals**: HTTP calls, database connections, external APIs (AniList, AniSkip)
+- **Use temp directories instead of mocking**: Never mock file operations—use `temp_dir` fixture
+- **Never mock internal services**: If you're mocking a service layer or plugin, you're not testing integration
 
 ### Test Approach
-- **Integration tests** with real services, plugins, and storage (not mocked)
-- **Mock external APIs only**: AniList GraphQL, AniSkip, external video providers
-- **Mock destructive operations**: File deletion, database drops (use temp directories instead)
+- **Integration tests** with real services, plugins, and storage (NEVER mock these)
+- **Mock external APIs only**: AniList GraphQL, AniSkip, external video providers, HTTP requests
+- **Mock destructive operations**: Never delete real files—use temporary directories with auto-cleanup
 - **Real plugin loading**: Load actual scrapers from `scrapers/plugins/` directory
 - **Real storage**: Use temporary directories for cache/downloads (auto-cleanup via pytest fixtures)
 

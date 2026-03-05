@@ -567,4 +567,5 @@ def navigate_episodes(
         episode_list=ctx.episode_list,
         skip_enabled=ctx.skip_enabled,
         mal_id=ctx.mal_id,
+        episode_skip_available=ctx.episode_skip_available,
     )

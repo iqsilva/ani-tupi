@@ -412,6 +412,7 @@ def anime(args) -> None:
             debug=args.debug,
             anilist_id=ctx.anilist_id,
             anilist_episodes=ctx.total_episodes_anilist,
+            mal_id=ctx.mal_id,
             skip_times=skip_times,
         )
 
