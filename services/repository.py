@@ -784,6 +784,40 @@ class Repository:
         # Return the highest priority source
         return available_sources[0]
 
+    def get_all_episode_sources(self, anime: str, episode_num: int) -> list[tuple[str, str]]:
+        """Get all available sources for an episode, sorted by priority.
+
+        Returns all (url, source) pairs for an episode, ordered by configured
+        priority. Used for source fallback when playback fails.
+
+        Args:
+            anime: Anime title
+            episode_num: Episode number (1-indexed)
+
+        Returns:
+            List of (url, source) tuples sorted by priority, or empty list if episode not found
+        """
+        if episode_num < 1:
+            return []
+
+        available_sources = []
+        for urls, source in self.anime_episodes_urls[anime]:
+            if len(urls) >= episode_num:
+                available_sources.append((urls[episode_num - 1], source))
+
+        if not available_sources:
+            return []
+
+        # Sort by priority order
+        priority_order = settings.plugins.priority_order
+        available_sources.sort(
+            key=lambda x: (
+                priority_order.index(x[1]) if x[1] in priority_order else len(priority_order)
+            )
+        )
+
+        return available_sources
+
     def get_episode_url(self, anime: str, episode_idx: int) -> str | None:
         """Get episode URL for a specific episode (0-indexed).
 

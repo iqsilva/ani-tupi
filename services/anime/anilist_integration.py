@@ -27,6 +27,8 @@ from services.anime.mappings import (
 from services.anime.search import incremental_search_anime
 from services.anime.title_normalization import normalize_title_for_dedup
 from services.anime.aniskip_service import AniSkipService
+from services.anime.playback_fallback import play_episode_with_fallback
+from utils.video_player import _format_episode_progress
 
 # Use centralized path function from config
 HISTORY_PATH = get_data_path()
@@ -973,30 +975,29 @@ def anilist_anime_flow(
             # User cancelled
             return
 
-    # Initialize video player for this session
-    player = VideoPlayer()
-
     # Playback loop (with AniList sync)
     while True:
         episode = current_episode_idx + 1
 
-        # Get video URL from scraper plugins
-        with loading("Buscando vídeo..."):
-            player_url = rep.search_player(selected_anime, episode)
+        # Get all available sources for this episode (sorted by priority)
+        all_sources = rep.get_all_episode_sources(selected_anime, episode)
 
-        # Check if video URL was found
-        if not player_url:
+        # Check if video sources are available
+        if not all_sources:
             print("❌ Nenhuma fonte conseguiu extrair o vídeo.")
             print("   💡 O episódio está indisponível em todas as fontes.")
             continue
 
-        # Play episode with IPC support
-        from utils.video_player import _format_episode_progress
-
+        # Show episode progress
         progress_str = _format_episode_progress(episode, num_episodes, total_episodes)
         print(f"\n▶️  Iniciando reprodução do episódio {progress_str}...")
-        print(f"   Fonte: {source or 'unknown'}")
-        print(f"   URL: {player_url[:80]}{'...' if len(player_url) > 80 else ''}\n")
+
+        # Show which sources will be tried (in priority order)
+        source_names = [s for _, s in all_sources]
+        if len(source_names) > 1:
+            print(f"   🔄 Tentando fontes: {', '.join(source_names)}")
+        else:
+            print(f"   Fonte: {source_names[0]}")
 
         # Fetch skip times if enabled and MAL ID available
         skip_times = None
@@ -1026,12 +1027,14 @@ def anilist_anime_flow(
             else:
                 print("ℹ️  MAL ID não encontrado (skip desabilitado para este anime)")
 
-        result = player.play_episode(
-            url=player_url,
+        # Use fallback-aware playback
+        player = VideoPlayer()
+        fallback_result = play_episode_with_fallback(
+            player=player,
+            sources=all_sources,
             anime_title=selected_anime,
             episode_number=episode,
             total_episodes=num_episodes,
-            source=source or "unknown",
             use_ipc=True,
             debug=args.debug,
             anilist_id=anilist_id,
@@ -1039,9 +1042,14 @@ def anilist_anime_flow(
             skip_times=skip_times,
         )
 
+        result = fallback_result.playback_result
+        source_used = fallback_result.source_used or "unknown"
+
         print("\n📊 Reprodução encerrada:")
         print(f"   Exit code: {result.exit_code}")
         print(f"   Ação: {result.action}")
+        if fallback_result.sources_tried:
+            print(f"   Fonte usada: {source_used}")
 
         # Handle IPC navigation actions
         if result.action == "next":

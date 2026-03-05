@@ -13,6 +13,7 @@ from pathlib import Path
 
 from services import anime_service
 from services.history_service import save_history
+from services.repository import rep
 from services.anime.playback_service import (
     prepare_playback_from_search,
     prepare_playback_from_history,
@@ -23,6 +24,7 @@ from services.anime.playback_service import (
 )
 from services.anime.download_service import AnimeDownloadService
 from services.anime.aniskip_service import AniSkipService
+from services.anime.playback_fallback import play_episode_with_fallback
 from ui.components import loading, menu_navigate
 from utils.video_player import VideoPlayer
 from utils.episode_range_parser import parse_episode_range, RangeParseError
@@ -309,23 +311,29 @@ def anime(args) -> None:
     while True:
         episode = ctx.episode_idx + 1  # Convert to 1-indexed
 
-        # Get episode video URL
+        # Get all episode sources with fallback support
         with loading("Buscando vídeo..."):
-            playback_result = get_episode_url_and_source(ctx.anime_title, episode)
+            # First, check for awaiting episode with direct URL (special case from homepage)
+            url_result = get_episode_url_and_source(ctx.anime_title, episode)
 
-        if not playback_result.success:
-            print(f"\n❌ {playback_result.error_message}")
+            if url_result.success and url_result.player_url:
+                # Found direct URL - use it as single source
+                sources = [(url_result.player_url, url_result.source or "unknown")]
+            else:
+                # Get all available sources for fallback
+                sources = rep.get_all_episode_sources(ctx.anime_title, episode)
+
+                # Filter out empty URLs
+                sources = [(url, source) for url, source in sources if url and source]
+
+        if not sources:
+            print("\n❌ Nenhuma fonte conseguiu extrair o video.")
             print("   💡 O episódio pode estar indisponível em todas as fontes.")
             print("   💡 Tente outro episódio ou espere e tente novamente mais tarde.\n")
             continue
 
-        # Play video
-        player_url = playback_result.player_url
-        source = playback_result.source
-
-        if player_url is None:
-            print("\n❌ Nenhum vídeo encontrado")
-            continue
+        # Use first source for initial display
+        initial_source = sources[0][1]
 
         # Format progress string
         from services.anime.progress_service import get_episode_progress_info
@@ -345,8 +353,11 @@ def anime(args) -> None:
         progress_info = get_episode_progress_info(episode, ctx.num_episodes, anilist_result)
 
         print(f"\n▶️  Iniciando reprodução do episódio {progress_info.progress_str}...")
-        print(f"   Fonte: {source or 'unknown'}")
-        print(f"   URL: {player_url[:80]}{'...' if len(player_url) > 80 else ''}\n")
+        if len(sources) > 1:
+            print(f"   Fontes disponíveis: {', '.join(s[1] for s in sources)}")
+        else:
+            print(f"   Fonte: {initial_source}")
+        print(f"   URL: {sources[0][0][:80]}{'...' if len(sources[0][0]) > 80 else ''}\n")
 
         # Fetch skip times if enabled
         skip_times = None
@@ -402,24 +413,41 @@ def anime(args) -> None:
             else:
                 print("   ℹ️  MAL ID não disponível, skip desativado para este episódio")
 
-        playback_result = player.play_episode(
-            url=player_url,
+        # Use fallback logic to try each source in priority order
+        fallback_result = play_episode_with_fallback(
+            player=player,
+            sources=sources,
             anime_title=ctx.anime_title,
             episode_number=episode,
             total_episodes=ctx.num_episodes,
-            source=source,
             use_ipc=True,
             debug=args.debug,
             anilist_id=ctx.anilist_id,
             anilist_episodes=ctx.total_episodes_anilist,
-            mal_id=ctx.mal_id,
             skip_times=skip_times,
         )
+
+        playback_result = fallback_result.playback_result
+        source_used = fallback_result.source_used
+        all_failed = fallback_result.all_failed
 
         exit_code = playback_result.exit_code
         final_episode = (
             playback_result.data.get("episode", episode) if playback_result.data else episode
         )
+
+        # Show appropriate message based on playback outcome
+        if exit_code == 0:
+            print(f"\n✅ Reprodução concluída (Fonte: {source_used})")
+        elif exit_code == 3:
+            print("\n⏸️  Reprodução interrompida pelo usuário")
+        elif all_failed:
+            print("\n❌ Nenhuma fonte conseguiu reproduzir o episódio")
+            sources_tried = ", ".join(f"{source}" for _, source in fallback_result.sources_tried)
+            print(f"   Fontes tentadas: {sources_tried}")
+            print("   💡 Tente trocar de fonte manualmente ou verifique sua conexão.")
+        else:
+            print(f"\n⚠️  Erro ao reproduzir (código: {exit_code})")
 
         print("\n📊 Reprodução encerrada:")
         print(f"   Exit code: {exit_code}")
@@ -464,7 +492,7 @@ def anime(args) -> None:
             episode_number=final_episode,
             num_episodes=ctx.num_episodes,
             anilist_id=ctx.anilist_id,
-            source=source,
+            source=source_used,
             is_local=False,
         )
 
