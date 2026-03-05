@@ -1,6 +1,137 @@
 # CHANGELOG
 
 
+## v0.3.0 (2026-03-05)
+
+### Chores
+
+- Establish foundations for reducing test mocks
+  ([`a52d942`](https://github.com/levyvix/ani-tupi/commit/a52d942c448bb9e8cd8e02f5ff0d829425355675))
+
+Implemented core foundations for moving from excessive unit test mocks to real integration testing
+  with mocked externals only.
+
+**New Files:** - tests/conftest.py: Real service fixtures (repository, temp_dir, test_settings)
+
+**Updated:** - CLAUDE.md: Testing Strategy section with principles, patterns, and guidelines -
+  openspec/changes/reduce-test-mocks/: Tasks marked complete, summary added
+
+**Audit Results:** - 25 test files using unittest.mock (488 lines total) - Identified excessive
+  MockPlugin classes and mocked scraper instances - Ready for Phase 3 refactoring following
+  documented patterns
+
+Tests still pass with new fixtures in place.
+
+- Manually sync pyproject.toml version to match release tags
+  ([`9d7dba8`](https://github.com/levyvix/ani-tupi/commit/9d7dba80c5f5c1d3ee331b99fed86125400fdc73))
+
+Version automation is creating release tags correctly (v0.2.2), but the sed command in
+  .releaserc.json isn't updating pyproject.toml. Manually synced to latest release. TODO: Fix sed
+  execution in exec plugin.
+
+- Refactor test_repository_cache_integration to reduce mocks
+  ([`6ab1fe2`](https://github.com/levyvix/ani-tupi/commit/6ab1fe27ab79ce900e4369bc53fb5f2570f9d92c))
+
+Reduced excessive mocks in test_repository_cache_integration.py: - Removed mocked cache and scraper
+  fixtures - Removed tests that only verified mock calls - Kept pure unit tests for cache key
+  normalization logic
+
+Before: 5 tests with mocked scrapers/cache
+
+After: 4 tests validating actual behavior All tests pass.
+
+- Remove excessive mock from test_disabled_plugins
+  ([`d428624`](https://github.com/levyvix/ani-tupi/commit/d428624aa266709bdc4e80d09bd44f7bec9df77d))
+
+Removed test_disabled_plugin_not_instantiated which mocked importlib to verify import wasn't called.
+  This behavior is already tested by other tests that check plugin isn't in active_sources.
+
+Kept 4 integration tests that verify real plugin loading behavior.
+
+- Reorder scraper priority (move anitube to end)
+  ([`48fd791`](https://github.com/levyvix/ani-tupi/commit/48fd79120dffccb1e7c3d682533c3f0e3b958cdb))
+
+### Documentation
+
+- Add implementation status for reduce test mocks
+  ([`4ecb40e`](https://github.com/levyvix/ani-tupi/commit/4ecb40e65289e2e7b39d8918b2091a015b213327))
+
+Comprehensive status document covering: - Phase 1-2 foundation (100% complete) - Phase 3 progress
+  (2/6 files refactored, 35% complete) - Key findings on what to mock vs. keep - Code quality
+  metrics and improvements - Files ready for continued work with estimates - Refactoring checklist
+  template - Next session priorities
+
+Status: Ready for continued refactoring or review/merge
+
+- Add release automation usage guide to CLAUDE.md
+  ([`86a863a`](https://github.com/levyvix/ani-tupi/commit/86a863a8c800a2dce7462b5e0d4527977a2e8a22))
+
+Include examples of how to trigger version bumps with conventional commits and explain the automated
+  release workflow process.
+
+### Features
+
+- Add dynamic skip times fetching during episode navigation
+  ([`9d75690`](https://github.com/levyvix/ani-tupi/commit/9d756907943fa5c9c695d7022a42f7c1ee5a91d0))
+
+Implement real-time skip times monitoring when users navigate episodes using Shift+N/Shift+P:
+
+- Add mal_id and skip_cache to episode_context for dynamic fetching - Create
+  _fetch_skip_times_for_episode() helper with in-memory caching - Create
+  _update_skip_lua_with_times() for atomic skip.lua updates - Detect episode changes via MPV IPC and
+  fetch skip times automatically - Update MPV title property when episode changes - Discover MAL ID
+  dynamically if not available in context - Graceful error handling for network failures - Minimal
+  logging for skip times fetching progress
+
+This fixes the issue where skip times were not loaded when navigating episodes during playback,
+  ensuring users can skip intros/outros seamlessly when using sequential episode navigation.
+
+Co-Authored-By: Claude Haiku 4.5 <noreply@anthropic.com>
+
+- Implement automatic source fallback for mpv playback failures
+  ([`6db9c75`](https://github.com/levyvix/ani-tupi/commit/6db9c75eb0effa6c8d58584dc30ad4a9da97470c))
+
+- Add play_episode_with_fallback() orchestration function that automatically retries next source
+  when playback fails - Integrate fallback into anime playback command (commands/anime.py) - Get all
+  available sources from repository in priority order using get_all_episode_sources() - Handle exit
+  codes: 0=success, 3=user abort (stop immediately), others=retry next source - Show progress
+  messages for multi-source scenarios (Tentando fonte N/M) - Return comprehensive fallback result
+  with source_used, sources_tried, all_failed flags - Preserve playback state across fallback
+  attempts (same VideoPlayer session, AniList context, skip times) - Update error messages to show
+  all attempted sources when all fail - All unit tests pass (11/11 fallback tests, 27/27 playback
+  service tests) - Code quality verified (ruff lint & format, immutability patterns, error handling)
+
+### Refactoring
+
+- Consolidate test_aniskip_service error scenarios (18 → 15 tests, 17% reduction)
+  ([`5529360`](https://github.com/levyvix/ani-tupi/commit/55293600daf5d983affb81a313c0150ec5374ed9))
+
+Consolidated 4 error handling tests into single comprehensive test: - 404 Not Found error - 500
+  Server Error - Timeout exceptions - Network connection errors
+
+Total consolidations so far: 82 → 61 tests (26% reduction) All tests passing with improved focus.
+
+- Consolidate test_progress_service tests (19 → 12 tests, 37% reduction)
+  ([`c00bc07`](https://github.com/levyvix/ani-tupi/commit/c00bc07ece73d23310e1524d3ed9d3154c8b3017))
+
+- Merged EpisodeProgressInfo dataclass tests into immutability_and_fields - Merged ProgressContext
+  dataclass tests into immutability_and_fields - Consolidated AniList progress scenarios into single
+  comprehensive test - Consolidated unknown episode count scenarios into single test
+
+Total test consolidation progress: 82 → 66 tests (20% reduction)
+
+- Reduce mocks in service and plugin tests (tasks 3.3-4.2)
+  ([`9239566`](https://github.com/levyvix/ani-tupi/commit/923956630dcd6ca99f342b9fd256ba4bcb365764))
+
+- Consolidate test_airing_episodes_filter.py: 18 → 11 tests (39% reduction) - Consolidate
+  test_animesdigital_api_limit.py: 3 → 2 tests (33% reduction) - Consolidate
+  test_anilist_discovery_service.py: 14 → 9 tests (36% reduction) - Consolidate
+  test_playback_service.py: 36 → 26 tests (28% reduction) - Consolidate test_plugin_registry.py: 11
+  → 6 tests (45% reduction)
+
+Total: 82 tests → 54 tests (34% reduction) All tests passing with improved focus and less overlap.
+
+
 ## v0.2.2 (2026-03-04)
 
 ### Bug Fixes
