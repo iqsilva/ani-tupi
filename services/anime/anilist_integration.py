@@ -557,14 +557,20 @@ def anilist_anime_flow(
             continue  # Loop back to show menu with new results
 
         else:
-            # Extract anime name (without sources) from selected item
-            # selected_anime_with_source format: "Title [source1, source2]"
-            selected_anime = selected_anime_with_source.split(" [")[0]
+            # selected_anime_with_source is from normalized_titles_to_show (already normalized)
+            # We need to get the actual title from titles_with_sources at the same index
+            # Find the index in normalized_titles_to_show
+            idx = normalized_titles_to_show.index(selected_anime_with_source)
+            # Get corresponding title from original titles_with_sources
+            full_selected_title = titles_with_sources[idx]
+            # Extract anime name (without sources)
+            selected_anime = full_selected_title.split(" [")[0]
 
             # Extract source (if present)
             source = None
-            if " [" in selected_anime_with_source and selected_anime_with_source.endswith("]"):
-                source = selected_anime_with_source.split(" [")[1].rstrip("]")
+            if " [" in full_selected_title and full_selected_title.endswith("]"):
+                source = full_selected_title.split(" [")[1].rstrip("]")
+
             break  # Exit while loop
 
     # Save the choice for next time (with original search title for "Trocar fonte")
@@ -1028,11 +1034,27 @@ def anilist_anime_flow(
             else:
                 print("ℹ️  MAL ID não encontrado (skip desabilitado para este anime)")
 
+        # Extract actual video URLs from episode pages before playback
+        # all_sources contains (page_url, source_name) pairs
+        video_sources = []
+        for page_url, source_name in all_sources:
+            try:
+                # Call search_player_src to extract the real video URL
+                video_url = rep.search_player_from_page(page_url, source_name)
+                if video_url:
+                    video_sources.append((video_url, source_name))
+            except Exception:
+                # If extraction fails, skip this source
+                continue
+
+        # Use extracted video URLs for playback (fallback to page URLs if no videos found)
+        sources_for_playback = video_sources if video_sources else all_sources
+
         # Use fallback-aware playback
         player = VideoPlayer()
         fallback_result = play_episode_with_fallback(
             player=player,
-            sources=all_sources,
+            sources=sources_for_playback,
             anime_title=selected_anime,
             episode_number=episode,
             total_episodes=num_episodes,

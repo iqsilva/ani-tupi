@@ -304,12 +304,9 @@ def get_episode_url_and_source(
         source = episode_info[1] if episode_info else None
 
         # Search for video player URL
-        print(f"[DEBUG] Calling rep.search_player for {anime_title} ep {episode}")
         player_url = rep.search_player(anime_title, episode)
-        print(f"[DEBUG] search_player returned: {player_url[:80] if player_url else 'None'}...")
 
         if player_url:
-            print(f"[DEBUG] Returning success=True with URL: {player_url[:80]}...")
             return EpisodePlaybackResult(
                 player_url=player_url,
                 source=source,
@@ -317,7 +314,6 @@ def get_episode_url_and_source(
                 error_message=None,
             )
         else:
-            print("[DEBUG] Returning success=False (no player_url)")
             return EpisodePlaybackResult(
                 player_url=None,
                 source=source,
