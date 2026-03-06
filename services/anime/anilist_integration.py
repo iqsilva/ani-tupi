@@ -557,9 +557,10 @@ def anilist_anime_flow(
             continue  # Loop back to show menu with new results
 
         else:
-            # Map normalized title back to original title
-            normalized_selected = selected_anime_with_source.split(" [")[0]
-            selected_anime = normalized_to_original.get(normalized_selected, normalized_selected)
+            # Extract anime name (without sources) from selected item
+            # selected_anime_with_source format: "Title [source1, source2]"
+            selected_anime = selected_anime_with_source.split(" [")[0]
+
             # Extract source (if present)
             source = None
             if " [" in selected_anime_with_source and selected_anime_with_source.endswith("]"):
