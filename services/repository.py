@@ -943,6 +943,9 @@ class Repository:
             # Wrapper to catch exceptions from plugins
             def safe_plugin_call(plugin_func, url, source, is_priority=False):
                 try:
+                    print(
+                        f"[DEBUG search_player] Calling {source}.search_player_src with page: {url[:80]}..."
+                    )
                     plugin_func(url, container, event)
                     if container:  # Only print if this source succeeded
                         video_url = container[0]
@@ -950,13 +953,17 @@ class Repository:
                         display_url = video_url[:80] + "..." if len(video_url) > 80 else video_url
                         print(f"   ✅ Vídeo encontrado em: {source}")
                         print(f"      URL: {display_url}")
+                        print(f"[DEBUG search_player] Extracted video URL: {video_url[:80]}...")
                         # Signal priority source found to cancel other tasks
                         if is_priority:
                             found_event.set()
+                    else:
+                        print(f"[DEBUG search_player] Container is empty after calling {source}")
                 except Exception as e:
                     # Extract just the first line of error (avoid huge stack traces)
                     error_msg = str(e).split("\n")[0]
                     print(f"   ❌ {source} falhou: {error_msg[:100]}")
+                    print(f"[DEBUG search_player] Exception: {e}")
                     # Don't re-raise - let other sources try
 
             # Organize URLs by source following priority order
@@ -1020,6 +1027,9 @@ class Repository:
 
                 # Get video URL if found, otherwise return None
                 video_url = container[0] if container else None
+                print(
+                    f"[DEBUG search_player] Final video_url: {video_url[:80] if video_url else 'None'}..."
+                )
 
                 # CACHE SAVE: Save video URL to cache with TTL
                 if video_url and dc and cache_key_full:
@@ -1034,7 +1044,11 @@ class Repository:
 
                 return video_url
 
-        return asyncio.run(search_all_sources())
+        result = asyncio.run(search_all_sources())
+        print(
+            f"[DEBUG search_player] search_player returning: {result[:80] if result else 'None'}..."
+        )
+        return result
 
     def search_player_from_page(self, page_url: str, source_name: str) -> str | None:
         """Extract video URL from an episode page for a specific source.

@@ -319,24 +319,43 @@ def anime(args) -> None:
             if url_result.success and url_result.player_url:
                 # Found direct URL - use it as single source
                 sources = [(url_result.player_url, url_result.source or "unknown")]
+                print(
+                    f"[DEBUG] Using direct URL from get_episode_url_and_source: {url_result.player_url[:80]}..."
+                )
             else:
+                print(
+                    f"[DEBUG] get_episode_url_and_source failed (success={url_result.success}), using fallback"
+                )
                 # Get all available episode page URLs for fallback
                 page_sources = rep.get_all_episode_sources(ctx.anime_title, episode)
+                print(f"[DEBUG] Found {len(page_sources)} page sources")
 
                 # For each page URL, extract the actual video URL
                 sources = []
                 for page_url, source_name in page_sources:
+                    print(
+                        f"[DEBUG] Extracting video URL from {source_name} page: {page_url[:80]}..."
+                    )
                     try:
                         # Extract video URL from the episode page using search_player_src
                         video_url = rep.search_player_from_page(page_url, source_name)
                         if video_url:
+                            print(
+                                f"[DEBUG] SUCCESS: Got video URL from {source_name}: {video_url[:80]}..."
+                            )
                             sources.append((video_url, source_name))
-                    except Exception:
+                        else:
+                            print(
+                                f"[DEBUG] FAILED: search_player_from_page returned None for {source_name}"
+                            )
+                    except Exception as e:
+                        print(f"[DEBUG] EXCEPTION extracting from {source_name}: {e}")
                         # Continue trying other sources on failure
                         continue
 
                 # Filter out empty URLs
                 sources = [(url, source) for url, source in sources if url and source]
+                print(f"[DEBUG] Final sources count: {len(sources)}")
 
         if not sources:
             print("\n❌ Nenhuma fonte conseguiu extrair o video.")
