@@ -733,15 +733,17 @@ class AnimesDigital:
             }
 
             # Extract HLS stream (Player FHD - api.anivideo.net)
-            # Pattern: https://api.anivideo.net/videohls.php?d=...
+            # The proxy URL contains the real video URL: https://api.anivideo.net/videohls.php?d=REAL_URL
+            # Extract REAL_URL from the d= parameter instead of using the proxy URL
             hls_match = re.search(
-                r'https://api\.anivideo\.net/videohls\.php\?d=[^"<>\s]+', html_content
+                r'https://api\.anivideo\.net/videohls\.php\?d=([^"<>&\s]+)', html_content
             )
             if hls_match:
-                hls_url = hls_match.group(0)
-                # Unescape HTML entities (&amp; → &)
-                hls_url = html.unescape(hls_url)
-                video_sources["hls"] = hls_url
+                # Extract the actual video URL from the d= parameter (group 1)
+                real_video_url = hls_match.group(1)
+                # Unescape HTML entities (&amp; → &, etc)
+                real_video_url = html.unescape(real_video_url)
+                video_sources["hls"] = real_video_url
 
             # Extract MP4 sources
             mp4_matches = re.findall(r'https://[^"<>\s]+\.mp4(?:[^\s"<>]*)?', html_content)
