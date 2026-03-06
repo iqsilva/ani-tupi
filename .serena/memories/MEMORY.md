@@ -42,6 +42,14 @@ ANI_TUPI__LOG_LEVEL=debug
 - **AnimesonlineCC** - Issues: videos use temporary URLs, use AnimesDigital/AnimeFire instead
 - **Incremental Search** - Intelligent search with word-by-word fallback
 
+### Fixed Bugs
+- **IPC Fallback URL Bug** (2026-03-05): When IPC socket connection fails in VideoPlayer, it was passing empty URL string ("") to legacy player instead of actual episode URL. This caused MPV to open but not play anything. Fixed by extracting URL from episode_context.
+
+### AnimesDigital URL Pattern
+- Correct: `/anime/a/anime-slug-todos-episodios` (works, finds all episodes)
+- Incorrect: `/animes/anime-slug` (redirects to single episode, 0 episodes found)
+- API returns correct format automatically
+
 ### Common Commands (see suggested_commands.md for full list)
 - `uv sync` - Install/sync dependencies
 - `uv run ani-tupi` - Run anime CLI

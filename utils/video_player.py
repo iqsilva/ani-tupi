@@ -582,7 +582,8 @@ shift+t script-message toggle-sub-dub
             try:
                 if platform.system() == "Windows":
                     # Fallback to legacy on Windows for now
-                    return self._play_video_legacy("", debug=False)
+                    url = episode_context.get("url", "")
+                    return self._play_video_legacy(url, debug=False)
 
                 sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
                 sock.settimeout(timeout)
@@ -593,7 +594,8 @@ shift+t script-message toggle-sub-dub
                 continue
 
         if not sock:
-            return self._play_video_legacy("", debug=False)
+            url = episode_context.get("url", "")
+            return self._play_video_legacy(url, debug=False)
 
         try:
             buffer = ""
