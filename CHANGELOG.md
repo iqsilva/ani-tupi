@@ -1,6 +1,72 @@
 # CHANGELOG
 
 
+## v0.3.1 (2026-03-06)
+
+### Bug Fixes
+
+- Extract real video URL from HLS proxy parameter
+  ([`15a2dfe`](https://github.com/levyvix/ani-tupi/commit/15a2dfe4b5d51c8b1153116c44d4f94d7b4af776))
+
+AnimesDigital uses an HLS proxy at api.anivideo.net that doesn't work with direct playback. The
+  proxy URL contains the real video URL in the 'd=' parameter.
+
+Changes: - Extract the actual M3U8 URL from the d= parameter - Return the real video URL instead of
+  the proxy URL - Fixes playback of AnimesDigital episodes (was opening MPV but not playing)
+
+Before: https://api.anivideo.net/videohls.php?d=REAL_URL (doesn't work)
+
+After: REAL_URL (m3u8 HLS stream, works with MPV)
+
+- Extract video URL from episode page before playback
+  ([`4cd7e85`](https://github.com/levyvix/ani-tupi/commit/4cd7e85cede384bd9fb4c779ae0ef2293eacf0e7))
+
+AnimesDigital and other sources were passing episode page URLs directly to MPV instead of extracting
+  the actual video URLs first. This caused MPV to open but fail to play anything.
+
+Changes: - Add search_player_from_page() method to extract video URL from episode page - In anime
+  command, extract video URLs using search_player_src before fallback - Fixes issue where videos
+  would not play despite MPV opening
+
+Before: MPV receives https://animesdigital.org/video/a/134940/ (page URL)
+
+After: MPV receives actual video URL (e.g., https://...m3u8?...)
+
+- Extract video URLs in anilist flow before playback
+  ([`14fa9a8`](https://github.com/levyvix/ani-tupi/commit/14fa9a891041a88bb233ecc3924f2432fa7c71b5))
+
+The AniList flow was passing episode page URLs directly to play_episode_with_fallback() instead of
+  extracting the actual video URLs first. This caused MPV to open but fail to play.
+
+Changes: - Extract video URLs using search_player_from_page() before playback in anilist_anime_flow
+  - Use extracted video URLs for fallback playback (fallback to page URLs if extraction fails) - Fix
+  anime title extraction to use correct title from search results (not normalized version)
+
+This ensures MPV receives actual video URLs (e.g., https://...m3u8?...) instead of page URLs.
+
+- Pass correct URL to legacy player fallback in IPC mode
+  ([`66cfc3b`](https://github.com/levyvix/ani-tupi/commit/66cfc3b0e88a045525dec30d1128179dbd795c5b))
+
+When IPC socket connection fails in VideoPlayer.play_episode(), the code was falling back to legacy
+  playback mode but passing an empty URL string instead of the actual episode URL. This caused MPV
+  to open but not play anything.
+
+Changes: - Extract URL from episode_context before calling _play_video_legacy() - Both Windows
+  fallback (line 585) and socket connection failure (line 596) - Fixes issue where AnimesDigital
+  episodes would open MPV but not play video
+
+- Use anime name without sources for episode loading
+  ([`c9a485b`](https://github.com/levyvix/ani-tupi/commit/c9a485bc9927c9736f9696f29f3142470fa39ec2))
+
+The bug was that selected_anime included source information (e.g., '[animesdigital, anitube]') when
+  calling search_episodes(), but the repository stores episodes under the anime name only.
+
+This caused get_all_episode_sources() to fail, returning page URLs instead of extracting video URLs,
+  which resulted in MPV opening but not playing.
+
+Fix: Extract only the anime name (before ' [') to use as the repository key.
+
+
 ## v0.3.0 (2026-03-05)
 
 ### Chores
