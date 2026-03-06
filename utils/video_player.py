@@ -506,7 +506,7 @@ shift+t script-message toggle-sub-dub
         mpv_args.append(url)
 
         print("[PLAYBACK DEBUG] MPV command line:")
-        print(f"[PLAYBACK DEBUG]   mpv {' '.join(mpv_args[:5])} ... {url}")
+        print(f"[PLAYBACK DEBUG] {' '.join(mpv_args)}")
 
         try:
             debug_mode = os.environ.get("ANI_TUPI_DEBUG_MPV") == "1"
@@ -723,7 +723,9 @@ shift+t script-message toggle-sub-dub
                                                     f"Fetching skip times for ep {next_episode_number}: mal_id={mal_id}, cache={skip_cache}"
                                                 )
                                                 skip_times = self._fetch_skip_times_for_episode(
-                                                    mal_id, next_episode_number, skip_cache
+                                                    mal_id,
+                                                    next_episode_number,
+                                                    skip_cache,
                                                 )
                                                 if skip_times and skip_lua_path:
                                                     if self._update_skip_lua_with_times(
@@ -732,7 +734,10 @@ shift+t script-message toggle-sub-dub
                                                         self._send_mpv_command(
                                                             sock,
                                                             "show-text",
-                                                            ["⏭️ Skip times carregados", "3000"],
+                                                            [
+                                                                "⏭️ Skip times carregados",
+                                                                "3000",
+                                                            ],
                                                         )
 
                                             continue
@@ -825,7 +830,9 @@ shift+t script-message toggle-sub-dub
                                                         f"Fetching skip times for ep {prev_episode_number}: mal_id={mal_id}, cache={skip_cache}"
                                                     )
                                                     skip_times = self._fetch_skip_times_for_episode(
-                                                        mal_id, prev_episode_number, skip_cache
+                                                        mal_id,
+                                                        prev_episode_number,
+                                                        skip_cache,
                                                     )
                                                     if skip_times and skip_lua_path:
                                                         if self._update_skip_lua_with_times(
@@ -834,7 +841,10 @@ shift+t script-message toggle-sub-dub
                                                             self._send_mpv_command(
                                                                 sock,
                                                                 "show-text",
-                                                                ["⏭️ Skip times carregados", "3000"],
+                                                                [
+                                                                    "⏭️ Skip times carregados",
+                                                                    "3000",
+                                                                ],
                                                             )
 
                                                 continue
