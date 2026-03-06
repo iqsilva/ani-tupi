@@ -1036,6 +1036,34 @@ class Repository:
 
         return asyncio.run(search_all_sources())
 
+    def search_player_from_page(self, page_url: str, source_name: str) -> str | None:
+        """Extract video URL from an episode page for a specific source.
+
+        Args:
+            page_url: URL of the episode page (e.g., https://animesdigital.org/video/a/134940/)
+            source_name: Name of the source (e.g., "animesdigital")
+
+        Returns:
+            Video URL or None if extraction fails
+        """
+        if source_name not in self.sources:
+            return None
+
+        try:
+            from threading import Event
+
+            container = []
+            event = Event()
+
+            # Call the source's search_player_src to extract video URL from the page
+            self.sources[source_name].search_player_src(page_url, container, event)
+
+            if container:
+                return container[0]
+            return None
+        except Exception:
+            return None
+
 
 rep = Repository()
 

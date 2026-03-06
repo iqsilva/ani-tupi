@@ -320,8 +320,20 @@ def anime(args) -> None:
                 # Found direct URL - use it as single source
                 sources = [(url_result.player_url, url_result.source or "unknown")]
             else:
-                # Get all available sources for fallback
-                sources = rep.get_all_episode_sources(ctx.anime_title, episode)
+                # Get all available episode page URLs for fallback
+                page_sources = rep.get_all_episode_sources(ctx.anime_title, episode)
+
+                # For each page URL, extract the actual video URL
+                sources = []
+                for page_url, source_name in page_sources:
+                    try:
+                        # Extract video URL from the episode page using search_player_src
+                        video_url = rep.search_player_from_page(page_url, source_name)
+                        if video_url:
+                            sources.append((video_url, source_name))
+                    except Exception:
+                        # Continue trying other sources on failure
+                        continue
 
                 # Filter out empty URLs
                 sources = [(url, source) for url, source in sources if url and source]
