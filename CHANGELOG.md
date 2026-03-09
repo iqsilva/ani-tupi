@@ -1,6 +1,22 @@
 # CHANGELOG
 
 
+## v0.4.0 (2026-03-09)
+
+### Bug Fixes
+
+- Update stale timestamps in airing episodes tests
+  ([`b878ae3`](https://github.com/levyvix/ani-tupi/commit/b878ae3419d605b33714f07c28320f528c24d522))
+
+- Use master branch in install.sh URL
+  ([`0216402`](https://github.com/levyvix/ani-tupi/commit/02164023895e0c0a15fad899f7429c4b0e901159))
+
+### Features
+
+- Run scrapling install before tool install
+  ([`1422d66`](https://github.com/levyvix/ani-tupi/commit/1422d665389a8688732df0d7f3a414f887a4b257))
+
+
 ## v0.3.1 (2026-03-06)
 
 ### Bug Fixes
