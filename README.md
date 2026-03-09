@@ -14,13 +14,13 @@ Assista anime e leia mangá direto do terminal sem anúncios! Interface CLI em p
 A forma mais fácil de instalar - execute apenas um comando:
 
 ```bash
-curl -sSL https://raw.githubusercontent.com/levyvix/ani-tupi/main/install.sh | bash
+curl -sSL https://raw.githubusercontent.com/levyvix/ani-tupi/master/install.sh | bash
 ```
 
 Ou se preferir salvar o script primeiro:
 
 ```bash
-curl -sSL https://raw.githubusercontent.com/levyvix/ani-tupi/main/install.sh -o install.sh
+curl -sSL https://raw.githubusercontent.com/levyvix/ani-tupi/master/install.sh -o install.sh
 bash install.sh
 ```
 
