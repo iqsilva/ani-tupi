@@ -36,7 +36,7 @@ class TestAiringEpisodesServiceGapCalculation:
                         "native": None,
                     },
                     "averageScore": 82,
-                    "nextAiringEpisode": {"episode": 15, "airingAt": 1772916627},
+                    "nextAiringEpisode": {"episode": 15, "airingAt": 1775679377},
                 },
             }
         ]
@@ -44,7 +44,7 @@ class TestAiringEpisodesServiceGapCalculation:
         result = airing_episodes_service.get_watching_with_airing_episodes()
 
         assert len(result) == 1
-        assert result[0].episodes_behind == 2  # 15 - 12 = 3
+        assert result[0].episodes_behind == 2  # (15 - 1) - 12 = 2
 
 
 class TestAiringEpisodesServiceFiltering:
@@ -78,7 +78,7 @@ class TestAiringEpisodesServiceFiltering:
                         "native": None,
                     },
                     "averageScore": 75,
-                    "nextAiringEpisode": {"episode": 10, "airingAt": 1772916627},
+                    "nextAiringEpisode": {"episode": 10, "airingAt": 1775679377},
                 },
             },
         ]
@@ -98,7 +98,7 @@ class TestAiringEpisodesServiceFiltering:
                     "id": 2,
                     "title": {"romaji": "Valid Anime", "english": None, "native": None},
                     "averageScore": 75,
-                    "nextAiringEpisode": {"episode": 10, "airingAt": 1772916627},
+                    "nextAiringEpisode": {"episode": 10, "airingAt": 1775679377},
                 },
             },
         ]
@@ -147,7 +147,7 @@ class TestAiringEpisodesServiceSorting:
                     "id": 1,
                     "title": {"romaji": "Anime A", "english": None, "native": None},
                     "averageScore": 82,
-                    "nextAiringEpisode": {"episode": 18, "airingAt": 1772916627},
+                    "nextAiringEpisode": {"episode": 18, "airingAt": 1775679377},
                 },
             },
             {
@@ -156,7 +156,7 @@ class TestAiringEpisodesServiceSorting:
                     "id": 2,
                     "title": {"romaji": "Anime B", "english": None, "native": None},
                     "averageScore": 75,
-                    "nextAiringEpisode": {"episode": 25, "airingAt": 1772916627},
+                    "nextAiringEpisode": {"episode": 25, "airingAt": 1775679377},
                 },
             },
             {
@@ -165,7 +165,7 @@ class TestAiringEpisodesServiceSorting:
                     "id": 3,
                     "title": {"romaji": "Anime C", "english": None, "native": None},
                     "averageScore": 80,
-                    "nextAiringEpisode": {"episode": 21, "airingAt": 1772916627},
+                    "nextAiringEpisode": {"episode": 21, "airingAt": 1775679377},
                 },
             },
         ]
@@ -200,7 +200,7 @@ class TestAiringEpisodesServiceTitleExtraction:
                         "native": "呪術廻戦",
                     },
                     "averageScore": 82,
-                    "nextAiringEpisode": {"episode": 10, "airingAt": 1772916627},
+                    "nextAiringEpisode": {"episode": 10, "airingAt": 1775679377},
                 },
             }
         ]
@@ -222,7 +222,7 @@ class TestAiringEpisodesServiceTitleExtraction:
                         "native": None,
                     },
                     "averageScore": 82,
-                    "nextAiringEpisode": {"episode": 10, "airingAt": 1772916627},
+                    "nextAiringEpisode": {"episode": 10, "airingAt": 1775679377},
                 },
             }
         ]
@@ -240,7 +240,7 @@ class TestAiringEpisodesServiceTitleExtraction:
                     "id": 1,
                     "title": {"romaji": None, "english": None, "native": "進撃の巨人"},
                     "averageScore": 82,
-                    "nextAiringEpisode": {"episode": 10, "airingAt": 1772916627},
+                    "nextAiringEpisode": {"episode": 10, "airingAt": 1775679377},
                 },
             }
         ]
@@ -260,7 +260,7 @@ class TestAiringEpisodesServiceTitleExtraction:
                     "id": 1,
                     "title": {"romaji": None, "english": None, "native": None},
                     "averageScore": 82,
-                    "nextAiringEpisode": {"episode": 10, "airingAt": 1772916627},
+                    "nextAiringEpisode": {"episode": 10, "airingAt": 1775679377},
                 },
             }
         ]
@@ -300,7 +300,7 @@ class TestAiringEpisodesServiceEdgeCases:
                     "averageScore": None,  # Missing score
                     "nextAiringEpisode": {
                         "episode": 10,
-                        "airingAt": 1772916627,
+                        "airingAt": 1775679377,
                     },  # Has airingAt for awaiting filter
                 },
             }
@@ -310,7 +310,7 @@ class TestAiringEpisodesServiceEdgeCases:
 
         assert len(result) == 1
         assert result[0].average_score is None
-        assert result[0].airing_at == 1772916627
+        assert result[0].airing_at == 1775679377
 
     def test_handles_zero_progress(self, airing_episodes_service, mock_anilist_client):
         """Test handling when progress is 0 (not started)."""
@@ -321,7 +321,7 @@ class TestAiringEpisodesServiceEdgeCases:
                     "id": 1,
                     "title": {"romaji": "New Anime", "english": None, "native": None},
                     "averageScore": 82,
-                    "nextAiringEpisode": {"episode": 5, "airingAt": 1772916627},
+                    "nextAiringEpisode": {"episode": 5, "airingAt": 1775679377},
                 },
             }
         ]
@@ -345,7 +345,7 @@ class TestAiringEpisodesServiceEdgeCases:
                         "native": None,
                     },
                     "averageScore": 82,
-                    "nextAiringEpisode": {"episode": 10, "airingAt": 1772916627},
+                    "nextAiringEpisode": {"episode": 10, "airingAt": 1775679377},
                 },
             }
         ]
@@ -368,7 +368,7 @@ class TestAiringEpisodesServiceEdgeCases:
                         "native": None,
                     },
                     "averageScore": 82,
-                    "nextAiringEpisode": {"episode": 15, "airingAt": 1772916627},
+                    "nextAiringEpisode": {"episode": 15, "airingAt": 1775679377},
                 },
             }
         ]
@@ -385,7 +385,7 @@ class TestAiringEpisodesServiceEdgeCases:
         assert entry.progress == 12
         assert entry.next_episode_number == 15
         assert entry.episodes_behind == 2
-        assert entry.airing_at == 1772916627
+        assert entry.airing_at == 1775679377
         assert entry.average_score == 82
 
 
@@ -401,7 +401,7 @@ class TestAiringEpisodesServiceMultipleAnime:
                     "id": 1,
                     "title": {"romaji": "Anime 1", "english": None, "native": None},
                     "averageScore": 82,
-                    "nextAiringEpisode": {"episode": 15, "airingAt": 1772916627},
+                    "nextAiringEpisode": {"episode": 15, "airingAt": 1775679377},
                 },
             },
             {
@@ -410,7 +410,7 @@ class TestAiringEpisodesServiceMultipleAnime:
                     "id": 2,
                     "title": {"romaji": "Anime 2", "english": None, "native": None},
                     "averageScore": 75,
-                    "nextAiringEpisode": {"episode": 20, "airingAt": 1772916627},
+                    "nextAiringEpisode": {"episode": 20, "airingAt": 1775679377},
                 },
             },
             {
@@ -419,7 +419,7 @@ class TestAiringEpisodesServiceMultipleAnime:
                     "id": 3,
                     "title": {"romaji": "Anime 3", "english": None, "native": None},
                     "averageScore": 80,
-                    "nextAiringEpisode": {"episode": 10, "airingAt": 1772916627},
+                    "nextAiringEpisode": {"episode": 10, "airingAt": 1775679377},
                 },
             },
         ]
