@@ -1,6 +1,26 @@
 # CHANGELOG
 
 
+## v0.5.0 (2026-03-10)
+
+### Chores
+
+- Remove .serena directory from git tracking
+  ([`92609a2`](https://github.com/levyvix/ani-tupi/commit/92609a2880601d206250ed05b14ef8c24b10e247))
+
+### Features
+
+- Add topanimes.net scraper plugin with video extraction
+  ([`9972dda`](https://github.com/levyvix/ani-tupi/commit/9972dda5d81f4b92f4464f4bc92b0402c40494c6))
+
+- Add TopanimesScraper plugin implementing search, episode extraction, and video URL discovery -
+  Optimize search using static HTML fetching (< 1 second vs 7+ seconds with Playwright) - Add video
+  extraction using Playwright network interception for Discord CDN URLs - Include comprehensive
+  documentation (5 guides covering architecture, API, quick start) - Add extract_topanimes_video.py
+  utility script for standalone video extraction - Register plugin in scraper priority order in
+  config.py - Support Brazilian Portuguese (pt-br) language
+
+
 ## v0.4.0 (2026-03-09)
 
 ### Bug Fixes
