@@ -91,7 +91,6 @@ def menu(
             mandatory=False,
             keybindings={
                 "skip": [
-                    {"key": "q"},
                     {"key": "Q"},
                 ],
             },
@@ -111,7 +110,6 @@ def menu(
             mandatory=False,
             keybindings={
                 "skip": [
-                    {"key": "q"},
                     {"key": "Q"},
                 ],
             },
@@ -229,7 +227,6 @@ def menu_navigate(
             mandatory=False,
             keybindings={
                 "skip": [
-                    {"key": "q"},
                     {"key": "Q"},
                 ],
             },
@@ -249,7 +246,6 @@ def menu_navigate(
             mandatory=False,
             keybindings={
                 "skip": [
-                    {"key": "q"},
                     {"key": "Q"},
                 ],
             },
