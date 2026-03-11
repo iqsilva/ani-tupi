@@ -19,8 +19,8 @@ class MugiwarasOficial:
     base_url = "https://mugiwarasoficial.com"
 
     def __init__(self):
-        """Initialize scraper with Scrapling Fetcher."""
-        pass  # Use Fetcher.get() directly, no instance needed
+        """Initialize scraper with SeleniumWebDriver."""
+        pass  # Use SeleniumWebDriver.fetch() directly, no instance needed
 
     def search_manga(self, query: str) -> list[dict[str, Any]]:
         """Search for manga by title.
