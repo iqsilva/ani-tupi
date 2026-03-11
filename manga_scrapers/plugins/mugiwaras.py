@@ -1,18 +1,14 @@
 """MugiwarasOficial.com manga scraper.
 
 Scrapes manga from https://mugiwarasoficial.com/ (Brazilian Portuguese site).
-Uses Scrapling.StealthyFetcher for search and DynamicFetcher for AJAX-loaded chapters.
-Adaptive CSS selectors survive website design changes.
+Uses Selenium for dynamic content rendering and chapter extraction.
 """
 
 import re
 import time
 from typing import Any
 
-from scrapling.fetchers import StealthyFetcher, DynamicFetcher
-
-# Enable adaptive mode for future-proof scraping
-StealthyFetcher.adaptive = True
+from scrapers.core.selenium_driver import SeleniumWebDriver
 
 
 class MugiwarasOficial:
@@ -39,34 +35,33 @@ class MugiwarasOficial:
             # Use WordPress search endpoint
             search_url = f"{self.base_url}/?s={query.replace(' ', '+')}&post_type=wp-manga"
 
-            # Fetch with adaptive StealthyFetcher for robustness against design changes
-            tree = StealthyFetcher.fetch(search_url, headless=True, adaptive=True)
+            # Fetch with Selenium for robustness
+            with SeleniumWebDriver() as driver:
+                tree = driver.fetch(search_url)
 
             results = []
 
             # Parse manga results from Madara theme
             # Each manga is in a div with class "row c-tabs-item__content"
-            # Using adaptive=True to survive website design changes
-            manga_items = tree.css("div.row.c-tabs-item__content", adaptive=True, auto_save=True)
+            manga_items = tree.select("div.row.c-tabs-item__content")
 
             for item in manga_items:
                 try:
                     # Extract title and URL from the link
-                    links = item.css("div.post-title a")
-                    if not links:
+                    link = item.select_one("div.post-title a")
+                    if not link:
                         continue
 
-                    link = links[0]
                     title = str(link.text).strip()
-                    url = link.attrib.get("href", "")
+                    url = link.get("href", "")
 
                     if not title or not url:
                         continue
 
                     # Extract latest chapter info (optional)
-                    latest_chapters = item.css("span.chapter a")
+                    latest_chapter = item.select_one("span.chapter a")
                     latest_chapter_text = (
-                        str(latest_chapters[0].text).strip() if latest_chapters else None
+                        str(latest_chapter.text).strip() if latest_chapter else None
                     )
 
                     # Extract manga ID from URL (slug)
@@ -111,19 +106,18 @@ class MugiwarasOficial:
 
         while retry_count < max_retries:
             try:
-                # Use DynamicFetcher to render the page and wait for AJAX-loaded chapters
-                # Use Firefox for better library compatibility
+                # Use Selenium to render the page and wait for AJAX-loaded chapters
                 # Increase timeout on retry attempts and add small delay between retries
                 if retry_count > 0:
                     time.sleep(2)  # Wait before retrying
 
-                timeout = 15000 + (retry_count * 5000)
-                tree = DynamicFetcher.fetch(manga_url, timeout=timeout, browser="firefox")
+                with SeleniumWebDriver() as driver:
+                    tree = driver.fetch(manga_url)
 
                 chapters = []
 
                 # Extract chapter list
-                chapter_items = tree.css("li.wp-manga-chapter")
+                chapter_items = tree.select("li.wp-manga-chapter")
 
                 # If no chapters found and we can retry, do so
                 if not chapter_items and retry_count < max_retries - 1:
@@ -133,7 +127,7 @@ class MugiwarasOficial:
 
                 for item in chapter_items:
                     try:
-                        links = item.css("a")
+                        links = item.select("a")
                         if not links:
                             continue
 
@@ -215,12 +209,11 @@ class MugiwarasOficial:
                 # Use DynamicFetcher to handle AJAX-loaded images and JavaScript rendering
                 # Increase timeout significantly to allow JavaScript to execute fully
                 # MugiwarasOficial loads chapter images via AJAX, requiring longer wait time
-                timeout = 30000 + (retry_count * 10000)  # 30s, 40s, 50s
-
                 if retry_count > 0:
                     time.sleep(2)  # Wait before retrying
 
-                tree = DynamicFetcher.fetch(chapter_url, timeout=timeout, browser="firefox")
+                with SeleniumWebDriver() as driver:
+                    tree = driver.fetch(chapter_url)
 
                 page_urls = []
 
@@ -235,12 +228,12 @@ class MugiwarasOficial:
                 ]
 
                 for selector in selectors:
-                    images = tree.css(selector)
+                    images = tree.select(selector)
                     if images:
                         break
                 else:
                     # Fallback to all images if no specific selector worked
-                    images = tree.css("img")
+                    images = tree.select("img")
 
                 for img in images:
                     # Try multiple attributes where image URL might be

@@ -32,11 +32,11 @@ dependencies = [
     "python-mpv>=1.0.8",
     "loguru>=0.7.3",
     "httpx>=0.28.1",
-    "scrapling[all]>=0.3.14",
     "pillow>=12.1.0",
     "yt-dlp>=2026.1.31",
-    "playwright>=1.56.0",
     "requests>=2.32.5",
+    "selenium>=4.0.0",
+    "bs4>=0.0.2",
 ]
 
 [project.scripts]

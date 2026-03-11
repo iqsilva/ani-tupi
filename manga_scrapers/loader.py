@@ -6,16 +6,10 @@ Uses StealthyFetcher with adaptive mode for robust scraping.
 """
 
 import importlib
-import logging
 import sys
 from os import listdir
 from os.path import abspath, dirname, isfile, join
 from typing import Protocol
-
-from scrapling.fetchers import StealthyFetcher
-
-# Enable adaptive mode for future-proof scraping
-StealthyFetcher.adaptive = True
 
 
 class MangaScraperProtocol(Protocol):
@@ -105,13 +99,6 @@ def load_manga_plugins(languages: set[str]) -> dict[str, MangaScraperProtocol]:
     Returns:
         Dictionary mapping plugin names to plugin instances
     """
-    # Configure StealthyFetcher globally once before loading any plugins
-    # This enables adaptive mode for future-proof scraping
-    # (already configured at module level, but reinforced here)
-
-    # Suppress the Scrapling deprecation warning about __init__ logic
-    # This warning is unavoidable in v0.2.x and will be removed in v0.3
-    logging.getLogger("scrapling").setLevel(logging.ERROR)
 
     path = get_resource_path("plugins/")
     system = {"__init__.py", "utils.py"}

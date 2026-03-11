@@ -14,8 +14,8 @@ from typing import TypedDict
 
 import requests
 from bs4 import BeautifulSoup
-from scrapling import DynamicFetcher
 
+from scrapers.core.selenium_driver import SeleniumWebDriver
 from services.repository import rep
 
 logger = logging.getLogger(__name__)
@@ -353,20 +353,16 @@ class AnimesDigital:
                             tree = loop.run_until_complete(
                                 loop.run_in_executor(
                                     executor,
-                                    lambda: DynamicFetcher.fetch(
-                                        url, timeout=15000, browser="firefox"
-                                    ),
+                                    lambda: SeleniumWebDriver().fetch(url),
                                 )
                             )
                     except RuntimeError:
-                        tree = DynamicFetcher.fetch(
-                            url.replace("?odr=1", "").replace("&odr=1", ""),
-                            timeout=15000,
-                            browser="firefox",
+                        tree = SeleniumWebDriver().fetch(
+                            url.replace("?odr=1", "").replace("&odr=1", "")
                         )
 
                     # Check if page has episodes (if it exists)
-                    episode_divs = tree.css("div.item_ep")
+                    episode_divs = tree.select("div.item_ep")
                     if episode_divs:
                         logger.debug(f"Complete slug found episodes: {url}")
 
@@ -656,15 +652,15 @@ class AnimesDigital:
                 tree = loop.run_until_complete(
                     loop.run_in_executor(
                         executor,
-                        lambda: DynamicFetcher.fetch(url, timeout=15000, browser="firefox"),
+                        lambda: SeleniumWebDriver().fetch(url),
                     )
                 )
         except RuntimeError:
             # No event loop running, call directly
-            tree = DynamicFetcher.fetch(url, timeout=15000, browser="firefox")
+            tree = SeleniumWebDriver().fetch(url)
 
         # Find all episode containers
-        episode_divs = tree.css("div.item_ep")
+        episode_divs = tree.select("div.item_ep")
 
         episode_titles: list[str] = []
         episode_urls: list[str] = []
@@ -672,15 +668,13 @@ class AnimesDigital:
 
         for ep_div in episode_divs:
             # Find the link inside the episode div for the URL
-            link_results = ep_div.css("a")
-            if not link_results:
+            link = ep_div.select_one("a")
+            if not link:
                 continue
-            link = link_results[0]
-            href = link.attrib.get("href")
+            href = link.get("href")
 
             # Get episode title from .title_anime class (avoids metadata like "9 meses atrás")
-            title_results = ep_div.css(".title_anime")
-            title_elem = title_results[0] if title_results else None
+            title_elem = ep_div.select_one(".title_anime")
             if title_elem and href:
                 title = str(title_elem.text).strip()
                 # Clean up extra whitespace

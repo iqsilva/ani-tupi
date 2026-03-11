@@ -1,16 +1,13 @@
 """MangaDex API scraper plugin.
 
 Refactored from the original manga_service.py to fit the plugin architecture.
-Uses StealthyFetcher with adaptive mode for robust API communication.
+Uses requests for API communication.
 """
 
 import json
 from typing import Any
 
-from scrapling.fetchers import StealthyFetcher
-
-# Enable adaptive mode for future-proof scraping
-StealthyFetcher.adaptive = True
+import requests
 
 
 class MangaDex:
@@ -38,11 +35,11 @@ class MangaDex:
             List of manga results
         """
         try:
-            resp = StealthyFetcher.fetch(
+            resp = requests.get(
                 f"{self.base_url}/manga?title={query}&limit=100",
                 timeout=10,
             )
-            data = resp.json() if hasattr(resp, "json") else json.loads(resp.text)
+            data = resp.json()
         except Exception:
             return []
 
@@ -100,7 +97,7 @@ class MangaDex:
                 )
                 url = f"{self.base_url}/manga/{manga_id}/feed?limit=500&offset={offset}&{lang_params}&order[chapter]=asc&includeEmptyPages=0&includeFuturePublishAt=0"
 
-                resp = StealthyFetcher.fetch(url, timeout=10)
+                resp = requests.get(url, timeout=10)
                 data = resp.json() if hasattr(resp, "json") else json.loads(resp.text)
 
                 if not data.get("data"):
@@ -153,7 +150,7 @@ class MangaDex:
             List of image URLs
         """
         try:
-            resp = StealthyFetcher.fetch(
+            resp = requests.get(
                 f"{self.base_url}/at-home/server/{chapter_id}",
                 timeout=10,
             )

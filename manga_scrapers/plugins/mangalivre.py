@@ -9,10 +9,7 @@ import re
 import time
 from typing import Any
 
-from scrapling.fetchers import StealthyFetcher, DynamicFetcher
-
-# Enable adaptive mode for future-proof scraping
-StealthyFetcher.adaptive = True
+from scrapers.core.selenium_driver import SeleniumWebDriver
 
 
 class MangaLivre:
@@ -60,7 +57,7 @@ class MangaLivre:
                 # Fetch with adaptive StealthyFetcher for robustness against design changes
                 # Increase timeout on retry attempts
                 timeout = 30000 + (retry_count * 10000)  # 30s, 40s, 50s
-                tree = StealthyFetcher.fetch(
+                tree = SeleniumWebDriver().fetch(
                     search_url, headless=True, adaptive=True, timeout=timeout
                 )
 
@@ -69,12 +66,12 @@ class MangaLivre:
                 # Parse manga results from WordPress theme
                 # Search results use div.manga-card structure
                 # Using adaptive=True to survive website design changes
-                manga_cards = tree.css("div.manga-card", adaptive=True, auto_save=True)
+                manga_cards = tree.select("div.manga-card", adaptive=True, auto_save=True)
 
                 for card in manga_cards:
                     try:
                         # Extract link and title
-                        links = card.css("a")
+                        links = card.select("a")
                         if not links:
                             continue
 
@@ -85,11 +82,11 @@ class MangaLivre:
 
                         # Extract title - try multiple selectors
                         # MangaLivre uses h2, h3, h4 or spans for titles
-                        h2s = card.css("h2")
-                        h3s = card.css("h3")
-                        h4s = card.css("h4")
-                        span_titles = card.css("span[class*='title']")
-                        title_spans = card.css(".title")
+                        h2s = card.select("h2")
+                        h3s = card.select("h3")
+                        h4s = card.select("h4")
+                        span_titles = card.select("span[class*='title']")
+                        title_spans = card.select(".title")
 
                         title_elem = (
                             h2s[0]
@@ -115,11 +112,11 @@ class MangaLivre:
                             continue
 
                         # Extract description if available
-                        desc_elems = card.css("p")
+                        desc_elems = card.select("p")
                         description = str(desc_elems[0].text).strip() if desc_elems else None
 
                         # Extract status if available
-                        status_elems = card.css("span")
+                        status_elems = card.select("span")
                         status = (
                             str(status_elems[0].text).strip().lower() if status_elems else "ongoing"
                         )
@@ -176,16 +173,16 @@ class MangaLivre:
         try:
             # Use DynamicFetcher to render page and wait for AJAX-loaded chapters
             # Use Firefox for better library compatibility
-            tree = DynamicFetcher.fetch(manga_url, timeout=15000, browser="firefox")
+            tree = SeleniumWebDriver().fetch(manga_url, timeout=15000, browser="firefox")
 
             chapters = []
 
             # Extract chapter list - MangaLivre uses li.chapter-item
-            chapter_items = tree.css("li.chapter-item")
+            chapter_items = tree.select("li.chapter-item")
 
             for item in chapter_items:
                 try:
-                    links = item.css("a")
+                    links = item.select("a")
                     if not links:
                         continue
 
@@ -269,12 +266,12 @@ class MangaLivre:
                 if retry_count > 0:
                     time.sleep(2)  # Wait before retrying
 
-                tree = DynamicFetcher.fetch(chapter_url, timeout=timeout, browser="firefox")
+                tree = SeleniumWebDriver().fetch(chapter_url, timeout=timeout, browser="firefox")
 
                 page_urls = []
 
                 # Extract all images from the page
-                all_images = tree.css("img")
+                all_images = tree.select("img")
 
                 for img in all_images:
                     # Try multiple attributes where image URL might be

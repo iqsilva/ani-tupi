@@ -2,9 +2,8 @@ import re
 import urllib.parse
 
 import requests
-from playwright.sync_api import sync_playwright
-from scrapling.fetchers import DynamicFetcher
 
+from scrapers.core.selenium_driver import SeleniumWebDriver
 from services.repository import rep
 
 
@@ -58,24 +57,20 @@ class AniTube:
         separator = "&" if "?" in url else "?"
         episodes_url = f"{url}{separator}ord=1"
 
-        with sync_playwright() as p:
-            browser = p.chromium.launch(headless=True)
-            page = browser.new_page()
-            page.goto(episodes_url)
-            page.wait_for_load_state("networkidle", timeout=30000)
+        with SeleniumWebDriver() as driver:
+            page = driver.fetch(episodes_url)
 
-            episode_links = page.query_selector_all("a[title*='Episódio']")
-            titles = []
-            urls = []
-            for a in episode_links:
-                href = a.get_attribute("href")
-                title = a.get_attribute("title")
-                if href and title and "anitube" in href:
-                    title_lower = title.lower()
-                    if anime_base in title_lower:
-                        titles.append(title.strip())
-                        urls.append(href)
-            browser.close()
+        episode_links = page.select("a[title*='Episódio']")
+        titles = []
+        urls = []
+        for a in episode_links:
+            href = a.get("href")
+            title = a.get("title")
+            if href and title and "anitube" in href:
+                title_lower = title.lower()
+                if anime_base in title_lower:
+                    titles.append(title.strip())
+                    urls.append(href)
 
         if titles and urls:
             first_ep_num = _extract_episode_number(titles[0])
@@ -89,34 +84,36 @@ class AniTube:
 
     def search_player_src(self, url: str, container: list, event) -> None:
         try:
-            page = DynamicFetcher.fetch(url, timeout=20000)
-            iframe_results = page.css("iframe")
-            iframe = iframe_results[0] if iframe_results else None
+            with SeleniumWebDriver() as driver:
+                page = driver.fetch(url)
+
+            iframe = page.select_one("iframe")
             if iframe:
-                src = iframe.attrib.get("src")
+                src = iframe.get("src")
                 if src:
                     if not event.is_set():
                         container.append(src)
                         event.set()
                     return
-            video_results = page.css("video")
-            video = video_results[0] if video_results else None
+
+            video = page.select_one("video")
             if video:
-                video_src = video.attrib.get("src") or video.attrib.get("data-src")
+                video_src = video.get("src") or video.get("data-src")
                 if video_src:
                     if not event.is_set():
                         container.append(video_src)
                         event.set()
                     return
-            source_results = page.css("video source")
-            source = source_results[0] if source_results else None
+
+            source = page.select_one("video source")
             if source:
-                src = source.attrib.get("src")
+                src = source.get("src")
                 if src:
                     if not event.is_set():
                         container.append(src)
                         event.set()
                     return
+
             raise Exception("No video source found in AniTube episode page")
         except Exception as e:
             raise Exception(f"Could not extract video from AniTube: {e}") from e
