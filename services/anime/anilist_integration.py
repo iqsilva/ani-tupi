@@ -1043,8 +1043,13 @@ def anilist_anime_flow(
                 video_url = rep.search_player_from_page(page_url, source_name)
                 if video_url:
                     video_sources.append((video_url, source_name))
-            except Exception:
+                else:
+                    print(
+                        f"   ⚠️  [{source_name}] Não retornou URL de vídeo (page_url={page_url[:80]})"
+                    )
+            except Exception as e:
                 # If extraction fails, skip this source
+                print(f"   ❌ [{source_name}] Erro ao extrair vídeo: {e}")
                 continue
 
         # Use extracted video URLs for playback (fallback to page URLs if no videos found)
