@@ -165,7 +165,7 @@ class TopanimesScraper:
 
                 # Only capture media requests with video extensions
                 # Skip API calls, tracking pixels, etc.
-                if resource_type in ["media", "fetch"]:
+                if resource_type in ["media", "fetch", "xhr"]:
                     # Check if URL ends with video extension (not just contains it)
                     url_lower = url.lower()
                     if any(
