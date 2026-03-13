@@ -509,6 +509,9 @@ git push origin master
 - Generates release notes from commit messages
 - Updates CHANGELOG.md
 
+**⚠️ Always `git pull --rebase` before pushing after a `feat:` or `fix:` commit.**
+The release bot commits the version bump and CHANGELOG directly to remote, so the local branch will be behind. This is expected — just rebase and push.
+
 **Configuration**:
 - Release rules: `.releaserc.json` (what triggers bumps)
 - Workflow: `.github/workflows/release.yml` (GitHub Actions)
