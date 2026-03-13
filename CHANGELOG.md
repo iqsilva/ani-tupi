@@ -1,6 +1,53 @@
 # CHANGELOG
 
 
+## v0.6.0 (2026-03-13)
+
+### Bug Fixes
+
+- Improve topanimes video extraction to return filemoon iframe URL
+  ([`f384ecc`](https://github.com/levyvix/ani-tupi/commit/f384ecc53f6ebdd5aad227b07511e4122fe14fb3))
+
+- Extract and prioritize embedded video URLs from iframe url= parameters - Decode URLs to get actual
+  player endpoints (filemoon.sx, etc) - Return direct filemoon URL instead of redirect wrapper -
+  Support extraction from iframes with URL-encoded parameters - Better compatibility with MPV and
+  video players
+
+- Update test mocks to use SeleniumWebDriver instead of Playwright
+  ([`44dd90b`](https://github.com/levyvix/ani-tupi/commit/44dd90baeb8c1f4404e608082bc9fadfe44f146b))
+
+- Replace sync_playwright mocks with SeleniumWebDriver in test_anitube_episode_ordering.py - Update
+  mock setup to match SeleniumWebDriver context manager interface - Update BeautifulSoup selector
+  calls from query_selector_all to select - Clean up docstring references from Scrapling to
+  SeleniumWebDriver in manga scrapers
+
+All 697 unit tests pass. Scrapers fully migrated to Selenium (except topanimes which uses Playwright
+  per request).
+
+- **playback**: Log topanimes video extraction failures instead of silently skipping
+  ([`358e1bc`](https://github.com/levyvix/ani-tupi/commit/358e1bc6c6ed965f8be1c83ebddb285942002557))
+
+- **tests**: Restrict pytest discovery to tests/ directory
+  ([`a8dfc90`](https://github.com/levyvix/ani-tupi/commit/a8dfc90807b46cbe2fa64084c38409a706c36ec8))
+
+scripts/ was being collected by pytest causing fixture errors.
+
+- **topanimes**: Capture xhr requests to detect m3u8 video urls
+  ([`ae0bc6a`](https://github.com/levyvix/ani-tupi/commit/ae0bc6aff8d261338793d9c65815c805dda068f0))
+
+Plugin was only intercepting 'media' and 'fetch' resource types, missing the actual .m3u8 stream
+  loaded via XHR by the embedded player.
+
+### Features
+
+- **playback**: Derive next episode url from pattern to skip scraping
+  ([`e4ec98e`](https://github.com/levyvix/ani-tupi/commit/e4ec98ebed9666e4b1839151ef61ce3637955310))
+
+When a CDN URL follows a predictable episode pattern (e.g. /11.mp4/index.m3u8), the next episode URL
+  is derived via substitution and validated with a HEAD request before falling back to full
+  scraping. Cuts episode load time significantly for sources with stable URL patterns.
+
+
 ## v0.5.0 (2026-03-10)
 
 ### Chores
