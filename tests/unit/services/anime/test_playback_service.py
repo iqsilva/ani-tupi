@@ -393,6 +393,63 @@ class TestGetEpisodeUrlAndSource:
         assert result.error_message is not None
 
 
+class TestEpisodeUrlPatternFallback:
+    """Task 4.4 — when URL pattern validation fails, scraping runs normally."""
+
+    @patch("services.anime.playback_service.rep")
+    def test_falls_back_to_scraping_when_pattern_miss(self, mock_rep):
+        """When derived URL returns 404, scraping is still called."""
+        from unittest.mock import patch as _patch
+        from services.anime.playback_service import get_episode_url_and_source
+
+        mock_rep.search_player.return_value = "https://scraper.example.com/ep12.mp4"
+        mock_rep.get_episode_url_and_source.return_value = (
+            "https://page.example.com/ep12",
+            "animefire",
+        )
+
+        current_url = "https://cdn.example.net/stream/y/anime/11.mp4/index.m3u8"
+
+        with _patch("services.anime.episode_url_pattern.validate_episode_url", return_value=False):
+            result = get_episode_url_and_source("My Anime", 12, current_player_url=current_url)
+
+        assert result.success is True
+        assert result.player_url == "https://scraper.example.com/ep12.mp4"
+        mock_rep.search_player.assert_called_once_with("My Anime", 12)
+
+    @patch("services.anime.playback_service.rep")
+    def test_uses_pattern_url_when_valid(self, mock_rep):
+        """When derived URL is valid, scraping is skipped."""
+        from unittest.mock import patch as _patch
+        from services.anime.playback_service import get_episode_url_and_source
+
+        current_url = "https://cdn.example.net/stream/y/anime/11.mp4/index.m3u8"
+        expected_derived = "https://cdn.example.net/stream/y/anime/12.mp4/index.m3u8"
+
+        with _patch("services.anime.episode_url_pattern.validate_episode_url", return_value=True):
+            result = get_episode_url_and_source("My Anime", 12, current_player_url=current_url)
+
+        assert result.success is True
+        assert result.player_url == expected_derived
+        assert result.source == "pattern"
+        mock_rep.search_player.assert_not_called()
+
+    @patch("services.anime.playback_service.rep")
+    def test_falls_back_when_no_pattern_in_url(self, mock_rep):
+        """When current URL has no pattern, scraping runs normally."""
+        from services.anime.playback_service import get_episode_url_and_source
+
+        mock_rep.search_player.return_value = "https://scraper.example.com/ep5.mp4"
+        mock_rep.get_episode_url_and_source.return_value = None
+
+        result = get_episode_url_and_source(
+            "My Anime", 5, current_player_url="https://player.example.com/embed/abc123"
+        )
+
+        assert result.success is True
+        mock_rep.search_player.assert_called_once_with("My Anime", 5)
+
+
 # =============================================================================
 # Step 5: Tests for sync_progress_to_anilist()
 # =============================================================================

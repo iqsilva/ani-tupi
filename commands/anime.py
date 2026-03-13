@@ -308,13 +308,16 @@ def anime(args) -> None:
     player = VideoPlayer()
 
     # Main playback loop
+    current_player_url: str | None = None  # tracks URL from previous episode for pattern opt.
     while True:
         episode = ctx.episode_idx + 1  # Convert to 1-indexed
 
         # Get all episode sources with fallback support
         with loading("Buscando vídeo..."):
             # First, check for awaiting episode with direct URL (special case from homepage)
-            url_result = get_episode_url_and_source(ctx.anime_title, episode)
+            url_result = get_episode_url_and_source(
+                ctx.anime_title, episode, current_player_url=current_player_url
+            )
 
             if url_result.success and url_result.player_url:
                 # Found direct URL - use it as single source
@@ -499,6 +502,12 @@ def anime(args) -> None:
                 input()
             except (EOFError, KeyboardInterrupt):
                 pass
+
+        # Save the URL that was played so next iteration can try pattern derivation
+        if exit_code in (0, 3) and sources:
+            current_player_url = sources[0][0]
+        else:
+            current_player_url = None
 
         # Update context with actual episode watched (accounts for Shift+N navigation)
         # PlaybackContext is immutable, so create a new one with updated episode_idx

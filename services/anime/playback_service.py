@@ -242,23 +242,64 @@ def prepare_playback_from_history(skip_enabled: bool = False) -> PlaybackContext
 def get_episode_url_and_source(
     anime_title: str,
     episode: int,
+    current_player_url: str | None = None,
 ) -> EpisodePlaybackResult:
     """Get video URL for an episode.
 
     This function:
-    1. Checks if this is an awaiting episode with direct URL from homepage search
-    2. Uses repository to search for video URL (regular path)
-    3. Handles errors gracefully
-    4. Returns immutable result
+    1. If current_player_url is provided, tries to derive the episode URL via
+       pattern substitution (fast HEAD request) before falling back to scraping
+    2. Checks if this is an awaiting episode with direct URL from homepage search
+    3. Uses repository to search for video URL (regular path)
+    4. Handles errors gracefully
+    5. Returns immutable result
 
     Args:
         anime_title: The anime title
         episode: The episode number (1-indexed)
+        current_player_url: Currently playing URL; used to attempt URL pattern
+            derivation before scraping (optional)
 
     Returns:
         EpisodePlaybackResult with video URL or error message
     """
     try:
+        # Fast path: try URL pattern derivation when we have an existing player URL
+        if current_player_url:
+            try:
+                from services.anime.episode_url_pattern import (
+                    derive_episode_url,
+                    detect_episode_pattern,
+                    validate_episode_url,
+                )
+
+                if detect_episode_pattern(current_player_url):
+                    print(
+                        f"[URL-PATTERN] Tentando derivar ep {episode} de: {current_player_url[:80]}"
+                    )
+                    derived_url = derive_episode_url(current_player_url, episode)
+                    if derived_url and validate_episode_url(derived_url):
+                        logger.debug(
+                            "Episode URL pattern hit for %s ep %d: %s",
+                            anime_title,
+                            episode,
+                            derived_url,
+                        )
+                        return EpisodePlaybackResult(
+                            player_url=derived_url,
+                            source="pattern",
+                            success=True,
+                            error_message=None,
+                        )
+                    else:
+                        logger.debug(
+                            "Episode URL pattern miss for %s ep %d, falling back to scraping",
+                            anime_title,
+                            episode,
+                        )
+            except Exception as e:
+                logger.debug("Episode URL pattern error for %s ep %d: %s", anime_title, episode, e)
+
         # Check if this is an awaiting episode with a direct URL from incremental search
         from services.anime import anilist_integration
         from scrapers.plugins.animesdigital import AnimesDigital
