@@ -1,6 +1,9 @@
 # ani-tupi justfile - Common development tasks
 
 # Run ani-tupi with query
+push:
+  git pull --rebase && git push
+
 @query query:
     uv run ani-tupi --query "{{query}}"
 
