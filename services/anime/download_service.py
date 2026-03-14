@@ -178,6 +178,10 @@ class AnimeDownloadService:
     ) -> dict[int, Optional[tuple[str, str]]]:
         """Pre-fetch all episode URLs serially to avoid browser pool exhaustion.
 
+        Uses URL pattern derivation as a fast path when CDN URLs follow a
+        predictable episode-number pattern (e.g. /03.mp4/index.m3u8).
+        Falls back to full scraping when pattern derivation fails.
+
         Args:
             anime_title: Anime title for logging
             episodes: List of episode numbers to fetch
@@ -186,20 +190,48 @@ class AnimeDownloadService:
         Returns:
             Dict mapping episode number to (url, source) or None
         """
+        from services.anime.episode_url_pattern import (
+            derive_episode_url,
+            detect_episode_pattern,
+            validate_episode_url,
+        )
+
         logger.debug(f"Pre-fetching URLs for {len(episodes)} episodes")
-        episode_urls = {}
+        episode_urls: dict[int, Optional[tuple[str, str]]] = {}
+        last_known_url: str | None = None
+        last_known_source: str | None = None
 
         for ep_num in episodes:
+            # Fast path: try to derive URL from last known URL via pattern
+            if last_known_url and detect_episode_pattern(last_known_url):
+                try:
+                    derived = derive_episode_url(last_known_url, ep_num)
+                    if derived and validate_episode_url(derived):
+                        logger.debug(f"URL pattern hit for {anime_title} ep {ep_num}: {derived}")
+                        episode_urls[ep_num] = (derived, last_known_source or "pattern")
+                        last_known_url = derived
+                        continue
+                    else:
+                        logger.debug(
+                            f"URL pattern miss for {anime_title} ep {ep_num}, falling back to scraping"
+                        )
+                except Exception as e:
+                    logger.debug(f"URL pattern error for {anime_title} ep {ep_num}: {e}")
+
+            # Fallback: full scraping
             try:
                 url_info = get_episode_url(ep_num)
                 episode_urls[ep_num] = url_info
                 if url_info:
+                    last_known_url, last_known_source = url_info
                     logger.debug(f"Fetched URL for episode {ep_num}")
                 else:
+                    last_known_url = None
                     logger.warning(f"No URL found for {anime_title} episode {ep_num}")
             except Exception as e:
                 logger.warning(f"Error fetching URL for episode {ep_num}: {e}")
                 episode_urls[ep_num] = None
+                last_known_url = None
 
         return episode_urls
 
