@@ -104,6 +104,7 @@ class AnimeOperationsMixin:
                 lists {
                     entries {
                         id
+                        status
                         progress
                         createdAt
                         media {
@@ -117,6 +118,7 @@ class AnimeOperationsMixin:
                             episodes
                             averageScore
                             seasonYear
+                            status
                         }
                     }
                 }

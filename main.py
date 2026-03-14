@@ -119,6 +119,12 @@ def cli() -> None:
         help="Listar todas as fontes de anime disponíveis",
     )
     parser.add_argument(
+        "--random",
+        "-r",
+        action="store_true",
+        help="Sortear um anime aleatório da lista do AniList e reproduzir",
+    )
+    parser.add_argument(
         "--clear-cache",
         nargs="?",
         const=True,
@@ -188,10 +194,14 @@ def cli() -> None:
             sys.exit(0)
         else:  # menu
             anilist_menu_cmd(args)
-    elif args.query or args.continue_watching or args.manga:
+    elif args.query or args.continue_watching or args.manga or args.random:
         # Command-line arguments provided, route to appropriate handler
         if args.manga:
             manga_cmd(args)
+        elif args.random:
+            from commands.anime import handle_random_anime
+
+            handle_random_anime(args)
         else:
             # Query or continue_watching - use anime command
             anime_cmd(args)

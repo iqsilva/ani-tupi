@@ -597,3 +597,14 @@ def anime(args) -> None:
                     ctx = new_ctx
                     # Update episode count and list
                     ctx = navigate_episodes(ctx, "choose", new_episode_idx)
+
+
+def handle_random_anime(args) -> None:
+    """Handle --random flag to pick and play a random anime.
+
+    Args:
+        args: Command line arguments
+    """
+    from services.anime.random_anime_service import handle_random_anime as service_handler
+
+    service_handler(args)
