@@ -113,3 +113,44 @@ jobs:
     - name: Testar CLI help
       run: |
         uv run python main.py --help
+
+  smoke-test:
+    name: Smoke Test (ani-tupi -q naruto)
+    runs-on: ubuntu-latest
+    needs: lint-and-test
+
+    steps:
+    - name: Checkout código
+      uses: actions/checkout@v4
+
+    - name: Configurar Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: "3.12"
+
+    - name: Instalar UV
+      run: pip install uv
+
+    - name: Instalar dependências
+      run: uv sync
+
+    - name: Instalar Playwright browsers
+      run: uv run playwright install --with-deps chromium
+
+    - name: Verificar instalação Scrapling
+      run: uv run python -c "import scrapling; print('scrapling ok', scrapling.__version__)"
+
+    - name: Verificar instalação Playwright
+      run: uv run python -c "from playwright.sync_api import sync_playwright; print('playwright ok')"
+
+    - name: Smoke test - buscar naruto
+      run: |
+        # Send empty input so interactive menu exits; capture output including stderr
+        echo "" | timeout 60 uv run ani-tupi -q "naruto" 2>&1 | tee /tmp/smoke_output.txt || true
+        # Fail if installation/import errors are detected
+        if grep -iE "(ImportError|ModuleNotFoundError|No module named|playwright.*error|scrapling.*error)" /tmp/smoke_output.txt; then
+          echo "❌ Installation error detected in output"
+          cat /tmp/smoke_output.txt
+          exit 1
+        fi
+        echo "✅ Smoke test passed"
