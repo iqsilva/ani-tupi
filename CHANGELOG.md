@@ -1,6 +1,39 @@
 # CHANGELOG
 
 
+## v0.7.0 (2026-03-14)
+
+### Chores
+
+- Make AGENTS.md symlink to CLAUDE.md
+  ([`568d376`](https://github.com/levyvix/ani-tupi/commit/568d37679790d92c394a0b89f7a4f5fb06d2a29a))
+
+### Documentation
+
+- **claude**: Note that release bot commits to remote after feat/fix pushes
+  ([`abc1baa`](https://github.com/levyvix/ani-tupi/commit/abc1baa2710d30eb0a897232fe7b9a4012d12e10))
+
+### Features
+
+- **download**: Add URL pattern detection to optimize episode pre-fetch
+  ([`bac9146`](https://github.com/levyvix/ani-tupi/commit/bac9146044fc1a51cc9cc2f51c8e9d8c8f830e70))
+
+New episode_url_pattern module that: - Detects predictable CDN URL patterns (e.g., /11.mp4/) -
+  Derives next episode URLs without full scraping - Validates derived URLs via HEAD request before
+  use - Falls back to full scraping when pattern derivation fails
+
+Reduces download time by avoiding redundant scraping for sequential episodes.
+
+- **random**: Add --random flag to play random anime from AniList
+  ([`fe3747c`](https://github.com/levyvix/ani-tupi/commit/fe3747cd6151300333c2f1fe07cf15773c3e9d33))
+
+Adds -r/--random CLI flag that: - Fetches user's anime list from AniList (Watching + Plan to Watch)
+  - Filters out completed and airing anime - Picks a random anime and searches in available sources
+  - Starts playback from first non-watched episode
+
+New service: RandomAnimeService in services/anime/random_anime_service.py
+
+
 ## v0.6.0 (2026-03-13)
 
 ### Bug Fixes
