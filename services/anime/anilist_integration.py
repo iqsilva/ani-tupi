@@ -655,6 +655,14 @@ def anilist_anime_flow(
         episode_list = rep.get_episode_list(selected_anime)
         scraper_episode_count = len(episode_list)
 
+        if not episode_list:
+            logger.info(
+                "\n❌ Nenhum episódio carregado — todos os scrapers falharam (timeout ou erro de rede)."
+            )
+            logger.info("   Tente novamente em alguns instantes.")
+            input("\nPressione Enter para voltar...")
+            return
+
         # Save to cache
         set_cache(selected_anime, scraper_episode_count, episode_list)
 
