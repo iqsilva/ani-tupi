@@ -20,6 +20,9 @@ from collections import OrderedDict
 from manga_scrapers.loader import load_manga_plugins
 from models.config import MangaSettings, get_data_path
 from models.models import ChapterData, MangaHistoryEntry, MangaMetadata, MangaStatus
+from utils.logging import get_logger
+
+logger = get_logger(__name__)
 
 
 # ============================================================================
@@ -521,10 +524,10 @@ class UnifiedMangaService:
             if source is not None:
                 raise ValueError(f"Falha ao buscar em {source_name}: {e}")
             # Fall through to try other sources
-            print(f"⚠️  Falha na fonte {source_name}: {e}")
+            logger.info(f"⚠️  Falha na fonte {source_name}: {e}")
 
         # Try fallback sources if no results or error
-        print("🔄 Tentando outras fontes...")
+        logger.info("🔄 Tentando outras fontes...")
 
         all_sources = [s for s in self.config.preferred_sources if s in self.plugins]
         if source_name in all_sources:
@@ -533,10 +536,10 @@ class UnifiedMangaService:
         # Try each source in order
         for try_source in all_sources:
             try:
-                print(f"  Tentando {try_source}...")
+                logger.info(f"  Tentando {try_source}...")
                 results = self._search_manga_from_source(query, try_source)
                 if results:
-                    print(f"✓ Encontrados {len(results)} resultado(s) em {try_source}")
+                    logger.info(f"✓ Encontrados {len(results)} resultado(s) em {try_source}")
                     # Record found manga in metadata and source
                     for result in results:
                         self._record_manga_in_plugin(result.id, try_source)
@@ -549,10 +552,10 @@ class UnifiedMangaService:
         for plugin_name in self.plugins:
             if plugin_name not in all_sources and plugin_name != source_name:
                 try:
-                    print(f"  Tentando {plugin_name}...")
+                    logger.info(f"  Tentando {plugin_name}...")
                     results = self._search_manga_from_source(query, plugin_name)
                     if results:
-                        print(f"✓ Encontrados {len(results)} resultado(s) em {plugin_name}")
+                        logger.info(f"✓ Encontrados {len(results)} resultado(s) em {plugin_name}")
                         # Record found manga in metadata and source
                         for result in results:
                             self._record_manga_in_plugin(result.id, plugin_name)
@@ -645,7 +648,7 @@ class UnifiedMangaService:
             known_source = self._get_known_plugin_for_manga(manga_id)
             if known_source and known_source != source_name:
                 try:
-                    print(f"⚠️  Falha em {source_name}, tentando fonte conhecida {known_source}...")
+                    logger.info(f"⚠️  Falha em {source_name}, tentando fonte conhecida {known_source}...")
                     return self._get_chapters_from_source(manga_id, manga_url, known_source)
                 except Exception:
                     pass
@@ -653,11 +656,11 @@ class UnifiedMangaService:
             # Try other fallback sources
             fallback_source = self._get_fallback_source(source_name)
             if fallback_source:
-                print(f"⚠️  Tentando fallback {fallback_source}...")
+                logger.info(f"⚠️  Tentando fallback {fallback_source}...")
                 try:
                     return self._get_chapters_from_source(manga_id, None, fallback_source)
                 except Exception as fallback_error:
-                    print(f"⚠️  Falha no fallback {fallback_source}: {fallback_error}")
+                    logger.info(f"⚠️  Falha no fallback {fallback_source}: {fallback_error}")
 
             # Re-raise the original error
             raise e
@@ -701,7 +704,7 @@ class UnifiedMangaService:
                 # Validate URL is populated by plugin
                 url = item.get("url")
                 if not url:
-                    print(f"⚠️  Capítulo {item['id']} de {source_name} sem URL extraída")
+                    logger.info(f"⚠️  Capítulo {item['id']} de {source_name} sem URL extraída")
 
                 chapter = ChapterData(
                     id=item["id"],

@@ -15,6 +15,9 @@ from rich.console import Console
 from rich.live import Live
 from rich.spinner import Spinner
 from rich.theme import Theme
+from utils.logging import get_logger
+
+logger = get_logger(__name__)
 
 # Catppuccin Mocha Theme
 CATPPUCCIN_MOCHA = Theme(
@@ -308,6 +311,6 @@ if __name__ == "__main__":
         "Opção 5",
     ]
 
-    console.print("\n[menu.title]Testando menu()[/menu.title]")
+    console.logger.info("\n[menu.title]Testando menu()[/menu.title]")
     selection = menu(test_options, "Menu de Teste")
-    console.print(f"\n[success]Selecionado: {selection}[/success]")
+    console.logger.info(f"\n[success]Selecionado: {selection}[/success]")

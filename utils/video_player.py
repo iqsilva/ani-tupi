@@ -11,6 +11,9 @@ import time
 from pathlib import Path
 
 from models.models import SkipTimes
+from utils.logging import get_logger
+
+logger = get_logger(__name__)
 
 
 class VideoPlaybackResult(NamedTuple):
@@ -82,7 +85,7 @@ class VideoPlayer:
             use_ipc = False
 
         if debug:
-            print("DEBUG MODE: Skipping video playback")
+            logger.info("DEBUG MODE: Skipping video playback")
             return VideoPlaybackResult(exit_code=0, action="quit", data=None)
 
         if not use_ipc:
@@ -109,8 +112,8 @@ class VideoPlayer:
         }
 
         try:
-            print(f"\n[PLAYBACK DEBUG] Source={source} IPC={use_ipc}")
-            print(f"[PLAYBACK DEBUG] Full URL: {url}")
+            logger.info(f"\n[PLAYBACK DEBUG] Source={source} IPC={use_ipc}")
+            logger.info(f"[PLAYBACK DEBUG] Full URL: {url}")
             # Generate socket path and input.conf
             socket_path = self._create_ipc_socket_path()
             input_conf_path, _ = self._generate_input_conf()
@@ -139,7 +142,7 @@ class VideoPlayer:
 
         except (FileNotFoundError, OSError, Exception) as e:
             # IPC launch failed, fallback to legacy
-            print(f"⚠️  IPC playback unavailable: {e}. Using legacy mode.")
+            logger.info(f"⚠️  IPC playback unavailable: {e}. Using legacy mode.")
 
             # Clean up any dangling process
             if mpv_process and mpv_process.poll() is None:
@@ -164,27 +167,27 @@ class VideoPlayer:
 
     def _play_video_legacy(self, url: str, debug: bool = False) -> VideoPlaybackResult:
         """Play video using legacy python-mpv blocking mode (fallback)."""
-        print("[PLAYBACK DEBUG] _play_video_legacy called")
-        print(f"[PLAYBACK DEBUG] Full URL: {url}")
+        logger.info("[PLAYBACK DEBUG] _play_video_legacy called")
+        logger.info(f"[PLAYBACK DEBUG] Full URL: {url}")
         if debug:
-            print("DEBUG MODE: Skipping video playback")
+            logger.info("DEBUG MODE: Skipping video playback")
             return VideoPlaybackResult(exit_code=0, action="quit", data=None)
 
         try:
-            print("[PLAYBACK DEBUG] Calling play_video_raw...")
+            logger.info("[PLAYBACK DEBUG] Calling play_video_raw...")
             exit_code = self.play_video_raw(url, debug=False)
-            print(f"[PLAYBACK DEBUG] play_video_raw returned exit_code={exit_code}")
+            logger.info(f"[PLAYBACK DEBUG] play_video_raw returned exit_code={exit_code}")
             return VideoPlaybackResult(exit_code=exit_code, action="quit", data=None)
         except Exception as e:
-            print(f"⚠️  Playback error: {e}")
+            logger.info(f"⚠️  Playback error: {e}")
             return VideoPlaybackResult(exit_code=2, action="quit", data=None)
 
     def play_video_raw(self, url: str, debug=False, ytdl_format: str | None = None) -> int:
         """Play video using python-mpv and return exit code."""
-        print("[PLAYBACK DEBUG] play_video_raw: Starting")
-        print(f"[PLAYBACK DEBUG] Full URL: {url}")
+        logger.info("[PLAYBACK DEBUG] play_video_raw: Starting")
+        logger.info(f"[PLAYBACK DEBUG] Full URL: {url}")
         if debug:
-            print("DEBUG MODE: Skipping video playback")
+            logger.info("DEBUG MODE: Skipping video playback")
             return 0
 
         import mpv
@@ -195,7 +198,7 @@ class VideoPlayer:
         player = None
         try:
             # Create MPV instance with current settings
-            print("[PLAYBACK DEBUG] play_video_raw: Creating MPV instance...")
+            logger.info("[PLAYBACK DEBUG] play_video_raw: Creating MPV instance...")
             player = mpv.MPV(
                 fullscreen=True,
                 cursor_autohide_fs_only=True,
@@ -216,26 +219,26 @@ class VideoPlayer:
             )
 
             # Start playback (blocking)
-            print("[PLAYBACK DEBUG] play_video_raw: Calling player.play()...")
+            logger.info("[PLAYBACK DEBUG] play_video_raw: Calling player.play()...")
             player.play(url)
-            print("[PLAYBACK DEBUG] play_video_raw: Calling player.wait_for_playback()...")
+            logger.info("[PLAYBACK DEBUG] play_video_raw: Calling player.wait_for_playback()...")
             player.wait_for_playback()
-            print("[PLAYBACK DEBUG] play_video_raw: Playback finished normally (exit code 0)")
+            logger.info("[PLAYBACK DEBUG] play_video_raw: Playback finished normally (exit code 0)")
 
             return 0  # Normal playback completion
 
         except mpv.ShutdownError:
             # User aborted (Ctrl+C or window close)
-            print("[PLAYBACK DEBUG] play_video_raw: ShutdownError (user abort)")
+            logger.info("[PLAYBACK DEBUG] play_video_raw: ShutdownError (user abort)")
             return 3
         except FileNotFoundError as e:
-            print("[PLAYBACK DEBUG] play_video_raw: MPV not found in PATH")
+            logger.info("[PLAYBACK DEBUG] play_video_raw: MPV not found in PATH")
             msg = "Error: 'mpv' is not installed or not found in the system PATH."
             raise OSError(msg) from e
         except Exception as e:
             # Playback error
-            print(f"[PLAYBACK DEBUG] play_video_raw: Exception: {type(e).__name__}: {e}")
-            print(f"⚠️  MPV error: {e}")
+            logger.info(f"[PLAYBACK DEBUG] play_video_raw: Exception: {type(e).__name__}: {e}")
+            logger.info(f"⚠️  MPV error: {e}")
             return 2
         finally:
             # Clean up player instance
@@ -478,7 +481,7 @@ shift+t script-message toggle-sub-dub
             skip_lua_path = self._get_skip_lua_path()
 
             if skip_lua_path.exists():
-                print(f"   📝 Carregando script de skip: {skip_lua_path.name}")
+                logger.info(f"   📝 Carregando script de skip: {skip_lua_path.name}")
                 mpv_args.append(f"--script={skip_lua_path}")
 
                 # Build script-opts string
@@ -493,20 +496,20 @@ shift+t script-message toggle-sub-dub
                 if script_opts:
                     script_opts_str = ",".join(script_opts)
                     mpv_args.append(f"--script-opts={script_opts_str}")
-                    print("   🎬 Script configurado com os tempos de skip")
+                    logger.info("   🎬 Script configurado com os tempos de skip")
 
                 # Create chapters file for visual markers
                 chapters_file = self._create_chapters_file(skip_times)
                 if chapters_file:
                     mpv_args.append(f"--chapters-file={chapters_file}")
-                    print("   📌 Marcadores de tempo adicionados à timeline")
+                    logger.info("   📌 Marcadores de tempo adicionados à timeline")
             else:
-                print(f"   ⚠️  Script de skip não encontrado em {skip_lua_path}")
+                logger.info(f"   ⚠️  Script de skip não encontrado em {skip_lua_path}")
 
         mpv_args.append(url)
 
-        print("[PLAYBACK DEBUG] MPV command line:")
-        print(f"[PLAYBACK DEBUG] {' '.join(mpv_args)}")
+        logger.info("[PLAYBACK DEBUG] MPV command line:")
+        logger.info(f"[PLAYBACK DEBUG] {' '.join(mpv_args)}")
 
         try:
             debug_mode = os.environ.get("ANI_TUPI_DEBUG_MPV") == "1"
@@ -613,8 +616,8 @@ shift+t script-message toggle-sub-dub
 
         if not sock:
             url = episode_context.get("url", "")
-            print("[PLAYBACK DEBUG] IPC socket failed, falling back to legacy.")
-            print(f"[PLAYBACK DEBUG] Full URL for legacy fallback: {url}")
+            logger.info("[PLAYBACK DEBUG] IPC socket failed, falling back to legacy.")
+            logger.info(f"[PLAYBACK DEBUG] Full URL for legacy fallback: {url}")
             return self._play_video_legacy(url, debug=False)
 
         try:
@@ -697,7 +700,7 @@ shift+t script-message toggle-sub-dub
                                             )
                                             episode_context["episode_number"] = next_episode_number
                                             episode_context["url"] = next_url
-                                            print(f"▶️  Reproduzindo Episódio {progress_str}")
+                                            logger.info(f"▶️  Reproduzindo Episódio {progress_str}")
 
                                             # Fetch skip times dynamically for next episode
                                             mal_id = episode_context.get("mal_id")
@@ -719,7 +722,7 @@ shift+t script-message toggle-sub-dub
                                                     pass
 
                                             if mal_id:
-                                                print(
+                                                logger.info(
                                                     f"Fetching skip times for ep {next_episode_number}: mal_id={mal_id}, cache={skip_cache}"
                                                 )
                                                 skip_times = self._fetch_skip_times_for_episode(
@@ -749,7 +752,7 @@ shift+t script-message toggle-sub-dub
                                                     "Não há mais episódios disponíveis ou erro ao buscar"
                                                 ],
                                             )
-                                            print(
+                                            logger.info(
                                                 f"❌ Falha ao carregar Episódio {next_episode_number}"
                                             )
 
@@ -804,7 +807,7 @@ shift+t script-message toggle-sub-dub
                                                     prev_episode_number
                                                 )
                                                 episode_context["url"] = prev_url
-                                                print(f"⏪ Voltando para Episódio {progress_str}")
+                                                logger.info(f"⏪ Voltando para Episódio {progress_str}")
 
                                                 # Fetch skip times dynamically for previous episode
                                                 mal_id = episode_context.get("mal_id")
@@ -826,7 +829,7 @@ shift+t script-message toggle-sub-dub
                                                         pass
 
                                                 if mal_id:
-                                                    print(
+                                                    logger.info(
                                                         f"Fetching skip times for ep {prev_episode_number}: mal_id={mal_id}, cache={skip_cache}"
                                                     )
                                                     skip_times = self._fetch_skip_times_for_episode(
@@ -856,7 +859,7 @@ shift+t script-message toggle-sub-dub
                                                         "Episódio anterior não disponível ou erro ao buscar"
                                                     ],
                                                 )
-                                                print(
+                                                logger.info(
                                                     f"❌ Falha ao carregar Episódio {prev_episode_number}"
                                                 )
                                         else:
@@ -886,7 +889,7 @@ shift+t script-message toggle-sub-dub
                                         status = "ATIVADO" if self.autoplay else "DESATIVADO"
                                         message = f"Auto-play {status} (válido para toda a sessão)"
                                         self._send_mpv_command(sock, "show-text", [message, "3000"])
-                                        print(f"{message}")
+                                        logger.info(f"{message}")
                                         continue
 
                                     result = self._handle_keybinding_action(action, episode_context)
@@ -897,7 +900,7 @@ shift+t script-message toggle-sub-dub
                 except socket.timeout:
                     continue
                 except Exception as e:
-                    print(f"IPC error: {e}")
+                    logger.info(f"IPC error: {e}")
                     break
 
             exit_code = mpv_process.returncode or 0
@@ -909,17 +912,17 @@ shift+t script-message toggle-sub-dub
                     pass
 
             if exit_code != 0 or "error" in stderr_output.lower():
-                print(f"⚠️  MPV exited with code {exit_code}")
+                logger.info(f"⚠️  MPV exited with code {exit_code}")
                 if "error" in stderr_output.lower():
                     error_lines = [
                         line for line in stderr_output.split("\n") if "error" in line.lower()
                     ]
                     for error_line in error_lines[:3]:
                         if error_line.strip():
-                            print(f"   ❌ {error_line.strip()[:100]}")
+                            logger.info(f"   ❌ {error_line.strip()[:100]}")
                     if "400" in stderr_output:
-                        print("\n   ℹ️  AnimesonlineCC: Token expirado (URLs temporárias)")
-                print("   Tente ativar debug: ANI_TUPI_DEBUG_MPV=1 uv run ani-tupi")
+                        logger.info("\n   ℹ️  AnimesonlineCC: Token expirado (URLs temporárias)")
+                logger.info("   Tente ativar debug: ANI_TUPI_DEBUG_MPV=1 uv run ani-tupi")
 
             if self.autoplay and exit_code == 0:
                 from services.history_service import save_history_from_event
@@ -938,7 +941,7 @@ shift+t script-message toggle-sub-dub
                         source=source,
                         anilist_id=anilist_id,
                     )
-                print(f"▶️  Auto-play ativo: marcando Episódio {episode_number} como assistido")
+                logger.info(f"▶️  Auto-play ativo: marcando Episódio {episode_number} como assistido")
                 return VideoPlaybackResult(
                     exit_code=exit_code,
                     action="auto-next",
@@ -1037,7 +1040,7 @@ shift+t script-message toggle-sub-dub
             message = json.dumps(request) + "\n"
             sock.sendall(message.encode("utf-8"))
         except Exception as e:
-            print(f"Failed to send MPV command: {e}")
+            logger.info(f"Failed to send MPV command: {e}")
 
 
 def _format_episode_progress(

@@ -143,7 +143,7 @@ def load_history() -> tuple[str, int, int | None, str | None] | None:
 
         if len(anime_titles) > 1:
             # Multiple results - validate which sources have episodes
-            print(f"ℹ️  Validando fontes disponíveis para '{anime}'...")
+            logger.info(f"ℹ️  Validando fontes disponíveis para '{anime}'...")
 
             valid_sources = {}  # {anime_title: episode_count}
             anime_with_sources = search_results.get_anime_titles_with_sources()
@@ -173,7 +173,7 @@ def load_history() -> tuple[str, int, int | None, str | None] | None:
                 selected_anime_title = selected_anime_with_source.rsplit(" [", 1)[0]
                 episode_list = rep.get_episode_list(selected_anime_title)
                 ep_count = valid_sources[selected_anime_with_source]
-                print(f"✅ Fonte encontrada: {selected_anime_title} ({ep_count} episódios)")
+                logger.info(f"✅ Fonte encontrada: {selected_anime_title} ({ep_count} episódios)")
             else:
                 # Multiple valid sources - let user choose
                 valid_source_list = [
@@ -216,17 +216,17 @@ def load_history() -> tuple[str, int, int | None, str | None] | None:
             was_found = len(anime_titles) > 0
 
             if was_found:
-                print(f"\n⚠️  '{anime}' foi encontrado mas nenhuma fonte tem episódios disponíveis.")
-                print("\nPossíveis motivos:")
-                print("  • O anime foi removido temporariamente")
-                print("  • Os episódios ainda não foram adicionados")
-                print("  • A fonte original mudou de nome/formato")
+                logger.info(f"\n⚠️  '{anime}' foi encontrado mas nenhuma fonte tem episódios disponíveis.")
+                logger.info("\nPossíveis motivos:")
+                logger.info("  • O anime foi removido temporariamente")
+                logger.info("  • Os episódios ainda não foram adicionados")
+                logger.info("  • A fonte original mudou de nome/formato")
             else:
-                print(f"\n⚠️  '{anime}' não foi encontrado nos scrapers disponíveis.")
-                print("\nPossíveis motivos:")
-                print("  • O nome mudou no site")
-                print("  • O anime foi removido")
-                print("  • O scraper está temporariamente offline")
+                logger.info(f"\n⚠️  '{anime}' não foi encontrado nos scrapers disponíveis.")
+                logger.info("\nPossíveis motivos:")
+                logger.info("  • O nome mudou no site")
+                logger.info("  • O anime foi removido")
+                logger.info("  • O scraper está temporariamente offline")
 
             retry_options = [
                 "🔍 Buscar manualmente (digite outro nome)",
@@ -250,7 +250,7 @@ def load_history() -> tuple[str, int, int | None, str | None] | None:
                 anime_titles = search_results.get_anime_titles()
 
                 if not anime_titles:
-                    print(f"\n❌ Nenhum resultado encontrado para '{manual_query}'")
+                    logger.info(f"\n❌ Nenhum resultado encontrado para '{manual_query}'")
                     input("\nPressione Enter para continuar...")
                     return load_history()
 
@@ -273,7 +273,7 @@ def load_history() -> tuple[str, int, int | None, str | None] | None:
                 episode_list = rep.get_episode_list(selected_anime_title)
 
                 if not episode_list:
-                    print(f"\n❌ '{selected_anime_title}' não tem episódios disponíveis")
+                    logger.info(f"\n❌ '{selected_anime_title}' não tem episódios disponíveis")
                     input("\nPressione Enter para continuar...")
                     return load_history()
 
@@ -290,11 +290,11 @@ def load_history() -> tuple[str, int, int | None, str | None] | None:
                     # Remove old entry and save new one with same progress
                     reset_history(original_anime_name)
                     save_history(anime, last_episode_idx, anilist_id, saved_source)
-                    print("✅ Histórico atualizado!")
+                    logger.info("✅ Histórico atualizado!")
 
             elif retry_choice == "🗑️  Remover do histórico":
                 reset_history(original_anime_name)
-                print(f"✅ '{original_anime_name}' removido do histórico.")
+                logger.info(f"✅ '{original_anime_name}' removido do histórico.")
                 input("\nPressione Enter para continuar...")
                 return load_history()  # Show history menu again
             else:
@@ -354,14 +354,14 @@ def load_history() -> tuple[str, int, int | None, str | None] | None:
             if confirm_reset == "✅ Sim, resetar":
                 reset_history(anime)
                 episode_idx = 0
-                print("✅ Histórico resetado! Começando do episódio 1...")
+                logger.info("✅ Histórico resetado! Começando do episódio 1...")
             else:
                 exit()  # User cancelled
         else:
             episode_idx = option_to_idx[choice]
             # Check if episode is unavailable (marked as None)
             if episode_idx is None:
-                print(f"\n⏳ Episódio {last_ep_num + 1} ainda não disponível nos scrapers.")
+                logger.info(f"\n⏳ Episódio {last_ep_num + 1} ainda não disponível nos scrapers.")
                 input("\nPressione Enter para voltar...")
                 exit()
 

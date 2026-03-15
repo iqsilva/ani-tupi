@@ -12,6 +12,9 @@ from services.anime.title_normalization import (
     normalize_search_cache_key,
     normalize_title_for_dedup,
 )
+from utils.logging import get_logger
+
+logger = get_logger(__name__)
 
 
 class Repository:
@@ -111,8 +114,8 @@ class Repository:
         search_start_time = time.time()
 
         if not self.sources:
-            print("\n❌ Erro: Nenhum plugin carregado!")
-            print("Verifique se os plugins estão instalados em plugins/")
+            logger.info("\n❌ Erro: Nenhum plugin carregado!")
+            logger.info("Verifique se os plugins estão instalados em plugins/")
             return SearchResults(query=query, results=(), metadata={})
 
         # CACHE CHECK: Try to get search results from cache first
@@ -125,14 +128,14 @@ class Repository:
             cached_results = dc.get(cache_key)
         except Exception as e:
             if verbose:
-                print(f"⚠️  Erro ao acessar cache: {e}")
+                logger.info(f"⚠️  Erro ao acessar cache: {e}")
             cached_results = None
         cache_check_time_ms = int((time.time() - cache_check_start) * 1000)
 
         if cached_results and isinstance(cached_results, dict):
             # Cache hit! Load results directly without scraping
             if verbose:
-                print(f"ℹ️  Usando cache para '{query}' ({len(cached_results)} animes)")
+                logger.info(f"ℹ️  Usando cache para '{query}' ({len(cached_results)} animes)")
 
             for anime_title, sources_list in cached_results.items():
                 for url, source, params in sources_list:
@@ -180,7 +183,7 @@ class Repository:
             results_found = len(self.anime_to_urls)
             if results_found > 0:
                 if verbose and num_words < len(words):
-                    print(f"ℹ️  Busca com: '{partial_query}' ({num_words}/{len(words)} palavras)")
+                    logger.info(f"ℹ️  Busca com: '{partial_query}' ({num_words}/{len(words)} palavras)")
                 # Store metadata about the search
                 scraper_execution_time_ms = int((time.time() - scraper_execution_start) * 1000)
                 total_time_ms = int((time.time() - search_start_time) * 1000)
@@ -208,7 +211,7 @@ class Repository:
                 break
             elif verbose and num_words < len(words):
                 # No results with this word count, will try fewer words
-                print(
+                logger.info(
                     f"ℹ️  0 resultados com '{partial_query}' ({num_words} palavras) → tentando com menos..."
                 )
 
@@ -230,7 +233,7 @@ class Repository:
                 dc.set(cache_key, cache_data, ttl=ttl_seconds)
             except Exception as e:
                 if verbose:
-                    print(f"⚠️  Erro ao salvar cache: {e}")
+                    logger.info(f"⚠️  Erro ao salvar cache: {e}")
 
         # Return immutable SearchResults
         return self._build_search_results(query)
@@ -256,8 +259,8 @@ class Repository:
             # Searches for "Dan Da"
         """
         if not self.sources:
-            print("\n❌ Erro: Nenhum plugin carregado!")
-            print("Verifique se os plugins estão instalados em plugins/")
+            logger.info("\n❌ Erro: Nenhum plugin carregado!")
+            logger.info("Verifique se os plugins estão instalados em plugins/")
             return SearchResults(query=query, results=(), metadata={})
 
         words = query.split()
@@ -328,7 +331,7 @@ class Repository:
         from concurrent.futures import ThreadPoolExecutor, wait, ALL_COMPLETED
 
         if verbose:
-            print(f"⠼ Buscando '{query}'...")
+            logger.info(f"⠼ Buscando '{query}'...")
 
         n_cpu = cpu_count()
         if not n_cpu:
@@ -375,10 +378,10 @@ class Repository:
             if not_done:
                 timed_out_sources = [future_to_source[f] for f in not_done]
                 if verbose:
-                    print(
+                    logger.info(
                         f"\n⚠️  Timeout em {len(timed_out_sources)} fonte(s): {', '.join(timed_out_sources)}"
                     )
-                    print(f"   Usando resultados parciais de {len(done)} fonte(s)")
+                    logger.info(f"   Usando resultados parciais de {len(done)} fonte(s)")
 
                 # Cancel pending tasks to free resources
                 for future in not_done:
@@ -391,20 +394,20 @@ class Repository:
                     future.result()
                     if verbose and len(self.sources) > 1:
                         count = len(self.anime_to_urls)
-                        print(f"✓ {source} ({count} resultados)", end="\r")
+                        logger.info(f"✓ {source} ({count} resultados)", end="\r")
                 except Exception as e:
                     if verbose:
-                        print(f"❌ Erro em {source}: {e}")
+                        logger.info(f"❌ Erro em {source}: {e}")
 
             # Clear progress line and show summary
             if verbose and len(self.sources) > 1:
-                print(" " * 70 + "\r", end="")
+                logger.info(" " * 70 + "\r", end="")
 
             if verbose:
                 count = len(self.anime_to_urls)
                 total = len(self.sources)
                 if total > 1 and count > 0:
-                    print(f"✓ {count} resultado(s) de {total} fonte(s)")
+                    logger.info(f"✓ {count} resultado(s) de {total} fonte(s)")
 
         finally:
             # Shutdown executor and wait for all tasks
@@ -899,10 +902,10 @@ class Repository:
         if not selected_urls:
             active_sources = self.get_active_sources()
             if active_sources:
-                print(f"   ❌ Episódio {episode_num} não disponível nas fontes ativas.")
-                print(f"   💡 Fontes ativas: {', '.join(active_sources)}")
+                logger.info(f"   ❌ Episódio {episode_num} não disponível nas fontes ativas.")
+                logger.info(f"   💡 Fontes ativas: {', '.join(active_sources)}")
             else:
-                print(f"   ❌ Nenhuma fonte ativa para buscar episódio {episode_num}.")
+                logger.info(f"   ❌ Nenhuma fonte ativa para buscar episódio {episode_num}.")
             return None
 
         # Get anilist_id for cache key (if already discovered)
@@ -919,7 +922,7 @@ class Repository:
             cache_key_full = f"video:{cache_key}:ep:{episode_num}"
             cached_url = dc.get(cache_key_full)
             if cached_url:
-                print(
+                logger.info(
                     f"   ℹ️  Usando vídeo em cache (válido por {settings.performance.video_url_cache_ttl_seconds // 60} min)"
                 )
                 return cached_url
@@ -938,7 +941,7 @@ class Repository:
             # Show which sources are being tried
             sources_list = [source for _, source in selected_urls]
             if len(sources_list) > 1:
-                print(f"   🔄 Tentando fontes: {', '.join(sources_list)}")
+                logger.info(f"   🔄 Tentando fontes: {', '.join(sources_list)}")
 
             # Wrapper to catch exceptions from plugins
             def safe_plugin_call(plugin_func, url, source, is_priority=False):
@@ -948,15 +951,15 @@ class Repository:
                         video_url = container[0]
                         # Truncate very long URLs in display
                         display_url = video_url[:80] + "..." if len(video_url) > 80 else video_url
-                        print(f"   ✅ Vídeo encontrado em: {source}")
-                        print(f"      URL: {display_url}")
+                        logger.info(f"   ✅ Vídeo encontrado em: {source}")
+                        logger.info(f"      URL: {display_url}")
                         # Signal priority source found to cancel other tasks
                         if is_priority:
                             found_event.set()
                 except Exception as e:
                     # Extract just the first line of error (avoid huge stack traces)
                     error_msg = str(e).split("\n")[0]
-                    print(f"   ❌ {source} falhou: {error_msg[:100]}")
+                    logger.info(f"   ❌ {source} falhou: {error_msg[:100]}")
                     # Don't re-raise - let other sources try
 
             # Organize URLs by source following priority order

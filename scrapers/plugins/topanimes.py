@@ -18,6 +18,9 @@ import requests
 from bs4 import BeautifulSoup
 from playwright.async_api import async_playwright  # type: ignore[import-untyped]
 from services.repository import rep
+from utils.logging import get_logger
+
+logger = get_logger(__name__)
 
 
 class TopanimesScraper:
@@ -73,7 +76,7 @@ class TopanimesScraper:
                     break
 
         except Exception as e:
-            print(f"Error searching TopAnimes: {e}")
+            logger.info(f"Error searching TopAnimes: {e}")
 
     def search_episodes(self, anime: str, url: str, params: dict | None = None) -> None:
         """
@@ -87,7 +90,7 @@ class TopanimesScraper:
         try:
             asyncio.run(self._async_search_episodes(anime, url))
         except Exception as e:
-            print(f"Error getting episodes from TopAnimes: {e}")
+            logger.info(f"Error getting episodes from TopAnimes: {e}")
 
     async def _async_search_episodes(self, anime: str, url: str) -> None:
         """Async implementation of search_episodes"""
@@ -140,7 +143,7 @@ class TopanimesScraper:
             if video_url:
                 container.append(video_url)
         except Exception as e:
-            print(f"Error extracting video from TopAnimes: {e}")
+            logger.info(f"Error extracting video from TopAnimes: {e}")
 
     async def _async_extract_video_url(self, episode_url: str) -> Optional[str]:
         """

@@ -13,8 +13,11 @@ from utils.anilist_discovery import (
     get_anilist_id_from_title,
     get_anilist_id_with_interactive_fallback,
 )
+from utils.logging import get_logger
 from ui.components import menu_navigate
 from utils.video_player import VideoPlayer
+
+logger = get_logger(__name__)
 
 
 def handle_local_library_playback(args) -> None:
@@ -33,9 +36,9 @@ def handle_local_library_playback(args) -> None:
     anime_list = service.get_downloaded_anime_list()
 
     if not anime_list:
-        print("\n📂 Biblioteca Local")
-        print("❌ Nenhum anime baixado ainda")
-        print("   💡 Use '📥 Baixar para assistir depois' no menu de reprodução")
+        logger.info("\n📂 Biblioteca Local")
+        logger.info("❌ Nenhum anime baixado ainda")
+        logger.info("   💡 Use '📥 Baixar para assistir depois' no menu de reprodução")
         return
 
     # Let user select anime
@@ -62,11 +65,11 @@ def handle_local_library_playback(args) -> None:
         try:
             episodes = service.get_downloaded_episodes(selected_title)
         except FileNotFoundError:
-            print(f"❌ Anime não encontrado: {selected_title}")
+            logger.info(f"❌ Anime não encontrado: {selected_title}")
             return
 
         if not episodes:
-            print(f"❌ Nenhum episódio encontrado para {selected_title}")
+            logger.info(f"❌ Nenhum episódio encontrado para {selected_title}")
             return
 
         # Show episodes for selection only if not already selected by navigation
@@ -91,7 +94,7 @@ def handle_local_library_playback(args) -> None:
                 break
 
         if not ep_path:
-            print("❌ Episódio não encontrado")
+            logger.info("❌ Episódio não encontrado")
             selected_ep_str = None  # Reset so menu shows again on next iteration
             continue
 
@@ -99,8 +102,8 @@ def handle_local_library_playback(args) -> None:
         player = VideoPlayer()
         file_url = f"file://{ep_path.resolve()}"
 
-        print(f"\n▶️  Reproduzindo: {selected_title} - Episódio {selected_ep_num}")
-        print(f"   Arquivo: {ep_path}")
+        logger.info(f"\n▶️  Reproduzindo: {selected_title} - Episódio {selected_ep_num}")
+        logger.info(f"   Arquivo: {ep_path}")
 
         player.play_episode(
             url=file_url,

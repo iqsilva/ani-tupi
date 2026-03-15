@@ -18,6 +18,9 @@ from services.anilist.formatters import (
 from services.anilist.anime_operations import AnimeOperationsMixin
 from services.anilist.manga_operations import MangaOperationsMixin
 from utils.headless_detector import get_token_from_user
+from utils.logging import get_logger
+
+logger = get_logger(__name__)
 
 
 class AniListClient(AnimeOperationsMixin, MangaOperationsMixin):
@@ -85,7 +88,7 @@ class AniListClient(AnimeOperationsMixin, MangaOperationsMixin):
             if not token:
                 remaining = max_retries - attempt - 1
                 if remaining > 0:
-                    print(
+                    logger.info(
                         f"\n❌ Invalid token format. Please try again ({remaining} attempts left).\n"
                     )
                 continue
@@ -99,17 +102,17 @@ class AniListClient(AnimeOperationsMixin, MangaOperationsMixin):
                 if user_info:
                     self.user_id = user_info.id  # Save user ID for queries
                     self._save_token(token, self.user_id)  # Save both token and user_id
-                    print(f"\n✅ Authentication successful! Welcome, {user_info.name}!")
+                    logger.info(f"\n✅ Authentication successful! Welcome, {user_info.name}!")
                 return True
 
             # Token validation failed
             remaining = max_retries - attempt - 1
             if remaining > 0:
-                print(
+                logger.info(
                     f"\n❌ Token validation failed. Please check the token and try again ({remaining} attempts left).\n"
                 )
 
-        print("\n❌ Authentication failed after maximum retry attempts.")
+        logger.info("\n❌ Authentication failed after maximum retry attempts.")
         return False
 
     def _parse_token(self, token_input: str) -> str:

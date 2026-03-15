@@ -13,10 +13,13 @@ from services.anime.title_normalization import (
     normalize_anime_title,
     normalize_title_for_dedup,
 )
+from utils.logging import get_logger
 from services.anime.mappings import (
     load_anilist_search_title,
 )
 from services.anime.search import incremental_search_anime
+
+logger = get_logger(__name__)
 
 HISTORY_PATH = get_data_path()
 
@@ -67,10 +70,10 @@ def switch_anime_source(
     if not search_results:
         if saved_episode_data:
             rep.restore_episode_state(current_anime, saved_episode_data)
-            print("⚠️  Nenhuma fonte encontrada para trocar")
-            print("   💡 Mantendo fonte atual...")
+            logger.info("⚠️  Nenhuma fonte encontrada para trocar")
+            logger.info("   💡 Mantendo fonte atual...")
         else:
-            print("⚠️  Nenhuma fonte encontrada")
+            logger.info("⚠️  Nenhuma fonte encontrada")
         return None, None
 
     # 3. Show menu with navigation support (same as search_anime_flow)

@@ -9,6 +9,9 @@ import time
 from typing import Any
 
 from scrapers.core.selenium_driver import SeleniumWebDriver
+from utils.logging import get_logger
+
+logger = get_logger(__name__)
 
 
 class MugiwarasOficial:
@@ -85,7 +88,7 @@ class MugiwarasOficial:
             return results
 
         except Exception as e:
-            print(f"⚠️  Erro ao buscar mangá: {e}")
+            logger.info(f"⚠️  Erro ao buscar mangá: {e}")
             return []
 
     def get_chapters(self, manga_id: str, manga_url: str) -> list[dict[str, Any]]:
@@ -122,7 +125,7 @@ class MugiwarasOficial:
                 # If no chapters found and we can retry, do so
                 if not chapter_items and retry_count < max_retries - 1:
                     retry_count += 1
-                    print(f"⚠️  Nenhum capítulo encontrado, tentativa {retry_count + 1}...")
+                    logger.info(f"⚠️  Nenhum capítulo encontrado, tentativa {retry_count + 1}...")
                     continue
 
                 for item in chapter_items:
@@ -185,9 +188,9 @@ class MugiwarasOficial:
             except Exception as e:
                 retry_count += 1
                 if retry_count >= max_retries:
-                    print(f"⚠️  Erro ao buscar capítulos (após {max_retries} tentativas): {e}")
+                    logger.info(f"⚠️  Erro ao buscar capítulos (após {max_retries} tentativas): {e}")
                     return []
-                print(f"⚠️  Erro ao buscar capítulos (tentativa {retry_count}): {e}")
+                logger.info(f"⚠️  Erro ao buscar capítulos (tentativa {retry_count}): {e}")
 
         return []
 
@@ -297,7 +300,7 @@ class MugiwarasOficial:
                 # If no pages found and we can retry, do so
                 if not page_urls and retry_count < max_retries - 1:
                     retry_count += 1
-                    print(f"⚠️  Nenhuma página encontrada, tentativa {retry_count + 1}...")
+                    logger.info(f"⚠️  Nenhuma página encontrada, tentativa {retry_count + 1}...")
                     continue
 
                 return page_urls
@@ -305,11 +308,11 @@ class MugiwarasOficial:
             except Exception as e:
                 retry_count += 1
                 if retry_count >= max_retries:
-                    print(
+                    logger.info(
                         f"⚠️  Erro ao buscar páginas do capítulo (após {max_retries} tentativas): {e}"
                     )
                     return []
-                print(f"⚠️  Erro ao buscar páginas do capítulo (tentativa {retry_count}): {e}")
+                logger.info(f"⚠️  Erro ao buscar páginas do capítulo (tentativa {retry_count}): {e}")
 
         return []
 

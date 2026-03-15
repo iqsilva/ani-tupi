@@ -10,6 +10,9 @@ import sys
 from os import listdir
 from os.path import abspath, dirname, isfile, join
 from typing import Protocol
+from utils.logging import get_logger
+
+logger = get_logger(__name__)
 
 
 class MangaScraperProtocol(Protocol):
@@ -122,7 +125,7 @@ def load_manga_plugins(languages: set[str]) -> dict[str, MangaScraperProtocol]:
             if plugin_instance is not None:
                 plugins[plugin_instance.name] = plugin_instance
         except Exception as e:
-            print(f"⚠️  Falha ao carregar plugin {plugin}: {e}")
+            logger.info(f"⚠️  Falha ao carregar plugin {plugin}: {e}")
             continue
 
     return plugins

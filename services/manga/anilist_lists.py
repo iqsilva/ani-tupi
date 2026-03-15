@@ -9,6 +9,9 @@ from typing import Callable
 from services.anilist_service import anilist_client
 from services.manga_service import UnifiedMangaService
 from ui.components import loading, menu_navigate
+from utils.logging import get_logger
+
+logger = get_logger(__name__)
 
 
 # Status configuration: (anilist_status, loading_message, empty_message, menu_title)
@@ -63,7 +66,7 @@ def handle_anilist_list(
 
     # Check authentication
     if not anilist_client.is_authenticated():
-        print("🔐 Faça login primeiro: uv run python main.py anilist auth")
+        logger.info("🔐 Faça login primeiro: uv run python main.py anilist auth")
         input("Pressione Enter para continuar...")
         return
 
@@ -72,7 +75,7 @@ def handle_anilist_list(
         manga_list = anilist_client.get_user_manga_list(anilist_status)
 
     if not manga_list:
-        print(f"📂 {empty_msg}")
+        logger.info(f"📂 {empty_msg}")
         input("Pressione Enter para continuar...")
         return
 

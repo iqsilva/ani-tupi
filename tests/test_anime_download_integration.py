@@ -16,6 +16,9 @@ import pytest
 from services.anime.download_service import AnimeDownloadService
 from services.local_anime_service import LocalAnimeService
 from utils.episode_range_parser import parse_episode_range
+from utils.logging import get_logger
+
+logger = get_logger(__name__)
 
 
 @pytest.fixture
@@ -91,29 +94,29 @@ class TestDownloadToLocalLibraryWorkflow:
                 )
 
         assert result.successful == 5
-        print(f"\n✓ Downloaded: {result.summary}")
+        logger.info(f"\n✓ Downloaded: {result.summary}")
 
         # 2. Check local library lists the anime
         anime_list = services["local"].get_downloaded_anime_list()
         assert anime_title in anime_list
-        print(f"✓ Local library has: {anime_list}")
+        logger.info(f"✓ Local library has: {anime_list}")
 
         # 3. Get anime info
         info = services["local"].get_anime_info(anime_title)
         assert info["total_episodes"] == 5
         assert set(info["episode_numbers"]) == {1, 2, 3, 4, 5}
-        print(f"✓ Anime info: {info['total_episodes']} episodes")
+        logger.info(f"✓ Anime info: {info['total_episodes']} episodes")
 
         # 4. Get episode list
         episodes = services["local"].get_downloaded_episodes(anime_title)
         assert len(episodes) == 5
-        print(f"✓ Episode list: {[ep[0] for ep in episodes]}")
+        logger.info(f"✓ Episode list: {[ep[0] for ep in episodes]}")
 
         # 5. Get metadata for specific episode
         metadata = services["local"].get_episode_metadata(anime_title, 1)
         assert metadata is not None
         assert metadata["episode_number"] == 1
-        print(f"✓ Episode 1 metadata: {metadata['file_size_mb']}MB")
+        logger.info(f"✓ Episode 1 metadata: {metadata['file_size_mb']}MB")
 
     def test_multi_anime_library(self, services):
         """Test library with multiple anime."""
@@ -145,13 +148,13 @@ class TestDownloadToLocalLibraryWorkflow:
         anime_list = services["local"].get_downloaded_anime_list()
         assert len(anime_list) == 3
         assert set(anime_list) == set(titles)
-        print(f"✓ Library has {len(anime_list)} anime: {sorted(anime_list)}")
+        logger.info(f"✓ Library has {len(anime_list)} anime: {sorted(anime_list)}")
 
         # Check each anime
         for title in titles:
             info = services["local"].get_anime_info(title)
             assert info["total_episodes"] == 3
-            print(f"✓ {title}: {info['total_episodes']} episodes")
+            logger.info(f"✓ {title}: {info['total_episodes']} episodes")
 
     def test_episode_deletion_updates_library(self, services):
         """Deleting episode updates local library."""
@@ -178,7 +181,7 @@ class TestDownloadToLocalLibraryWorkflow:
         # Verify initial state
         episodes = services["local"].get_downloaded_episodes(anime_title)
         assert len(episodes) == 5
-        print(f"✓ Initial: {len(episodes)} episodes")
+        logger.info(f"✓ Initial: {len(episodes)} episodes")
 
         # Delete episode 3
         deleted = services["local"].delete_episode(anime_title, 3)
@@ -188,7 +191,7 @@ class TestDownloadToLocalLibraryWorkflow:
         episodes = services["local"].get_downloaded_episodes(anime_title)
         assert len(episodes) == 4
         assert 3 not in [ep[0] for ep in episodes]
-        print(f"✓ After deletion: {len(episodes)} episodes")
+        logger.info(f"✓ After deletion: {len(episodes)} episodes")
 
     def test_anime_deletion_removes_from_library(self, services):
         """Deleting all anime episodes removes from library."""
@@ -223,7 +226,7 @@ class TestDownloadToLocalLibraryWorkflow:
         # Verify removed from library
         anime_list = services["local"].get_downloaded_anime_list()
         assert anime_title not in anime_list
-        print("✓ Anime removed from library")
+        logger.info("✓ Anime removed from library")
 
 
 class TestRangeParsingIntegration:
@@ -253,7 +256,7 @@ class TestRangeParsingIntegration:
                 )
 
         assert result.successful == 1
-        print("✓ Single episode download")
+        logger.info("✓ Single episode download")
 
     def test_range_with_dash_download(self, services):
         """Download range like 5-12."""
@@ -280,7 +283,7 @@ class TestRangeParsingIntegration:
                 )
 
         assert result.successful == 8
-        print("✓ Range download (5-12)")
+        logger.info("✓ Range download (5-12)")
 
     def test_open_ended_range_download(self, services):
         """Download open-ended range like 5-."""
@@ -305,7 +308,7 @@ class TestRangeParsingIntegration:
                 )
 
         assert result.successful == 6
-        print("✓ Open-ended range download (5-)")
+        logger.info("✓ Open-ended range download (5-)")
 
 
 class TestDatabasePersistence:
@@ -343,7 +346,7 @@ class TestDatabasePersistence:
 
         episodes = new_service.get_downloaded_episodes(anime_title)
         assert len(episodes) == 5
-        print("✓ Database persistence verified")
+        logger.info("✓ Database persistence verified")
 
     def test_skip_already_downloaded_across_sessions(self, services):
         """Skip logic works across service instances."""
@@ -381,4 +384,4 @@ class TestDatabasePersistence:
 
         assert result2.successful == 3  # Only 6, 7, 8
         assert set(result2.skipped) == {1, 2, 3, 4, 5}
-        print("✓ Skip logic across sessions working")
+        logger.info("✓ Skip logic across sessions working")

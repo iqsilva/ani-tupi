@@ -6,6 +6,9 @@ Provides episode context information for playback navigation
 
 from models import EpisodeContext
 from services.repository import rep
+from utils.logging import get_logger
+
+logger = get_logger(__name__)
 
 
 def get_next_episode_context(
@@ -37,7 +40,7 @@ def get_next_episode_context(
         # Get URL from repository if available
         next_url = rep.get_episode_url(anime_title, next_idx)
         if not next_url:
-            print("Nao foi possivel encontrar a url do proximo episodio")
+            logger.info("Nao foi possivel encontrar a url do proximo episodio")
             return None
 
         return EpisodeContext(

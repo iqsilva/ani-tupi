@@ -11,6 +11,9 @@ import logging
 import re
 
 import httpx
+from utils.logging import get_logger
+
+logger = get_logger(__name__)
 
 logger = logging.getLogger(__name__)
 
@@ -76,15 +79,15 @@ def validate_episode_url(url: str, timeout: float = 5.0) -> bool:
     Returns:
         ``True`` if the server returns a 2xx status code, ``False`` otherwise.
     """
-    print(f"[URL-PATTERN] HEAD {url[:80]}{'...' if len(url) > 80 else ''}")
+    logger.info(f"[URL-PATTERN] HEAD {url[:80]}{'...' if len(url) > 80 else ''}")
     try:
         with httpx.Client(follow_redirects=True, timeout=timeout) as client:
             response = client.head(url)
-        print(
+        logger.info(
             f"[URL-PATTERN] → {response.status_code} {'✅ HIT' if response.is_success else '❌ MISS'}"
         )
         return response.is_success
     except Exception as exc:
-        print(f"[URL-PATTERN] → ERROR: {exc}")
+        logger.info(f"[URL-PATTERN] → ERROR: {exc}")
         logger.debug("validate_episode_url failed for %s: %s", url, exc)
         return False

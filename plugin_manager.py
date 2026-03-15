@@ -14,6 +14,9 @@ from models.config import settings
 from models.models import PluginPreferences
 from services.repository import rep
 from ui.components import menu_navigate
+from utils.logging import get_logger
+
+logger = get_logger(__name__)
 
 
 def load_plugin_preferences() -> PluginPreferences:
@@ -53,7 +56,7 @@ def save_plugin_preferences(
         with prefs_file.open("w") as f:
             dump(data, f, indent=2)
     except Exception as e:
-        print(f"⚠️  Erro ao salvar preferências: {e}")
+        logger.info(f"⚠️  Erro ao salvar preferências: {e}")
 
 
 def get_all_available_plugins() -> list[str]:
@@ -96,7 +99,7 @@ def plugin_management_menu() -> None:
     all_plugins = get_all_available_plugins()
 
     if not all_plugins:
-        print("\n❌ Nenhum plugin encontrado!")
+        logger.info("\n❌ Nenhum plugin encontrado!")
         input("\nPressione Enter para continuar...")
         return
 
@@ -120,8 +123,8 @@ def plugin_management_menu() -> None:
         if not selected or selected == "💾 Salvar e Sair":
             # Save and exit
             save_plugin_preferences(list(disabled_plugins))
-            print("\n✅ Preferências salvas!")
-            print("ℹ️  Reinicie o ani-tupi para aplicar as mudanças.")
+            logger.info("\n✅ Preferências salvas!")
+            logger.info("ℹ️  Reinicie o ani-tupi para aplicar as mudanças.")
             input("\nPressione Enter para continuar...")
             return
 
@@ -194,4 +197,4 @@ def set_plugin_priority_order(priority_order: list[str]) -> None:
         with prefs_file.open("w") as f:
             dump(data, f, indent=2)
     except Exception as e:
-        print(f"⚠️  Erro ao salvar ordem de prioridade: {e}")
+        logger.info(f"⚠️  Erro ao salvar ordem de prioridade: {e}")

@@ -17,6 +17,7 @@ from models.models import Status
 from services.history_service import save_history, reset_history
 from utils.video_player import VideoPlayer
 from services.anime.source_management import switch_anime_source
+from utils.logging import get_logger
 from services.anime.mappings import (
     load_anilist_mapping,
     load_anilist_urls,
@@ -32,6 +33,8 @@ from utils.video_player import _format_episode_progress
 
 # Use centralized path function from config
 HISTORY_PATH = get_data_path()
+
+logger = get_logger(__name__)
 
 
 def _is_anime_released(anime_node) -> bool:
@@ -83,7 +86,7 @@ def offer_sequel_and_continue(
     if anilist_episodes and current_episode:
         if current_episode < anilist_episodes:
             # User has more episodes to watch - don't offer sequel
-            print(
+            logger.info(
                 f"\n💡 Existem mais {anilist_episodes - current_episode} episódio(s) disponível(is) em outras fontes."
             )
             return False
@@ -131,9 +134,9 @@ def offer_sequel_and_continue(
             # Add to Planning list without searching for episodes
             success = anilist_client.add_to_list(sequel.id, Status.PLANNING)
             if success:
-                print(f"\n✅ {sequel_title} adicionado à sua lista de 'Planejo Assistir'!")
+                logger.info(f"\n✅ {sequel_title} adicionado à sua lista de 'Planejo Assistir'!")
             else:
-                print(f"\n❌ Erro ao adicionar {sequel_title} à sua lista.")
+                logger.info(f"\n❌ Erro ao adicionar {sequel_title} à sua lista.")
             return False
     else:
         # Multiple sequels: let user choose and then ask what to do
@@ -194,9 +197,9 @@ def offer_sequel_and_continue(
                     # Add to Planning list without searching for episodes
                     success = anilist_client.add_to_list(selected_sequel.id, Status.PLANNING)
                     if success:
-                        print(f"\n✅ {sequel_title} adicionado à sua lista de 'Planejo Assistir'!")
+                        logger.info(f"\n✅ {sequel_title} adicionado à sua lista de 'Planejo Assistir'!")
                     else:
-                        print(f"\n❌ Erro ao adicionar {sequel_title} à sua lista.")
+                        logger.info(f"\n❌ Erro ao adicionar {sequel_title} à sua lista.")
                     return False
 
     return False
@@ -254,7 +257,7 @@ def anilist_anime_flow(
     # Show active sources
     active_sources = rep.get_active_sources()
     if active_sources:
-        print(f"ℹ️  Fontes ativas: {', '.join(active_sources)}")
+        logger.info(f"ℹ️  Fontes ativas: {', '.join(active_sources)}")
 
     # Check if we have a saved title choice from before (ASK BEFORE SEARCHING)
     saved_title, saved_source, saved_url = (
@@ -284,7 +287,7 @@ def anilist_anime_flow(
         if choice == "✅ Continuar com este":
             selected_anime = saved_title
             source = saved_source
-            print(f"✅ Usando: {selected_anime}")
+            logger.info(f"✅ Usando: {selected_anime}")
             # Fluxo normal vai procurar episódios (não salva/usa URL)
 
     # Only ask for language preference if no saved title or user wants to choose another
@@ -342,7 +345,7 @@ def anilist_anime_flow(
 
         if cache_data:
             # Found in cache! Use it directly
-            print(f"ℹ️  Usando cache ({cache_data.episode_count} eps disponíveis)")
+            logger.info(f"ℹ️  Usando cache ({cache_data.episode_count} eps disponíveis)")
             rep.load_from_cache(anime_title, cache_data)
 
             # Discover available sources for this anime (background search)
@@ -383,7 +386,7 @@ def anilist_anime_flow(
             # Cache-first: Check if manual query is in cache
             cache_data = get_cache(manual_query)
             if cache_data:
-                print(f"ℹ️  Usando cache ({cache_data.episode_count} eps disponíveis)")
+                logger.info(f"ℹ️  Usando cache ({cache_data.episode_count} eps disponíveis)")
                 rep.load_from_cache(manual_query, cache_data)
 
                 # Discover available sources for this anime (background search)
@@ -622,7 +625,7 @@ def anilist_anime_flow(
         # Use cached data for episode list
         episode_list = cache_data.episode_urls
         scraper_episode_count = cache_data.episode_count
-        print(f"ℹ️  Usando cache ({scraper_episode_count} eps disponíveis)")
+        logger.info(f"ℹ️  Usando cache ({scraper_episode_count} eps disponíveis)")
 
         # Still need to populate repository for video URL search
         # (cache only stores episode titles, not the URLs needed for playback)
@@ -636,12 +639,12 @@ def anilist_anime_flow(
             if saved_urls:
                 # Add all saved URLs to repository
                 sources_list = ", ".join(sorted(saved_urls.keys()))
-                print(f"📺 Carregando '{selected_anime}' da fonte {sources_list}...")
+                logger.info(f"📺 Carregando '{selected_anime}' da fonte {sources_list}...")
                 for src, url in saved_urls.items():
                     rep.add_anime(selected_anime, url, src)
             elif saved_url and saved_source:
                 # Fallback for old format with single URL
-                print(f"📺 Carregando '{selected_anime}' da fonte {saved_source}...")
+                logger.info(f"📺 Carregando '{selected_anime}' da fonte {saved_source}...")
                 rep.add_anime(selected_anime, saved_url, saved_source)
 
         # Fetch from scrapers
@@ -799,7 +802,7 @@ def anilist_anime_flow(
             if confirm_reset == "✅ Sim, resetar":
                 reset_history(selected_anime)
                 episode_idx = 0
-                print("✅ Histórico resetado! Começando do episódio 1...")
+                logger.info("✅ Histórico resetado! Começando do episódio 1...")
             else:
                 return  # User cancelled
         else:
@@ -807,7 +810,7 @@ def anilist_anime_flow(
             # Check if episode is unavailable (marked as None)
             if episode_idx is None:
                 # Try incremental search on AnimesDigital homepage for awaiting episodes
-                print(f"\n🔍 Buscando episódio {max_progress + 1} no AnimesDigital...")
+                logger.info(f"\n🔍 Buscando episódio {max_progress + 1} no AnimesDigital...")
 
                 from scrapers.plugins.animesdigital import AnimesDigital
 
@@ -828,8 +831,8 @@ def anilist_anime_flow(
                         if matching_episodes:
                             # Found the episode! Use it
                             episode = matching_episodes[0]
-                            print(f"✅ Episódio {target_ep_num} encontrado no AnimesDigital!")
-                            print(f"   URL: {episode['episode_url'][:80]}...")
+                            logger.info(f"✅ Episódio {target_ep_num} encontrado no AnimesDigital!")
+                            logger.info(f"   URL: {episode['episode_url'][:80]}...")
 
                             # Set episode_idx to the target episode (use a special marker to indicate it's from homepage)
                             # We'll handle this in the playback flow
@@ -844,12 +847,12 @@ def anilist_anime_flow(
                             }
                         else:
                             # Episode not found in homepage results
-                            print(f"\n❌ Episódio {target_ep_num} não encontrado no AnimesDigital.")
+                            logger.info(f"\n❌ Episódio {target_ep_num} não encontrado no AnimesDigital.")
                             input("\nPressione Enter para voltar...")
                             return
                     else:
                         # No results from incremental search
-                        print(
+                        logger.info(
                             f"\n❌ Episódio {max_progress + 1} ainda não disponível nos scrapers ou no AnimesDigital."
                         )
                         input("\nPressione Enter para voltar...")
@@ -857,8 +860,8 @@ def anilist_anime_flow(
 
                 except Exception as e:
                     # Fallback if search fails
-                    print(f"\n⚠️  Erro ao buscar no AnimesDigital: {e}")
-                    print(f"Episódio {max_progress + 1} ainda não disponível nos scrapers.")
+                    logger.info(f"\n⚠️  Erro ao buscar no AnimesDigital: {e}")
+                    logger.info(f"Episódio {max_progress + 1} ainda não disponível nos scrapers.")
                     input("\nPressione Enter para voltar...")
                     return
     else:
@@ -925,12 +928,12 @@ def anilist_anime_flow(
             from services.anime.download_service import AnimeDownloadService
             from utils.episode_range_parser import parse_episode_range, RangeParseError
 
-            print(f"\n📥 Baixar episódios: {selected_anime}")
-            print(f"   Total de episódios: {num_episodes}")
+            logger.info(f"\n📥 Baixar episódios: {selected_anime}")
+            logger.info(f"   Total de episódios: {num_episodes}")
 
             # Calculate default range (from current episode to end)
             default_range = f"{episode_number}-"
-            print(f"   Padrão: {default_range} (do episódio {episode_number} até o fim)\n")
+            logger.info(f"   Padrão: {default_range} (do episódio {episode_number} até o fim)\n")
 
             # Prompt for range
             try:
@@ -938,12 +941,12 @@ def anilist_anime_flow(
 
                 if not range_input:
                     range_input = default_range
-                    print(f"   Usando: {range_input}")
+                    logger.info(f"   Usando: {range_input}")
 
                 # Parse range
                 episodes = parse_episode_range(range_input, num_episodes)
             except RangeParseError as e:
-                print(f"❌ {e}")
+                logger.info(f"❌ {e}")
                 return
 
             # Download episodes
@@ -956,7 +959,7 @@ def anilist_anime_flow(
                     return (player_url, source or "unknown")
                 return None
 
-            print(f"\n⏳ Baixando {len(episodes)} episódio(s)...")
+            logger.info(f"\n⏳ Baixando {len(episodes)} episódio(s)...")
             try:
                 with loading(f"Baixando {len(episodes)} episódio(s)..."):
                     result = service.download_episodes(
@@ -967,13 +970,13 @@ def anilist_anime_flow(
                     )
 
                 # Show result
-                print(f"\n{result.summary}")
+                logger.info(f"\n{result.summary}")
 
                 if result.successful > 0:
-                    print(f"✅ {result.successful} episódio(s) baixado(s) com sucesso!")
-                    print(f"   Localização: {service.download_dir / selected_anime}")
+                    logger.info(f"✅ {result.successful} episódio(s) baixado(s) com sucesso!")
+                    logger.info(f"   Localização: {service.download_dir / selected_anime}")
             except Exception as e:
-                print(f"❌ Erro ao baixar: {e}")
+                logger.info(f"❌ Erro ao baixar: {e}")
             return
         elif action == "▶️ Assistir agora":
             # Break out of loop and proceed to playback
@@ -991,20 +994,20 @@ def anilist_anime_flow(
 
         # Check if video sources are available
         if not all_sources:
-            print("❌ Nenhuma fonte conseguiu extrair o vídeo.")
-            print("   💡 O episódio está indisponível em todas as fontes.")
+            logger.info("❌ Nenhuma fonte conseguiu extrair o vídeo.")
+            logger.info("   💡 O episódio está indisponível em todas as fontes.")
             continue
 
         # Show episode progress
         progress_str = _format_episode_progress(episode, num_episodes, total_episodes)
-        print(f"\n▶️  Iniciando reprodução do episódio {progress_str}...")
+        logger.info(f"\n▶️  Iniciando reprodução do episódio {progress_str}...")
 
         # Show which sources will be tried (in priority order)
         source_names = [s for _, s in all_sources]
         if len(source_names) > 1:
-            print(f"   🔄 Tentando fontes: {', '.join(source_names)}")
+            logger.info(f"   🔄 Tentando fontes: {', '.join(source_names)}")
         else:
-            print(f"   Fonte: {source_names[0]}")
+            logger.info(f"   Fonte: {source_names[0]}")
 
         # Fetch skip times if enabled and MAL ID available
         skip_times = None
@@ -1015,24 +1018,24 @@ def anilist_anime_flow(
             if not mal_id:
                 # Extract clean title (before " / " if bilingual format)
                 search_title = anime_title.split(" / ")[0].strip()
-                print(f"🔍 Buscando MAL ID para '{search_title}'...")
+                logger.info(f"🔍 Buscando MAL ID para '{search_title}'...")
                 mal_id = aniskip.search_mal_id(search_title)
                 if mal_id:
-                    print(f"✅ MAL ID encontrado: {mal_id}")
+                    logger.info(f"✅ MAL ID encontrado: {mal_id}")
 
             if mal_id:
                 try:
                     skip_times = aniskip.get_skip_times(mal_id, episode)
                     if skip_times:
-                        print(
+                        logger.info(
                             "⏩ Skip times carregados (intro/outro serão pulados automaticamente)"
                         )
                     else:
-                        print(f"ℹ️  Sem skip times disponíveis (MAL ID: {mal_id}, Ep: {episode})")
+                        logger.info(f"ℹ️  Sem skip times disponíveis (MAL ID: {mal_id}, Ep: {episode})")
                 except Exception as e:
-                    print(f"⚠️  Falha ao carregar skip times: {e}")
+                    logger.info(f"⚠️  Falha ao carregar skip times: {e}")
             else:
-                print("ℹ️  MAL ID não encontrado (skip desabilitado para este anime)")
+                logger.info("ℹ️  MAL ID não encontrado (skip desabilitado para este anime)")
 
         # Extract actual video URLs from episode pages before playback
         # all_sources contains (page_url, source_name) pairs
@@ -1044,12 +1047,12 @@ def anilist_anime_flow(
                 if video_url:
                     video_sources.append((video_url, source_name))
                 else:
-                    print(
+                    logger.info(
                         f"   ⚠️  [{source_name}] Não retornou URL de vídeo (page_url={page_url[:80]})"
                     )
             except Exception as e:
                 # If extraction fails, skip this source
-                print(f"   ❌ [{source_name}] Erro ao extrair vídeo: {e}")
+                logger.info(f"   ❌ [{source_name}] Erro ao extrair vídeo: {e}")
                 continue
 
         # Use extracted video URLs for playback (fallback to page URLs if no videos found)
@@ -1073,11 +1076,11 @@ def anilist_anime_flow(
         result = fallback_result.playback_result
         source_used = fallback_result.source_used or "unknown"
 
-        print("\n📊 Reprodução encerrada:")
-        print(f"   Exit code: {result.exit_code}")
-        print(f"   Ação: {result.action}")
+        logger.info("\n📊 Reprodução encerrada:")
+        logger.info(f"   Exit code: {result.exit_code}")
+        logger.info(f"   Ação: {result.action}")
         if fallback_result.sources_tried:
-            print(f"   Fonte usada: {source_used}")
+            logger.info(f"   Fonte usada: {source_used}")
 
         # Handle IPC navigation actions
         if result.action == "next":
@@ -1124,35 +1127,35 @@ def anilist_anime_flow(
             if anilist_client.is_authenticated() and anilist_id:
                 # Check if anime is in any list
                 if not anilist_client.is_in_any_list(anilist_id):
-                    print("📝 Adicionando à sua lista do AniList...")
+                    logger.info("📝 Adicionando à sua lista do AniList...")
                     anilist_client.add_to_list(anilist_id, Status.CURRENT)
                 else:
                     # Auto-promote from PLANNING to CURRENT, or CURRENT to COMPLETED
                     entry = anilist_client.get_media_list_entry(anilist_id)
                     if entry:
                         if entry.status == "PLANNING":
-                            print("📝 Movendo de 'Planejo Assistir' para 'Assistindo'...")
+                            logger.info("📝 Movendo de 'Planejo Assistir' para 'Assistindo'...")
                             anilist_client.add_to_list(anilist_id, Status.CURRENT)
                         elif entry.status == "CURRENT":
                             # If finishing last episode of a watched anime, mark as completed
                             if current_episode == num_episodes:
-                                print("✅ Marcando como 'Completo'...")
+                                logger.info("✅ Marcando como 'Completo'...")
                                 anilist_client.change_status(anilist_id, Status.COMPLETED)
                         # If already COMPLETED, leave it as is (don't change to REPEATING)
                         # User can manually change status to REPEATING if they want to track rewatches
 
-                print(f"🔄 Sincronizando progresso com AniList (Ep {current_episode})...")
+                logger.info(f"🔄 Sincronizando progresso com AniList (Ep {current_episode})...")
                 success = anilist_client.update_progress(anilist_id, current_episode)
                 if success:
-                    print("✅ Progresso salvo no AniList!")
+                    logger.info("✅ Progresso salvo no AniList!")
                 else:
                     # Verify token is still valid if sync failed
                     viewer = anilist_client.get_viewer_info()
                     if not viewer:
-                        print("⚠️  Token do AniList expirou")
-                        print("   Execute: ani-tupi anilist auth")
+                        logger.info("⚠️  Token do AniList expirou")
+                        logger.info("   Execute: ani-tupi anilist auth")
                     else:
-                        print("⚠️  Não foi possível salvar no AniList (continuando...)")
+                        logger.info("⚠️  Não foi possível salvar no AniList (continuando...)")
 
             # Check if there's a next episode
             # Use current_episode (from IPC context) instead of episode_idx
@@ -1165,11 +1168,11 @@ def anilist_anime_flow(
                 # Move to next episode
                 episode_idx = next_episode_idx
                 current_episode_idx = next_episode_idx  # CRITICAL: sync both variables
-                print(f"▶️  Carregando próximo episódio: {episode_idx + 1}")
+                logger.info(f"▶️  Carregando próximo episódio: {episode_idx + 1}")
                 continue  # Loop to play next episode
             else:
                 # Last episode - check for sequels
-                print("✅ Último episódio assistido!")
+                logger.info("✅ Último episódio assistido!")
                 # Get AniList episode count to check if series is truly complete
                 anilist_episodes = None
                 if anilist_id:
@@ -1203,9 +1206,9 @@ def anilist_anime_flow(
             # History already saved in IPC handler, just show menu
             pass
         elif result.exit_code not in [0, 3]:  # Error cases
-            print(f"⚠️  MPV exit code: {result.exit_code}")
+            logger.info(f"⚠️  MPV exit code: {result.exit_code}")
             if result.exit_code == 2:
-                print(" (Possível erro ao reproduzir ou janela fechada)")
+                logger.info(" (Possível erro ao reproduzir ou janela fechada)")
                 continue
 
         # For normal quit or other actions, show confirmation menu
@@ -1216,7 +1219,7 @@ def anilist_anime_flow(
 
             if result.exit_code != 0:
                 # Error occurred - give user time to see error messages
-                print("\n⏳ Pressione Enter para continuar...")
+                logger.info("\n⏳ Pressione Enter para continuar...")
                 try:
                     input()
                 except (EOFError, KeyboardInterrupt):
@@ -1237,35 +1240,35 @@ def anilist_anime_flow(
                 if anilist_client.is_authenticated() and anilist_id:
                     # Check if anime is in any list
                     if not anilist_client.is_in_any_list(anilist_id):
-                        print("\n📝 Adicionando à sua lista do AniList...")
+                        logger.info("\n📝 Adicionando à sua lista do AniList...")
                         anilist_client.add_to_list(anilist_id, "CURRENT")
                     else:
                         # Auto-promote from PLANNING to CURRENT, or CURRENT to COMPLETED
                         entry = anilist_client.get_media_list_entry(anilist_id)
                         if entry:
                             if entry.status == "PLANNING":
-                                print("\n📝 Movendo de 'Planejo Assistir' para 'Assistindo'...")
+                                logger.info("\n📝 Movendo de 'Planejo Assistir' para 'Assistindo'...")
                                 anilist_client.add_to_list(anilist_id, "CURRENT")
                             elif entry.status == "CURRENT":
                                 # If finishing last episode of a watched anime, mark as completed
                                 if episode == num_episodes:
-                                    print("\n✅ Marcando como 'Completo'...")
+                                    logger.info("\n✅ Marcando como 'Completo'...")
                                     anilist_client.change_status(anilist_id, Status.COMPLETED)
                             # If already COMPLETED, leave it as is (don't change to REPEATING)
                             # User can manually change status to REPEATING if they want to track rewatches
 
-                    print(f"\n🔄 Sincronizando progresso com AniList (Ep {episode})...")
+                    logger.info(f"\n🔄 Sincronizando progresso com AniList (Ep {episode})...")
                     success = anilist_client.update_progress(anilist_id, episode)
                     if success:
-                        print("✅ Progresso salvo no AniList!")
+                        logger.info("✅ Progresso salvo no AniList!")
                     else:
                         # Verify token is still valid if sync failed
                         viewer = anilist_client.get_viewer_info()
                         if not viewer:
-                            print("⚠️  Token do AniList expirou")
-                            print("   Execute: ani-tupi anilist auth")
+                            logger.info("⚠️  Token do AniList expirou")
+                            logger.info("   Execute: ani-tupi anilist auth")
                         else:
-                            print("⚠️  Não foi possível salvar no AniList (continuando...)")
+                            logger.info("⚠️  Não foi possível salvar no AniList (continuando...)")
 
                     # Check for sequels when last episode is watched
                     if episode == num_episodes:

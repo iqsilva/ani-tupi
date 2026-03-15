@@ -10,6 +10,9 @@ from fuzzywuzzy import fuzz
 from models.models import AniListAnime, AniListSearchResult
 from models.config import settings
 from utils.cache_manager import get_cache
+from utils.logging import get_logger
+
+logger = get_logger(__name__)
 
 
 def auto_discover_anilist_id(scraper_title: str) -> list[AniListSearchResult]:
@@ -93,7 +96,7 @@ def auto_discover_anilist_id(scraper_title: str) -> list[AniListSearchResult]:
         return sorted_matches
 
     except Exception as e:
-        print(f"⚠️  Erro ao buscar AniList ID para '{scraper_title}': {e}")
+        logger.info(f"⚠️  Erro ao buscar AniList ID para '{scraper_title}': {e}")
         return []
 
 
@@ -126,7 +129,7 @@ def get_anilist_id_with_interactive_fallback(
     results = auto_discover_anilist_id(anime_title)
 
     if not results:
-        print(f"❌ Não foi possível encontrar '{anime_title}' no AniList")
+        logger.info(f"❌ Não foi possível encontrar '{anime_title}' no AniList")
         return None
 
     # If best match >= threshold, use it automatically
@@ -135,8 +138,8 @@ def get_anilist_id_with_interactive_fallback(
         return best_match.anilist_id
 
     # Below threshold: show list for user to choose
-    print(f"\n🔍 Match parcial encontrado: {best_match.title} ({best_match.score}%)")
-    print("   Escolha a correspondência correta:\n")
+    logger.info(f"\n🔍 Match parcial encontrado: {best_match.title} ({best_match.score}%)")
+    logger.info("   Escolha a correspondência correta:\n")
 
     from ui.components import menu_navigate
 
@@ -153,8 +156,8 @@ def get_anilist_id_with_interactive_fallback(
     selected_idx = match_options.index(selected)
     chosen = results[selected_idx]
 
-    print(f"✅ Mapeado: {chosen.title}")
-    print(f"   🆔 ID AniList: {chosen.anilist_id}")
+    logger.info(f"✅ Mapeado: {chosen.title}")
+    logger.info(f"   🆔 ID AniList: {chosen.anilist_id}")
 
     # Validate anime exists before caching
     from services.anilist_service import anilist_client
@@ -162,18 +165,18 @@ def get_anilist_id_with_interactive_fallback(
     try:
         anime_info = anilist_client.get_anime_by_id(chosen.anilist_id)
         if not anime_info:
-            print(f"⚠️  Aviso: Anime ID {chosen.anilist_id} não encontrado no AniList")
-            print("   Sincronização pode falhar. Tente novamente com outro título.")
+            logger.info(f"⚠️  Aviso: Anime ID {chosen.anilist_id} não encontrado no AniList")
+            logger.info("   Sincronização pode falhar. Tente novamente com outro título.")
             return chosen.anilist_id  # Still return it, but warn user
 
         # Valid anime, cache for future episodes
         cache = get_cache()
         cache_key = f"anilist_id:{anime_title.lower()}"
         cache.set(cache_key, [chosen.model_dump()], ttl=2592000)  # 30 days
-        print("   ✅ Cache salvo por 30 dias")
+        logger.info("   ✅ Cache salvo por 30 dias")
 
     except Exception as e:
-        print(f"⚠️  Não foi possível validar anime ID: {e}")
+        logger.info(f"⚠️  Não foi possível validar anime ID: {e}")
         # Still cache it anyway, but user is warned
 
     return chosen.anilist_id
@@ -244,5 +247,5 @@ def get_anilist_metadata(anilist_id: int) -> AniListAnime | None:
         return None
 
     except Exception as e:
-        print(f"⚠️  Erro ao buscar metadata do AniList ID {anilist_id}: {e}")
+        logger.info(f"⚠️  Erro ao buscar metadata do AniList ID {anilist_id}: {e}")
         return None

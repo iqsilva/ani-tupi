@@ -16,6 +16,9 @@ from models.config import get_data_path, settings
 from ui.components import loading, menu_navigate
 from models.models import AniListTitle
 from utils.cache import get_cache
+from utils.logging import get_logger
+
+logger = get_logger(__name__)
 
 # History file path (centralized from config)
 HISTORY_PATH = get_data_path()
@@ -387,7 +390,7 @@ def _show_account_menu() -> None:
         user_info = anilist_client.get_viewer_info()
 
         if not user_info:
-            print("\n❌ Erro ao carregar informações do usuário")
+            logger.info("\n❌ Erro ao carregar informações do usuário")
             input("Pressione Enter para continuar...")
             return
 
@@ -470,7 +473,7 @@ def _show_account_menu() -> None:
     account_info.extend(["", "─" * 40])
 
     # Print account info once
-    print("\n" + "\n".join(account_info))
+    logger.info("\n" + "\n".join(account_info))
 
     # Menu options loop
     while True:
@@ -488,7 +491,7 @@ def _show_account_menu() -> None:
 
         if selection == "🌐 Abrir perfil no navegador":
             profile_url = f"https://anilist.co/user/{user_id}"
-            print(f"\n🌐 Abrindo: {profile_url}")
+            logger.info(f"\n🌐 Abrindo: {profile_url}")
             webbrowser.open(profile_url)
             input("\nPressione Enter para continuar...")
             continue
@@ -501,11 +504,11 @@ def _show_account_menu() -> None:
                 token_path = HISTORY_PATH / "anilist_token.json"
                 if token_path.exists():
                     token_path.unlink()
-                    print("\n✅ Logout realizado com sucesso!")
+                    logger.info("\n✅ Logout realizado com sucesso!")
                     input("\nPressione Enter para continuar...")
                     os.system("clear" if os.name != "nt" else "cls")
                     return
-                print("\n❌ Token não encontrado")
+                logger.info("\n❌ Token não encontrado")
                 input("\nPressione Enter para continuar...")
             continue
 
@@ -561,11 +564,11 @@ def _show_anime_list(list_type: str) -> tuple[str, int] | None:
             title = f"Your {list_type.title()} List"
 
         if not anime_list:
-            print("\n❌ Nenhum anime encontrado")
-            print("   Possíveis causas:")
-            print("   - Conexão com internet")
-            print("   - API do AniList indisponível")
-            print("   - Nenhum anime nesse filtro")
+            logger.info("\n❌ Nenhum anime encontrado")
+            logger.info("   Possíveis causas:")
+            logger.info("   - Conexão com internet")
+            logger.info("   - API do AniList indisponível")
+            logger.info("   - Nenhum anime nesse filtro")
             input("\nPressione Enter para voltar...")
             return anilist_main_menu()
 
@@ -660,16 +663,16 @@ def _show_recent_history() -> None:
             with history_file.open() as f:
                 history = json.load(f)
         except FileNotFoundError:
-            print("\n📂 Nenhum histórico encontrado")
+            logger.info("\n📂 Nenhum histórico encontrado")
             input("\nPressione Enter para voltar...")
             return
         except Exception:
-            print("\n❌ Erro ao carregar histórico")
+            logger.info("\n❌ Erro ao carregar histórico")
             input("\nPressione Enter para voltar...")
             return
 
         if not history:
-            print("\n📂 Histórico vazio")
+            logger.info("\n📂 Histórico vazio")
             input("\nPressione Enter para voltar...")
             return
 
@@ -1000,7 +1003,7 @@ def _show_airing_episodes() -> None:
             airing_anime = service.get_watching_with_airing_episodes()
 
         if not airing_anime:
-            print("\n❌ Nenhum anime em transmissão na sua lista 'Assistindo'")
+            logger.info("\n❌ Nenhum anime em transmissão na sua lista 'Assistindo'")
             input("\nPressione Enter para voltar...")
             return
 
@@ -1035,7 +1038,7 @@ def _show_airing_episodes() -> None:
         # Get anime info for search
         anime_info = anilist_client.get_anime_by_id(entry.anilist_id)
         if not anime_info:
-            print(f"\n❌ Erro ao buscar informações de '{entry.title}'")
+            logger.info(f"\n❌ Erro ao buscar informações de '{entry.title}'")
             input("\nPressione Enter para tentar novamente...")
             continue
 

@@ -9,6 +9,9 @@ from commands import anilist_menu as anilist_menu_cmd
 from commands import anilist_auth as anilist_auth_cmd
 from commands import manga as manga_cmd
 from commands import manage_sources as manage_sources_cmd
+from utils.logging import get_logger
+
+logger = get_logger(__name__)
 
 
 def handle_local_library(args) -> None:
@@ -150,7 +153,7 @@ def cli() -> None:
 
         result = retry_offline_syncs()
         if result["successful"] > 0 or result["failed"] > 0:
-            print(
+            logger.info(
                 f"📡 Sincronização offline: {result['successful']} ok, "
                 f"{result['failed']} falha(s) pendente(s)"
             )
@@ -158,17 +161,17 @@ def cli() -> None:
     # Show active sources
     active_sources = rep.get_active_sources()
     if active_sources:
-        print(f"ℹ️  Fontes ativas: {', '.join(active_sources)}")
+        logger.info(f"ℹ️  Fontes ativas: {', '.join(active_sources)}")
 
     # Handle --list-sources before other commands
     if args.list_sources:
         sources = rep.get_active_sources()
         if sources:
-            print("\n🔌 Fontes de anime disponíveis:")
+            logger.info("\n🔌 Fontes de anime disponíveis:")
             for i, source in enumerate(sources, 1):
-                print(f"   {i}. {source}")
+                logger.info(f"   {i}. {source}")
         else:
-            print("\n❌ Nenhuma fonte de anime encontrada!")
+            logger.info("\n❌ Nenhuma fonte de anime encontrada!")
         sys.exit(0)
 
     # Handle --clear-cache before other commands
@@ -179,17 +182,17 @@ def cli() -> None:
         if args.clear_cache is True:
             # Clear all cache
             clear_cache_all()
-            print("✅ Cache completamente limpo!")
+            logger.info("✅ Cache completamente limpo!")
         else:
             # Try to discover AniList ID for more precise clearing
             anilist_id = auto_discover_anilist_id(args.clear_cache)
             if anilist_id:
                 clear_cache_by_prefix(f":{anilist_id}:")
-                print(f"✅ Cache de '{args.clear_cache}' (AniList ID {anilist_id}) foi limpo!")
+                logger.info(f"✅ Cache de '{args.clear_cache}' (AniList ID {anilist_id}) foi limpo!")
             else:
                 # Fallback: clear by title prefix
                 clear_cache_by_prefix(f":{args.clear_cache}:")
-                print(f"✅ Cache de '{args.clear_cache}' foi limpo!")
+                logger.info(f"✅ Cache de '{args.clear_cache}' foi limpo!")
         sys.exit(0)
 
     # Handle commands

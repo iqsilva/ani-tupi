@@ -21,9 +21,12 @@ from services.anime.playback_service import (
     navigate_episodes,
     sync_progress_to_anilist,
 )
+from utils.logging import get_logger
 from utils.video_player import VideoPlayer
 from ui.components import loading, menu_navigate
 from services.history_service import save_history
+
+logger = get_logger(__name__)
 
 
 @dataclass
@@ -203,7 +206,7 @@ class RandomAnimeService:
             url_result = get_episode_url_and_source(ctx.anime_title, episode)
 
         if not (url_result.success and url_result.player_url):
-            print("❌ Não foi possível encontrar o vídeo deste anime.")
+            logger.info("❌ Não foi possível encontrar o vídeo deste anime.")
             return
 
         player.play_episode(
@@ -245,12 +248,12 @@ class RandomAnimeService:
                     ctx.anilist_id, episode, ctx.num_episodes, ctx.anime_title
                 )
                 if success:
-                    print("✅ Progresso salvo no AniList!")
+                    logger.info("✅ Progresso salvo no AniList!")
                 else:
-                    print("⚠️ Não foi possível salvar no AniList")
+                    logger.info("⚠️ Não foi possível salvar no AniList")
 
         if confirmed and ctx.anilist_id and episode == ctx.num_episodes:
-            print("🎉 Você completou a série!")
+            logger.info("🎉 Você completou a série!")
             return
 
         opts = []
@@ -277,37 +280,37 @@ def handle_random_anime(args) -> None:
     service = RandomAnimeService()
 
     if not service.client.is_authenticated():
-        print("❌ Você precisa estar autenticado no AniList para usar --random")
-        print("   Execute: ani-tupi anilist auth")
+        logger.info("❌ Você precisa estar autenticado no AniList para usar --random")
+        logger.info("   Execute: ani-tupi anilist auth")
         return
 
     with loading("Buscando sua lista..."):
         anime_list = service.get_user_anime_list()
 
     if not anime_list:
-        print("❌ Sua lista está vazia ou você não tem anime em Watching/Plan to Watch")
+        logger.info("❌ Sua lista está vazia ou você não tem anime em Watching/Plan to Watch")
         return
 
     available_anime = service.filter_excluding_completed(anime_list)
 
     if not available_anime:
-        print("❌ Você não tem anime disponível para sortear (todos Completed ou em lançamento)")
+        logger.info("❌ Você não tem anime disponível para sortear (todos Completed ou em lançamento)")
         return
 
     random.shuffle(available_anime)
 
     result = service.find_available_anime(available_anime)
     if not result:
-        print("❌ Nenhum anime da sua lista está disponível nas fontes")
+        logger.info("❌ Nenhum anime da sua lista está disponível nas fontes")
         return
 
     picked, ctx = result
     info = service.get_anime_info(picked)
 
-    print(f"🎲 {ctx.anime_title}")
+    logger.info(f"🎲 {ctx.anime_title}")
     if info.progress > 0:
-        print(f"   Episódio {info.progress + 1} (você está em {info.progress})")
+        logger.info(f"   Episódio {info.progress + 1} (você está em {info.progress})")
     else:
-        print(f"   {ctx.num_episodes} eps")
+        logger.info(f"   {ctx.num_episodes} eps")
 
     service.play_anime(ctx, args)

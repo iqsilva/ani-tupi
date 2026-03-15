@@ -12,6 +12,9 @@ import requests
 from services.manga_service import DownloadedChaptersTracker
 from ui.components import menu_navigate
 from utils.pdf_converter import create_pdf_from_images
+from utils.logging import get_logger
+
+logger = get_logger(__name__)
 
 
 def download_chapter(
@@ -51,15 +54,15 @@ def download_chapter(
                error_message contains human-readable error if failed
     """
     try:
-        print(f"\n[{chapter_idx}/{total_chapters}] Capítulo {chapter.number}...")
+        logger.info(f"\n[{chapter_idx}/{total_chapters}] Capítulo {chapter.number}...")
 
         # Construct chapter URL based on source
         chapter_url = _construct_chapter_url(selected_source, manga_url, chapter, selected_manga)
 
         if config.debug_download_failures:
-            print(f"  🔍 Buscando páginas do capítulo {chapter.number}...")
-            print(f"     URL: {chapter_url}")
-            print(f"     ID: {chapter.id}")
+            logger.info(f"  🔍 Buscando páginas do capítulo {chapter.number}...")
+            logger.info(f"     URL: {chapter_url}")
+            logger.info(f"     ID: {chapter.id}")
 
         # Get chapter pages
         try:
@@ -69,17 +72,17 @@ def download_chapter(
         except Exception as e:
             error_msg = f"Falha ao buscar páginas do capítulo {chapter.number}: {str(e)}"
             if config.debug_download_failures:
-                print(f"  ❌ {error_msg}")
+                logger.info(f"  ❌ {error_msg}")
             return False, error_msg
 
         if not pages:
             error_msg = f"Nenhuma página disponível para capítulo {chapter.number} (fonte: {selected_source})"
             if config.debug_download_failures:
-                print(f"  ❌ {error_msg}")
+                logger.info(f"  ❌ {error_msg}")
             return False, error_msg
 
         if config.debug_download_failures:
-            print(f"  ✓ Encontradas {len(pages)} páginas")
+            logger.info(f"  ✓ Encontradas {len(pages)} páginas")
 
         # Create output directory
         output_path = config.output_directory / selected_manga.title / chapter.number
@@ -105,7 +108,7 @@ def download_chapter(
 
         # Create PDF
         pdf_path = output_path / f"{chapter.number}.pdf"
-        print(f"📄 Criando PDF com {len(image_files)} imagens...")
+        logger.info(f"📄 Criando PDF com {len(image_files)} imagens...")
         try:
             create_pdf_from_images(
                 output_path,
@@ -132,7 +135,7 @@ def download_chapter(
             source=selected_source,
         )
 
-        print(f"✓ Capítulo {chapter.number} baixado ({file_size_mb:.1f} MB)")
+        logger.info(f"✓ Capítulo {chapter.number} baixado ({file_size_mb:.1f} MB)")
         return True, ""
 
     except Exception as e:
@@ -182,7 +185,7 @@ def download_chapters_batch(
             successful += 1
         else:
             failed_chapters.append(chapter.number)
-            print(f"❌ {error_msg}")
+            logger.info(f"❌ {error_msg}")
 
     return successful, failed_chapters
 
@@ -303,7 +306,7 @@ def _download_images(pages: list, output_path: Path, config) -> int:
 
     for i, url in enumerate(pages):
         if config.debug_download_failures and (i % 10 == 0 or i < 3):
-            print(f"     Página {i + 1}/{len(pages)}: {url[:60]}...")
+            logger.info(f"     Página {i + 1}/{len(pages)}: {url[:60]}...")
 
         ext = Path(url.split("?")[0]).suffix or ".png"
         img_path = output_path / f"{i:03d}{ext}"
@@ -345,13 +348,13 @@ def _download_images(pages: list, output_path: Path, config) -> int:
 
     # Log failed pages if any
     if failed_pages:
-        print(f"  ⚠️  {len(failed_pages)} páginas falharam:")
+        logger.info(f"  ⚠️  {len(failed_pages)} páginas falharam:")
         for failure in failed_pages[:5]:  # Show first 5 failures
-            print(f"    {failure}")
+            logger.info(f"    {failure}")
         if len(failed_pages) > 5:
-            print(f"    ... e mais {len(failed_pages) - 5} falhas")
+            logger.info(f"    ... e mais {len(failed_pages) - 5} falhas")
 
-    print(f"✓ {valid_downloads} imagens válidas baixadas")
+    logger.info(f"✓ {valid_downloads} imagens válidas baixadas")
     return valid_downloads
 
 

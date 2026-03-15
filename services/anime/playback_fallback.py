@@ -8,6 +8,9 @@ or all sources are exhausted.
 from typing import NamedTuple
 from utils.video_player import VideoPlayer, VideoPlaybackResult
 from models.models import SkipTimes
+from utils.logging import get_logger
+
+logger = get_logger(__name__)
 
 
 # Exit code 3 indicates user abort (Ctrl+C) - stop immediately, don't fallback
@@ -78,7 +81,7 @@ def play_episode_with_fallback(
         # Show progress if multiple sources
         if len(sources) > 1:
             attempt_num = len(sources_tried) + 1
-            print(f"   🎬 Tentando fonte {attempt_num}/{len(sources)}: {source}")
+            logger.info(f"   🎬 Tentando fonte {attempt_num}/{len(sources)}: {source}")
 
         result = player.play_episode(
             url=url,
@@ -117,16 +120,16 @@ def play_episode_with_fallback(
         failed_sources_count = len(sources_tried)
         remaining = len(sources) - failed_sources_count
 
-        print(f"   ❌ Fonte '{source}' falhou (código: {result.exit_code})")
+        logger.info(f"   ❌ Fonte '{source}' falhou (código: {result.exit_code})")
 
         if remaining > 0:
-            print(f"   🔄 Tentando próxima fonte ({remaining} restante(s))...")
+            logger.info(f"   🔄 Tentando próxima fonte ({remaining} restante(s))...")
 
     # All sources exhausted
     tried_names = [s for s, _ in sources_tried]
-    print(f"\n❌ Nenhuma fonte funcionou para o episódio {episode_number}.")
-    print(f"   Fontes tentadas: {', '.join(tried_names)}")
-    print("   💡 Tente trocar de fonte manualmente ou verifique sua conexão.")
+    logger.info(f"\n❌ Nenhuma fonte funcionou para o episódio {episode_number}.")
+    logger.info(f"   Fontes tentadas: {', '.join(tried_names)}")
+    logger.info("   💡 Tente trocar de fonte manualmente ou verifique sua conexão.")
 
     last_result = VideoPlaybackResult(exit_code=2, action="quit", data=None)
     return PlaybackFallbackResult(

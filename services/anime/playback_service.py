@@ -22,6 +22,9 @@ from services.anilist_service import anilist_client
 from services.history_service import load_history
 from services.repository import rep
 from ui.components import loading
+from utils.logging import get_logger
+
+logger = get_logger(__name__)
 
 
 logger = logging.getLogger(__name__)
@@ -274,7 +277,7 @@ def get_episode_url_and_source(
                 )
 
                 if detect_episode_pattern(current_player_url):
-                    print(
+                    logger.info(
                         f"[URL-PATTERN] Tentando derivar ep {episode} de: {current_player_url[:80]}"
                     )
                     derived_url = derive_episode_url(current_player_url, episode)
@@ -524,21 +527,21 @@ def sync_progress_to_anilist(
                 "Anime anime_id=%d is already COMPLETED on AniList",
                 anilist_id,
             )
-            print(f"✅ Anime já está marcado como COMPLETO no AniList (ID: {anilist_id})")
+            logger.info(f"✅ Anime já está marcado como COMPLETO no AniList (ID: {anilist_id})")
         else:
             logger.info(
                 "✅ Successfully synced anime_id=%d progress to episode %d",
                 anilist_id,
                 episode,
             )
-            print(f"✅ Progresso sincronizado com AniList (ID: {anilist_id})")
+            logger.info(f"✅ Progresso sincronizado com AniList (ID: {anilist_id})")
 
         # Check if last episode - mark as completed
         if episode == num_episodes and num_episodes > 0:
             entry = anilist_client.get_media_list_entry(anilist_id)
             if entry and entry.status == "CURRENT":
                 logger.info("Marking anime %d as COMPLETED", anilist_id)
-                print("✅ Anime marcado como COMPLETO no AniList")
+                logger.info("✅ Anime marcado como COMPLETO no AniList")
                 anilist_client.change_status(anilist_id, Status.COMPLETED)
 
         return True

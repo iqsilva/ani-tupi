@@ -10,6 +10,9 @@ from pathlib import Path
 import logging
 
 from models.config import settings
+from utils.logging import get_logger
+
+logger = get_logger(__name__)
 
 logger = logging.getLogger(__name__)
 
@@ -153,9 +156,9 @@ def open_pdf_reader(pdf_path: Path) -> subprocess.Popen | None:
             "   Instale um destes: zathura, evince, okular, ou mupdf\n"
             "   Ou configure manualmente: export ANI_TUPI__MANGA__PDF_READER=seu_leitor"
         )
-        print(message)
+        logger.info(message)
         logger.warning(f"PDF reader not found: {message}")
-        print(f"   PDF salvo em: {pdf_path}")
+        logger.info(f"   PDF salvo em: {pdf_path}")
         return None
 
     # Configure Zathura if it's being used and auto-config is enabled
@@ -179,24 +182,24 @@ def open_pdf_reader(pdf_path: Path) -> subprocess.Popen | None:
     except FileNotFoundError as e:
         error_message = f"PDF reader executable not found: {reader}. Error: {e}"
         logger.error(error_message)
-        print(f"⚠️  Erro: {error_message}")
-        print(f"   PDF salvo em: {pdf_path}")
+        logger.info(f"⚠️  Erro: {error_message}")
+        logger.info(f"   PDF salvo em: {pdf_path}")
         return None
     except subprocess.TimeoutExpired:
         error_message = f"PDF reader {reader} took too long to launch."
         logger.error(error_message)
-        print(f"⚠️  Erro: {error_message}")
-        print(f"   PDF salvo em: {pdf_path}")
+        logger.info(f"⚠️  Erro: {error_message}")
+        logger.info(f"   PDF salvo em: {pdf_path}")
         return None
     except subprocess.CalledProcessError as e:
         error_message = f"PDF reader {reader} exited with error code {e.returncode}. Error: {e}"
         logger.error(error_message)
-        print(f"⚠️  Erro: {error_message}")
-        print(f"   PDF salvo em: {pdf_path}")
+        logger.info(f"⚠️  Erro: {error_message}")
+        logger.info(f"   PDF salvo em: {pdf_path}")
         return None
     except Exception as e:
         error_message = f"Unexpected error launching {reader}. Error: {e}"
         logger.error(error_message)
-        print(f"⚠️  Erro ao abrir {reader}: {e}")
-        print(f"   PDF salvo em: {pdf_path}")
+        logger.info(f"⚠️  Erro ao abrir {reader}: {e}")
+        logger.info(f"   PDF salvo em: {pdf_path}")
         return None

@@ -22,12 +22,15 @@ from services.anime.playback_service import (
     navigate_episodes,
     PlaybackContext,
 )
+from utils.logging import get_logger
 from services.anime.download_service import AnimeDownloadService
 from services.anime.aniskip_service import AniSkipService
 from services.anime.playback_fallback import play_episode_with_fallback
 from ui.components import loading, menu_navigate
 from utils.video_player import VideoPlayer
 from utils.episode_range_parser import parse_episode_range, RangeParseError
+
+logger = get_logger(__name__)
 
 
 def format_episode_list_with_skip(
@@ -83,9 +86,9 @@ def handle_anime_download(ctx: "PlaybackContext", args) -> None:
         ctx: Current playback context
         args: Command-line arguments
     """
-    print("\n📥 Baixar episódios para assistir depois")
-    print(f"   Anime: {ctx.anime_title}")
-    print(f"   Total de episódios: {ctx.num_episodes}")
+    logger.info("\n📥 Baixar episódios para assistir depois")
+    logger.info(f"   Anime: {ctx.anime_title}")
+    logger.info(f"   Total de episódios: {ctx.num_episodes}")
 
     # Calculate default range (next unwatched to end)
     # ctx.episode_idx is 0-indexed, so next episode is episode_idx + 2
@@ -94,7 +97,7 @@ def handle_anime_download(ctx: "PlaybackContext", args) -> None:
         next_episode = ctx.num_episodes
 
     default_range = f"{next_episode}-"
-    print(f"   Padrão: {default_range} (do episódio {next_episode} até o fim)\n")
+    logger.info(f"   Padrão: {default_range} (do episódio {next_episode} até o fim)\n")
 
     # Prompt for range
     try:
@@ -103,12 +106,12 @@ def handle_anime_download(ctx: "PlaybackContext", args) -> None:
         # If empty, use default (next unwatched to end)
         if not range_input:
             range_input = default_range
-            print(f"   Usando: {range_input}")
+            logger.info(f"   Usando: {range_input}")
 
         # Parse range
         episodes = parse_episode_range(range_input, ctx.num_episodes)
     except RangeParseError as e:
-        print(f"❌ {e}")
+        logger.info(f"❌ {e}")
         return
 
     # Initialize download service
@@ -125,7 +128,7 @@ def handle_anime_download(ctx: "PlaybackContext", args) -> None:
         return None
 
     # Download episodes
-    print(f"\n⏳ Baixando {len(episodes)} episódio(s)...")
+    logger.info(f"\n⏳ Baixando {len(episodes)} episódio(s)...")
     try:
         with loading(f"Baixando {len(episodes)} episódio(s)..."):
             result = service.download_episodes(
@@ -136,13 +139,13 @@ def handle_anime_download(ctx: "PlaybackContext", args) -> None:
             )
 
         # Show result
-        print(f"\n{result.summary}")
+        logger.info(f"\n{result.summary}")
 
         if result.successful > 0:
-            print(f"✅ {result.successful} episódio(s) baixado(s) com sucesso!")
-            print(f"   Localização: {service.download_dir / ctx.anime_title}")
+            logger.info(f"✅ {result.successful} episódio(s) baixado(s) com sucesso!")
+            logger.info(f"   Localização: {service.download_dir / ctx.anime_title}")
     except Exception as e:
-        print(f"❌ Erro ao baixar: {e}")
+        logger.info(f"❌ Erro ao baixar: {e}")
 
 
 def handle_post_playback_confirmation(
@@ -196,7 +199,7 @@ def handle_post_playback_confirmation(
                 anilist_id, episode_number, num_episodes, anime_title
             )
             if success:
-                print("✅ Progresso salvo no AniList!")
+                logger.info("✅ Progresso salvo no AniList!")
 
                 # Delete local file after successful sync (if configured)
                 if is_local and file_path:
@@ -208,12 +211,12 @@ def handle_post_playback_confirmation(
                             service = LocalAnimeService()
                             deleted = service.delete_episode(anime_title, episode_number)
                             if deleted:
-                                print(f"🗑️  Arquivo local deletado (episódio {episode_number})")
+                                logger.info(f"🗑️  Arquivo local deletado (episódio {episode_number})")
                         except Exception as e:
-                            print(f"⚠️  Erro ao deletar arquivo: {e}")
+                            logger.info(f"⚠️  Erro ao deletar arquivo: {e}")
             else:
-                print("⚠️  Não foi possível salvar no AniList")
-                print("   Será sincronizado quando estiver online.")
+                logger.info("⚠️  Não foi possível salvar no AniList")
+                logger.info("   Será sincronizado quando estiver online.")
 
                 # Queue for offline sync
                 from services.anime.offline_sync_service import add_to_queue
@@ -237,9 +240,9 @@ def handle_post_playback_confirmation(
                         service = LocalAnimeService()
                         deleted = service.delete_episode(anime_title, episode_number)
                         if deleted:
-                            print(f"🗑️  Arquivo local deletado (episódio {episode_number})")
+                            logger.info(f"🗑️  Arquivo local deletado (episódio {episode_number})")
                     except Exception as e:
-                        print(f"⚠️  Erro ao deletar arquivo: {e}")
+                        logger.info(f"⚠️  Erro ao deletar arquivo: {e}")
 
     return confirmed
 
@@ -300,9 +303,9 @@ def anime(args) -> None:
 
     # Display AniList discovery info if found
     if ctx.anilist_title:
-        print(f"✅ Encontrado: {ctx.anilist_title}")
+        logger.info(f"✅ Encontrado: {ctx.anilist_title}")
     else:
-        print("⚠️  Não foi possível encontrar no AniList (continuando sem sincronização)")
+        logger.info("⚠️  Não foi possível encontrar no AniList (continuando sem sincronização)")
 
     # Initialize video player for this session
     player = VideoPlayer()
@@ -322,48 +325,48 @@ def anime(args) -> None:
             if url_result.success and url_result.player_url:
                 # Found direct URL - use it as single source
                 sources = [(url_result.player_url, url_result.source or "unknown")]
-                print(
+                logger.info(
                     f"[DEBUG] Using direct URL from get_episode_url_and_source: {url_result.player_url[:80]}..."
                 )
             else:
-                print(
+                logger.info(
                     f"[DEBUG] get_episode_url_and_source failed (success={url_result.success}), using fallback"
                 )
                 # Get all available episode page URLs for fallback
                 page_sources = rep.get_all_episode_sources(ctx.anime_title, episode)
-                print(f"[DEBUG] Found {len(page_sources)} page sources")
+                logger.info(f"[DEBUG] Found {len(page_sources)} page sources")
 
                 # For each page URL, extract the actual video URL
                 sources = []
                 for page_url, source_name in page_sources:
-                    print(
+                    logger.info(
                         f"[DEBUG] Extracting video URL from {source_name} page: {page_url[:80]}..."
                     )
                     try:
                         # Extract video URL from the episode page using search_player_src
                         video_url = rep.search_player_from_page(page_url, source_name)
                         if video_url:
-                            print(
+                            logger.info(
                                 f"[DEBUG] SUCCESS: Got video URL from {source_name}: {video_url[:80]}..."
                             )
                             sources.append((video_url, source_name))
                         else:
-                            print(
+                            logger.info(
                                 f"[DEBUG] FAILED: search_player_from_page returned None for {source_name}"
                             )
                     except Exception as e:
-                        print(f"[DEBUG] EXCEPTION extracting from {source_name}: {e}")
+                        logger.info(f"[DEBUG] EXCEPTION extracting from {source_name}: {e}")
                         # Continue trying other sources on failure
                         continue
 
                 # Filter out empty URLs
                 sources = [(url, source) for url, source in sources if url and source]
-                print(f"[DEBUG] Final sources count: {len(sources)}")
+                logger.info(f"[DEBUG] Final sources count: {len(sources)}")
 
         if not sources:
-            print("\n❌ Nenhuma fonte conseguiu extrair o video.")
-            print("   💡 O episódio pode estar indisponível em todas as fontes.")
-            print("   💡 Tente outro episódio ou espere e tente novamente mais tarde.\n")
+            logger.info("\n❌ Nenhuma fonte conseguiu extrair o video.")
+            logger.info("   💡 O episódio pode estar indisponível em todas as fontes.")
+            logger.info("   💡 Tente outro episódio ou espere e tente novamente mais tarde.\n")
             continue
 
         # Use first source for initial display
@@ -386,17 +389,17 @@ def anime(args) -> None:
 
         progress_info = get_episode_progress_info(episode, ctx.num_episodes, anilist_result)
 
-        print(f"\n▶️  Iniciando reprodução do episódio {progress_info.progress_str}...")
+        logger.info(f"\n▶️  Iniciando reprodução do episódio {progress_info.progress_str}...")
         if len(sources) > 1:
-            print(f"   Fontes disponíveis: {', '.join(s[1] for s in sources)}")
+            logger.info(f"   Fontes disponíveis: {', '.join(s[1] for s in sources)}")
         else:
-            print(f"   Fonte: {initial_source}")
-        print(f"   URL: {sources[0][0][:80]}{'...' if len(sources[0][0]) > 80 else ''}\n")
+            logger.info(f"   Fonte: {initial_source}")
+        logger.info(f"   URL: {sources[0][0][:80]}{'...' if len(sources[0][0]) > 80 else ''}\n")
 
         # Fetch skip times if enabled
         skip_times = None
         if ctx.skip_enabled:
-            print("\n⏩ Auto-skip ATIVADO - buscando tempos de intro/outro...")
+            logger.info("\n⏩ Auto-skip ATIVADO - buscando tempos de intro/outro...")
             aniskip = AniSkipService()
             mal_id = ctx.mal_id
 
@@ -404,18 +407,18 @@ def anime(args) -> None:
             if not mal_id and ctx.anilist_title:
                 # Extract clean title (before " / " if bilingual format)
                 search_title = ctx.anilist_title.split(" / ")[0].strip()
-                print(f"   🔍 MAL ID não encontrado em AniList, procurando por '{search_title}'...")
+                logger.info(f"   🔍 MAL ID não encontrado em AniList, procurando por '{search_title}'...")
                 mal_id = aniskip.search_mal_id(search_title)
                 if mal_id:
-                    print(f"   ✅ MAL ID encontrado: {mal_id}")
+                    logger.info(f"   ✅ MAL ID encontrado: {mal_id}")
                 else:
-                    print(f"   ❌ MAL ID não encontrado para '{search_title}'")
+                    logger.info(f"   ❌ MAL ID não encontrado para '{search_title}'")
             elif mal_id:
-                print(f"   ✅ Usando MAL ID do AniList: {mal_id}")
+                logger.info(f"   ✅ Usando MAL ID do AniList: {mal_id}")
 
             if mal_id:
                 try:
-                    print(f"   🎬 Buscando skip times para episódio {episode}...")
+                    logger.info(f"   🎬 Buscando skip times para episódio {episode}...")
                     skip_times = aniskip.get_skip_times(mal_id, episode)
                     if skip_times:
                         op_duration = (
@@ -439,13 +442,13 @@ def anime(args) -> None:
                                 f"ED: {skip_times.ed_start:.1f}s-{skip_times.ed_end:.1f}s ({ed_duration:.1f}s)"
                             )
 
-                        print(f"   ✅ Encontrados: {' | '.join(log_parts)}")
+                        logger.info(f"   ✅ Encontrados: {' | '.join(log_parts)}")
                     else:
-                        print("   ℹ️  Sem skip times disponível para este episódio")
+                        logger.info("   ℹ️  Sem skip times disponível para este episódio")
                 except Exception as e:
-                    print(f"   ⚠️  Erro ao buscar skip times: {e}")
+                    logger.info(f"   ⚠️  Erro ao buscar skip times: {e}")
             else:
-                print("   ℹ️  MAL ID não disponível, skip desativado para este episódio")
+                logger.info("   ℹ️  MAL ID não disponível, skip desativado para este episódio")
 
         # Use fallback logic to try each source in priority order
         fallback_result = play_episode_with_fallback(
@@ -472,32 +475,32 @@ def anime(args) -> None:
 
         # Show appropriate message based on playback outcome
         if exit_code == 0:
-            print(f"\n✅ Reprodução concluída (Fonte: {source_used})")
+            logger.info(f"\n✅ Reprodução concluída (Fonte: {source_used})")
         elif exit_code == 3:
-            print("\n⏸️  Reprodução interrompida pelo usuário")
+            logger.info("\n⏸️  Reprodução interrompida pelo usuário")
         elif all_failed:
-            print("\n❌ Nenhuma fonte conseguiu reproduzir o episódio")
+            logger.info("\n❌ Nenhuma fonte conseguiu reproduzir o episódio")
             sources_tried = ", ".join(f"{source}" for _, source in fallback_result.sources_tried)
-            print(f"   Fontes tentadas: {sources_tried}")
-            print("   💡 Tente trocar de fonte manualmente ou verifique sua conexão.")
+            logger.info(f"   Fontes tentadas: {sources_tried}")
+            logger.info("   💡 Tente trocar de fonte manualmente ou verifique sua conexão.")
         else:
-            print(f"\n⚠️  Erro ao reproduzir (código: {exit_code})")
+            logger.info(f"\n⚠️  Erro ao reproduzir (código: {exit_code})")
 
-        print("\n📊 Reprodução encerrada:")
-        print(f"   Exit code: {exit_code}")
-        print(f"   Ação: {playback_result.action}")
+        logger.info("\n📊 Reprodução encerrada:")
+        logger.info(f"   Exit code: {exit_code}")
+        logger.info(f"   Ação: {playback_result.action}")
 
         # Log MPV exit code if it's not a normal exit
         if exit_code not in [0, 3]:  # 0=normal, 3=user quit with 'q'
-            print(f"\n⚠️  MPV exit code: {exit_code}")
+            logger.info(f"\n⚠️  MPV exit code: {exit_code}")
             if exit_code == 2:
-                print("    (Possível erro ao reproduzir ou janela fechada)")
+                logger.info("    (Possível erro ao reproduzir ou janela fechada)")
 
         # Only clear terminal if playback was successful
         # If there was an error, keep messages visible for user to read
         if exit_code != 0:
             # Error occurred - give user time to see error messages
-            print("\n⏳ Pressione Enter para continuar...")
+            logger.info("\n⏳ Pressione Enter para continuar...")
             try:
                 input()
             except (EOFError, KeyboardInterrupt):
