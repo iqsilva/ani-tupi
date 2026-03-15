@@ -36,11 +36,11 @@
 
 ## Tasks
 
-- [ ] **T01: Extend logging.py with JSON format, rotation, and masking**
-  Setup loguru to output JSON to debug.log with rotation, implement sensitive data masking patterns.
+- [x] **T01: Extend logging.py with JSON format, rotation, and masking**
+  Setup loguru to output JSON to debug.log with rotation, implement sensitive data masking patterns. ✅ DONE
 
-- [ ] **T02: Wire --debug flag to logging in main.py**
-  Call configure_logging(args.debug) at startup so flag activates logging.
+- [x] **T02: Wire --debug flag to logging in main.py**
+  Call configure_logging(args.debug) at startup so flag activates logging. ✅ DONE
 
 - [ ] **T03: Write unit tests for logging config and masking**
   Verify JSON format, rotation, and all credential types are masked.

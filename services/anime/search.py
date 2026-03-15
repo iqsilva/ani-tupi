@@ -517,7 +517,7 @@ def search_anime_flow(args):
     cache_data = get_cache(query)
     selected_anime = None
     if cache_data:
-        print(f"ℹ️  Usando cache ({cache_data.episode_count} eps disponíveis)")
+        logger.info(f"Usando cache ({cache_data.episode_count} eps disponíveis)")
         # Populate repository from cache
         rep.load_from_cache(query, cache_data)
 
@@ -549,18 +549,18 @@ def search_anime_flow(args):
                 cache_age_str = ""
                 if search_metadata.cache_age_seconds is not None:
                     cache_age_str = f", {search_metadata.cache_age_seconds}s atrás"
-                print(f"🟢 Cache '{used_query}'{cache_age_str}")
+                logger.info(f"Cache '{used_query}'{cache_age_str}")
                 if search_metadata.total_execution_time_ms > 0:
-                    print(f"   ⏱️  {search_metadata.total_execution_time_ms}ms")
+                    logger.debug(f"Execution time: {search_metadata.total_execution_time_ms}ms")
             elif search_metadata.source == "scraper":
                 sources_str = (
                     ", ".join(search_metadata.scraper_sources)
                     if search_metadata.scraper_sources
                     else "desconhecido"
                 )
-                print(f"🌐 Scraper '{used_query}' ({sources_str})")
+                logger.info(f"Scraper '{used_query}' ({sources_str})")
                 if search_metadata.total_execution_time_ms > 0:
-                    print(f"   ⏱️  {search_metadata.total_execution_time_ms}ms")
+                    logger.debug(f"Execution time: {search_metadata.total_execution_time_ms}ms")
 
             # Try to get AniList match to rank results by romaji name
             ranking_query = used_query
