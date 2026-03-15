@@ -134,6 +134,11 @@ def cli() -> None:
 
     args = parser.parse_args()
 
+    # Configure logging early, before any other imports or operations
+    from utils.logging import configure_logging
+
+    configure_logging(debug=args.debug)
+
     # Load plugins once at startup
     loader.load_plugins({"pt-br"})  # type: ignore
 
