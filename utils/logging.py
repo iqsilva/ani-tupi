@@ -126,9 +126,6 @@ def configure_logging(debug: bool = False) -> None:
     # Remove default handler
     _base_logger.remove()
 
-    # Add sensitive data filter to all handlers
-    _base_logger.add(SensitiveDataFilter())
-
     # Console handler (WARNING by default, DEBUG if debug=True)
     console_level = "DEBUG" if debug else "WARNING"
     _base_logger.add(
