@@ -165,48 +165,42 @@ class TestMangaReader:
             mock_logger.error.assert_not_called()
 
     @patch("utils.manga_reader.find_pdf_reader", return_value=None)
-    @patch("builtins.print")
     @patch("utils.manga_reader.logger")
-    def test_open_pdf_reader_no_reader_found(
-        self, mock_logger, mock_print, mock_find_reader, temp_pdf_file
-    ):
+    def test_open_pdf_reader_no_reader_found(self, mock_logger, mock_find_reader, temp_pdf_file):
         """Should print error and return None if no reader found."""
         process = open_pdf_reader(temp_pdf_file)
         assert process is None
         mock_find_reader.assert_called_once()
-        mock_print.assert_any_call(
+        mock_logger.info.assert_any_call(
             "⚠️  Nenhum leitor de PDF encontrado.\n"
             "   Instale um destes: zathura, evince, okular, ou mupdf\n"
             "   Ou configure manualmente: export ANI_TUPI__MANGA__PDF_READER=seu_leitor"
         )
-        mock_print.assert_any_call(f"   PDF salvo em: {temp_pdf_file}")
+        mock_logger.info.assert_any_call(f"   PDF salvo em: {temp_pdf_file}")
         mock_logger.warning.assert_called_once()
         mock_logger.error.assert_not_called()
 
     @patch("subprocess.Popen", side_effect=FileNotFoundError("reader not found"))
     @patch("utils.manga_reader.find_pdf_reader", return_value="zathura")
-    @patch("builtins.print")
     @patch("utils.manga_reader.logger")
     def test_open_pdf_reader_popen_filenotfound(
-        self, mock_logger, mock_print, mock_find_reader, mock_popen, temp_pdf_file
+        self, mock_logger, mock_find_reader, mock_popen, temp_pdf_file
     ):
         """Should handle FileNotFoundError from Popen."""
         process = open_pdf_reader(temp_pdf_file)
         assert process is None
-        mock_print.assert_any_call(
+        mock_logger.info.assert_any_call(
             "⚠️  Erro: PDF reader executable not found: zathura. Error: reader not found"
         )
-        mock_print.assert_any_call(f"   PDF salvo em: {temp_pdf_file}")
+        mock_logger.info.assert_any_call(f"   PDF salvo em: {temp_pdf_file}")
         mock_logger.error.assert_called_once()
 
     @patch("subprocess.Popen", side_effect=subprocess.CalledProcessError(1, "cmd"))
     @patch("utils.manga_reader.find_pdf_reader", return_value="zathura")
-    @patch("builtins.print")
     @patch("utils.manga_reader.logger")
     def test_open_pdf_reader_popen_calledprocesserror(
         self,
         mock_logger,
-        mock_print,
         mock_find_reader,
         mock_popen,
         temp_pdf_file,
@@ -214,20 +208,18 @@ class TestMangaReader:
         """Should handle CalledProcessError from Popen."""
         process = open_pdf_reader(temp_pdf_file)
         assert process is None
-        mock_print.assert_any_call(
+        mock_logger.info.assert_any_call(
             "⚠️  Erro: PDF reader zathura exited with error code 1. Error: Command 'cmd' returned non-zero exit status 1."
         )
-        mock_print.assert_any_call(f"   PDF salvo em: {temp_pdf_file}")
+        mock_logger.info.assert_any_call(f"   PDF salvo em: {temp_pdf_file}")
         mock_logger.error.assert_called_once()
 
     @patch("subprocess.Popen", side_effect=subprocess.TimeoutExpired("cmd", 1))
     @patch("utils.manga_reader.find_pdf_reader", return_value="zathura")
-    @patch("builtins.print")
     @patch("utils.manga_reader.logger")
     def test_open_pdf_reader_popen_timeoutexpired(
         self,
         mock_logger,
-        mock_print,
         mock_find_reader,
         mock_popen,
         temp_pdf_file,
@@ -235,6 +227,6 @@ class TestMangaReader:
         """Should handle TimeoutExpired from Popen."""
         process = open_pdf_reader(temp_pdf_file)
         assert process is None
-        mock_print.assert_any_call("⚠️  Erro: PDF reader zathura took too long to launch.")
-        mock_print.assert_any_call(f"   PDF salvo em: {temp_pdf_file}")
+        mock_logger.info.assert_any_call("⚠️  Erro: PDF reader zathura took too long to launch.")
+        mock_logger.info.assert_any_call(f"   PDF salvo em: {temp_pdf_file}")
         mock_logger.error.assert_called_once()
