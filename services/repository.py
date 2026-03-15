@@ -183,7 +183,9 @@ class Repository:
             results_found = len(self.anime_to_urls)
             if results_found > 0:
                 if verbose and num_words < len(words):
-                    logger.info(f"ℹ️  Busca com: '{partial_query}' ({num_words}/{len(words)} palavras)")
+                    logger.info(
+                        f"ℹ️  Busca com: '{partial_query}' ({num_words}/{len(words)} palavras)"
+                    )
                 # Store metadata about the search
                 scraper_execution_time_ms = int((time.time() - scraper_execution_start) * 1000)
                 total_time_ms = int((time.time() - search_start_time) * 1000)

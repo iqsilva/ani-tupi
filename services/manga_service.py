@@ -648,7 +648,9 @@ class UnifiedMangaService:
             known_source = self._get_known_plugin_for_manga(manga_id)
             if known_source and known_source != source_name:
                 try:
-                    logger.info(f"⚠️  Falha em {source_name}, tentando fonte conhecida {known_source}...")
+                    logger.info(
+                        f"⚠️  Falha em {source_name}, tentando fonte conhecida {known_source}..."
+                    )
                     return self._get_chapters_from_source(manga_id, manga_url, known_source)
                 except Exception:
                     pass

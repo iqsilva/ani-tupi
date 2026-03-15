@@ -216,7 +216,9 @@ def load_history() -> tuple[str, int, int | None, str | None] | None:
             was_found = len(anime_titles) > 0
 
             if was_found:
-                logger.info(f"\n⚠️  '{anime}' foi encontrado mas nenhuma fonte tem episódios disponíveis.")
+                logger.info(
+                    f"\n⚠️  '{anime}' foi encontrado mas nenhuma fonte tem episódios disponíveis."
+                )
                 logger.info("\nPossíveis motivos:")
                 logger.info("  • O anime foi removido temporariamente")
                 logger.info("  • Os episódios ainda não foram adicionados")

@@ -211,7 +211,9 @@ def handle_post_playback_confirmation(
                             service = LocalAnimeService()
                             deleted = service.delete_episode(anime_title, episode_number)
                             if deleted:
-                                logger.info(f"🗑️  Arquivo local deletado (episódio {episode_number})")
+                                logger.info(
+                                    f"🗑️  Arquivo local deletado (episódio {episode_number})"
+                                )
                         except Exception as e:
                             logger.info(f"⚠️  Erro ao deletar arquivo: {e}")
             else:
@@ -407,7 +409,9 @@ def anime(args) -> None:
             if not mal_id and ctx.anilist_title:
                 # Extract clean title (before " / " if bilingual format)
                 search_title = ctx.anilist_title.split(" / ")[0].strip()
-                logger.info(f"   🔍 MAL ID não encontrado em AniList, procurando por '{search_title}'...")
+                logger.info(
+                    f"   🔍 MAL ID não encontrado em AniList, procurando por '{search_title}'..."
+                )
                 mal_id = aniskip.search_mal_id(search_title)
                 if mal_id:
                     logger.info(f"   ✅ MAL ID encontrado: {mal_id}")

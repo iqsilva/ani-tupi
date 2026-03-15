@@ -807,7 +807,9 @@ shift+t script-message toggle-sub-dub
                                                     prev_episode_number
                                                 )
                                                 episode_context["url"] = prev_url
-                                                logger.info(f"⏪ Voltando para Episódio {progress_str}")
+                                                logger.info(
+                                                    f"⏪ Voltando para Episódio {progress_str}"
+                                                )
 
                                                 # Fetch skip times dynamically for previous episode
                                                 mal_id = episode_context.get("mal_id")
@@ -941,7 +943,9 @@ shift+t script-message toggle-sub-dub
                         source=source,
                         anilist_id=anilist_id,
                     )
-                logger.info(f"▶️  Auto-play ativo: marcando Episódio {episode_number} como assistido")
+                logger.info(
+                    f"▶️  Auto-play ativo: marcando Episódio {episode_number} como assistido"
+                )
                 return VideoPlaybackResult(
                     exit_code=exit_code,
                     action="auto-next",

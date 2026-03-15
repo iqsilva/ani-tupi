@@ -511,11 +511,15 @@ def _continue_manga_flow(
         if recommended_chapter:
             # Verify chapter has a URL before attempting to read
             if not recommended_chapter.url:
-                logger.info(f"⚠️  Capítulo {recommended_chapter_num} não disponível em {selected_source}.")
+                logger.info(
+                    f"⚠️  Capítulo {recommended_chapter_num} não disponível em {selected_source}."
+                )
                 logger.info("   Capítulo não disponível nesta fonte. Mostrando lista completa...")
                 # Fall back to normal chapter selection (continue to menu below)
             else:
-                logger.info(f"✓ Capítulo {recommended_chapter_num} encontrado. Iniciando leitura...")
+                logger.info(
+                    f"✓ Capítulo {recommended_chapter_num} encontrado. Iniciando leitura..."
+                )
                 # Go directly to read now action
                 _handle_read_now(
                     service,
@@ -1264,7 +1268,9 @@ def _process_chapter(
 
                         folder = pdf_path.parent
                         shutil.rmtree(folder)
-                        logger.info("✓ Capítulo deletado automaticamente: economizando espaço em disco")
+                        logger.info(
+                            "✓ Capítulo deletado automaticamente: economizando espaço em disco"
+                        )
                     except Exception as e:
                         logger.info(f"⚠️  Não foi possível deletar capítulo automaticamente: {e}")
             else:

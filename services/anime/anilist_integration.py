@@ -197,7 +197,9 @@ def offer_sequel_and_continue(
                     # Add to Planning list without searching for episodes
                     success = anilist_client.add_to_list(selected_sequel.id, Status.PLANNING)
                     if success:
-                        logger.info(f"\n✅ {sequel_title} adicionado à sua lista de 'Planejo Assistir'!")
+                        logger.info(
+                            f"\n✅ {sequel_title} adicionado à sua lista de 'Planejo Assistir'!"
+                        )
                     else:
                         logger.info(f"\n❌ Erro ao adicionar {sequel_title} à sua lista.")
                     return False
@@ -847,7 +849,9 @@ def anilist_anime_flow(
                             }
                         else:
                             # Episode not found in homepage results
-                            logger.info(f"\n❌ Episódio {target_ep_num} não encontrado no AnimesDigital.")
+                            logger.info(
+                                f"\n❌ Episódio {target_ep_num} não encontrado no AnimesDigital."
+                            )
                             input("\nPressione Enter para voltar...")
                             return
                     else:
@@ -1031,7 +1035,9 @@ def anilist_anime_flow(
                             "⏩ Skip times carregados (intro/outro serão pulados automaticamente)"
                         )
                     else:
-                        logger.info(f"ℹ️  Sem skip times disponíveis (MAL ID: {mal_id}, Ep: {episode})")
+                        logger.info(
+                            f"ℹ️  Sem skip times disponíveis (MAL ID: {mal_id}, Ep: {episode})"
+                        )
                 except Exception as e:
                     logger.info(f"⚠️  Falha ao carregar skip times: {e}")
             else:
@@ -1247,7 +1253,9 @@ def anilist_anime_flow(
                         entry = anilist_client.get_media_list_entry(anilist_id)
                         if entry:
                             if entry.status == "PLANNING":
-                                logger.info("\n📝 Movendo de 'Planejo Assistir' para 'Assistindo'...")
+                                logger.info(
+                                    "\n📝 Movendo de 'Planejo Assistir' para 'Assistindo'..."
+                                )
                                 anilist_client.add_to_list(anilist_id, "CURRENT")
                             elif entry.status == "CURRENT":
                                 # If finishing last episode of a watched anime, mark as completed

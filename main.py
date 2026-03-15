@@ -188,7 +188,9 @@ def cli() -> None:
             anilist_id = auto_discover_anilist_id(args.clear_cache)
             if anilist_id:
                 clear_cache_by_prefix(f":{anilist_id}:")
-                logger.info(f"✅ Cache de '{args.clear_cache}' (AniList ID {anilist_id}) foi limpo!")
+                logger.info(
+                    f"✅ Cache de '{args.clear_cache}' (AniList ID {anilist_id}) foi limpo!"
+                )
             else:
                 # Fallback: clear by title prefix
                 clear_cache_by_prefix(f":{args.clear_cache}:")

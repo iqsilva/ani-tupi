@@ -294,7 +294,9 @@ def handle_random_anime(args) -> None:
     available_anime = service.filter_excluding_completed(anime_list)
 
     if not available_anime:
-        logger.info("❌ Você não tem anime disponível para sortear (todos Completed ou em lançamento)")
+        logger.info(
+            "❌ Você não tem anime disponível para sortear (todos Completed ou em lançamento)"
+        )
         return
 
     random.shuffle(available_anime)
