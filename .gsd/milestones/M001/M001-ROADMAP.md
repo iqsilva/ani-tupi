@@ -54,13 +54,13 @@ This milestone is complete only when all are true:
 
 ## Slices
 
-- [ ] **S01: Logging Infrastructure Setup** `risk:low` `depends:[]`
+- [x] **S01: Logging Infrastructure Setup** `risk:low` `depends:[]`
   > After this: `--debug` flag routes to loguru; JSON format configured with rotation; debug.log exists at correct path; sensitive data masking tested and working; no integration yet
 
-- [ ] **S02: Print Statement Replacement** `risk:medium` `depends:[S01]`
+- [x] **S02: Print Statement Replacement** `risk:medium` `depends:[S01]`
   > After this: All 2400+ print() calls replaced with loguru logger calls; grep confirms no remaining print() in business logic; UI output preserved unchanged
 
-- [ ] **S03: Integration & Verification** `risk:low` `depends:[S02]`
+- [x] **S03: Integration & Verification** `risk:low` `depends:[S02]`
   > After this: End-to-end anime search produces complete debug trace in JSON; agent can read log and understand full app behavior; rotation works; all success criteria verified
 
 ## Boundary Map
