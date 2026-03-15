@@ -505,11 +505,7 @@ def search_anime_flow(args):
     # (Repository is singleton, so it keeps data between calls)
     rep.clear_search_results()
 
-    query = (
-        (input("\n🔍 Pesquise anime: ") if not args.query else args.query)
-        if not args.debug
-        else "eva"
-    )
+    query = input("\n🔍 Pesquise anime: ") if not args.query else args.query
 
     source = None
 
