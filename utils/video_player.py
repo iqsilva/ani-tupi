@@ -112,8 +112,8 @@ class VideoPlayer:
         }
 
         try:
-            logger.info(f"\n[PLAYBACK DEBUG] Source={source} IPC={use_ipc}")
-            logger.info(f"[PLAYBACK DEBUG] Full URL: {url}")
+            logger.debug(f"Source={source} IPC={use_ipc}")
+            logger.debug(f"Full URL: {url}")
             # Generate socket path and input.conf
             socket_path = self._create_ipc_socket_path()
             input_conf_path, _ = self._generate_input_conf()
@@ -167,16 +167,16 @@ class VideoPlayer:
 
     def _play_video_legacy(self, url: str, debug: bool = False) -> VideoPlaybackResult:
         """Play video using legacy python-mpv blocking mode (fallback)."""
-        logger.info("[PLAYBACK DEBUG] _play_video_legacy called")
-        logger.info(f"[PLAYBACK DEBUG] Full URL: {url}")
+        logger.debug("_play_video_legacy called")
+        logger.debug(f"Full URL: {url}")
         if debug:
-            logger.info("DEBUG MODE: Skipping video playback")
+            logger.info("Skipping video playback")
             return VideoPlaybackResult(exit_code=0, action="quit", data=None)
 
         try:
-            logger.info("[PLAYBACK DEBUG] Calling play_video_raw...")
+            logger.debug("Calling play_video_raw...")
             exit_code = self.play_video_raw(url, debug=False)
-            logger.info(f"[PLAYBACK DEBUG] play_video_raw returned exit_code={exit_code}")
+            logger.debug(f"play_video_raw returned exit_code={exit_code}")
             return VideoPlaybackResult(exit_code=exit_code, action="quit", data=None)
         except Exception as e:
             logger.info(f"⚠️  Playback error: {e}")
@@ -184,8 +184,8 @@ class VideoPlayer:
 
     def play_video_raw(self, url: str, debug=False, ytdl_format: str | None = None) -> int:
         """Play video using python-mpv and return exit code."""
-        logger.info("[PLAYBACK DEBUG] play_video_raw: Starting")
-        logger.info(f"[PLAYBACK DEBUG] Full URL: {url}")
+        logger.debug("play_video_raw: Starting")
+        logger.debug(f"Full URL: {url}")
         if debug:
             logger.info("DEBUG MODE: Skipping video playback")
             return 0
@@ -198,7 +198,7 @@ class VideoPlayer:
         player = None
         try:
             # Create MPV instance with current settings
-            logger.info("[PLAYBACK DEBUG] play_video_raw: Creating MPV instance...")
+            logger.debug("play_video_raw: Creating MPV instance...")
             player = mpv.MPV(
                 fullscreen=True,
                 cursor_autohide_fs_only=True,
@@ -219,25 +219,25 @@ class VideoPlayer:
             )
 
             # Start playback (blocking)
-            logger.info("[PLAYBACK DEBUG] play_video_raw: Calling player.play()...")
+            logger.debug(" play_video_raw: Calling player.play()...")
             player.play(url)
-            logger.info("[PLAYBACK DEBUG] play_video_raw: Calling player.wait_for_playback()...")
+            logger.debug(" play_video_raw: Calling player.wait_for_playback()...")
             player.wait_for_playback()
-            logger.info("[PLAYBACK DEBUG] play_video_raw: Playback finished normally (exit code 0)")
+            logger.debug(" play_video_raw: Playback finished normally (exit code 0)")
 
             return 0  # Normal playback completion
 
         except mpv.ShutdownError:
             # User aborted (Ctrl+C or window close)
-            logger.info("[PLAYBACK DEBUG] play_video_raw: ShutdownError (user abort)")
+            logger.debug(" play_video_raw: ShutdownError (user abort)")
             return 3
         except FileNotFoundError as e:
-            logger.info("[PLAYBACK DEBUG] play_video_raw: MPV not found in PATH")
+            logger.debug(" play_video_raw: MPV not found in PATH")
             msg = "Error: 'mpv' is not installed or not found in the system PATH."
             raise OSError(msg) from e
         except Exception as e:
             # Playback error
-            logger.info(f"[PLAYBACK DEBUG] play_video_raw: Exception: {type(e).__name__}: {e}")
+            logger.debug(f" play_video_raw: Exception: {type(e).__name__}: {e}")
             logger.info(f"⚠️  MPV error: {e}")
             return 2
         finally:
@@ -508,8 +508,8 @@ shift+t script-message toggle-sub-dub
 
         mpv_args.append(url)
 
-        logger.info("[PLAYBACK DEBUG] MPV command line:")
-        logger.info(f"[PLAYBACK DEBUG] {' '.join(mpv_args)}")
+        logger.debug("[PLAYBACK DEBUG] MPV command line:")
+        logger.debug(f"[PLAYBACK DEBUG] {' '.join(mpv_args)}")
 
         try:
             debug_mode = os.environ.get("ANI_TUPI_DEBUG_MPV") == "1"
@@ -616,8 +616,8 @@ shift+t script-message toggle-sub-dub
 
         if not sock:
             url = episode_context.get("url", "")
-            logger.info("[PLAYBACK DEBUG] IPC socket failed, falling back to legacy.")
-            logger.info(f"[PLAYBACK DEBUG] Full URL for legacy fallback: {url}")
+            logger.debug("[PLAYBACK DEBUG] IPC socket failed, falling back to legacy.")
+            logger.debug(f"[PLAYBACK DEBUG] Full URL for legacy fallback: {url}")
             return self._play_video_legacy(url, debug=False)
 
         try:

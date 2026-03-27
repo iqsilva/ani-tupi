@@ -127,14 +127,23 @@ def configure_logging(debug: bool = False) -> None:
     # Remove default handler (clear previous configuration)
     _base_logger.remove()
 
-    # Console handler (WARNING by default, DEBUG if debug=True)
-    console_level = "DEBUG" if debug else "WARNING"
-    _base_logger.add(
-        sys.stderr,
-        format="<level>{level: <8}</level> | <cyan>{name}</cyan>:<cyan>{function}</cyan> - <level>{message}</level>",
-        level=console_level,
-        filter=SensitiveDataFilter(),
-    )
+    # Console handlers
+    if debug:
+        # Debug mode: show all levels with detailed format
+        _base_logger.add(
+            sys.stderr,
+            format="<level>{level: <8}</level> | <cyan>{name}</cyan>:<cyan>{function}</cyan> - <level>{message}</level>",
+            level="DEBUG",
+            filter=SensitiveDataFilter(),
+        )
+    else:
+        # User-friendly: show INFO+ with simple format
+        _base_logger.add(
+            sys.stderr,
+            format="<level>{level: <8}</level> {message}",
+            level="INFO",
+            filter=SensitiveDataFilter(),
+        )
 
     # Regular file handler with rotation (50MB per file, keep last 10 files)
     log_file = log_dir / "ani-tupi.log"

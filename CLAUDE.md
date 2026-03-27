@@ -1,91 +1,3 @@
-# CLAUDE.md
-
-Guidance for developing ani-tupi: a Brazilian Portuguese CLI for anime and manga with multi-source support, AniList integration, and external player support.
-
----
-
-## Workflow Orchestration
-
-**Everything starts with execution discipline.** These principles prevent mistakes, reduce rework, and ensure high-quality contributions.
-
-### Git Worktrees
-- Use worktrees for parallel development on independent features
-- Each worktree has its own branch, isolated from main working directory
-- Clean up worktrees when done to keep repository tidy
-- Create worktree on feature branch: isolates changes from main working directory
-- Test and iterate before pushing to avoid conflicts
-- Useful for testing CI/CD or working on multiple features simultaneously
-
-### 1. Plan Mode Default
-
-- **Enter plan mode for ANY non-trivial task** (3+ steps or architectural decisions)
-- Plan mode ensures alignment before implementation starts
-- Use plan mode for exploration and design verification
-- If something goes sideways, **STOP and re-plan immediately** — don't keep pushing
-- Use plan mode for verification steps, not just building
-- Write detailed specs upfront to reduce ambiguity
-
-### 2. Subagent Strategy
-
-- Use subagents liberally to keep main context window clean
-- Offload research, exploration, and parallel analysis to subagents
-- For complex problems, throw more compute at it via subagents
-- One task per subagent for focused execution
-
-### 3. Self-Improvement Loop
-
-- After ANY correction from the user, update `<spec-path>/lessons.md` with the pattern
-- Write rules for yourself that prevent the same mistake
-- Ruthlessly iterate on these lessons until mistake rate drops
-- Review lessons at session start for relevant project
-
-### 4. Verification Before Done
-
-- Never mark a task complete without proving it works
-- Diff behavior between main and your changes when relevant
-- Ask yourself: "Would a staff engineer approve this?"
-- Run tests, check logs, demonstrate correctness
-
-### 5. Demand Elegance (Balanced)
-
-- For non-trivial changes: pause and ask "is there a more elegant way?"
-- If a fix feels hacky: "Knowing what I know now, implement the elegant solution"
-- Skip this for simple, obvious fixes — don't over-engineer
-- Challenge your own work before presenting it
-
-### 6. Autonomous Bug Fixing
-
-- When given a bug report: just fix it. Don't ask for hand-holding
-- Point at logs, errors, failing tests — then resolve them
-- Zero context switching required from the user
-- Go fix failing CI tests without being told how
-
-### 7. Specification Discipline
-
-Ask these four clarifying questions before ANY implementation:
-
-1. **"What happens when it fails?"** — Define edge cases, error modes, and failure paths
-2. **"How do we know it's working?"** — Establish concrete acceptance criteria and verification methods
-3. **"What does 'done' look like?"** — Define exact completion criteria, not fuzzy statements
-4. **"Can you show me an example?"** — Ground discussions in concrete instances, not abstractions
-
-**Apply these principles:**
-- Use precise terminology over vague language (NOT "priority: high", YES "priority_level: 1"; NOT "timeout: short", YES "timeout_seconds: 30")
-- Require exact numbers/enums in specs, not relative language
-- Document edge cases explicitly (what breaks? what's unsupported?)
-- Design error paths before happy paths—assume failures will occur
-- For mission-critical specs affecting multiple components: state requirements at least twice using formal language, include concrete examples
-
-**Why?** Most failures happen because someone was afraid to ask an obvious question. Clarifying questions prevent half-understood requirements that waste effort later.
-
-### Core Execution Principles
-
-- **Simplicity First**: Make every change as simple as possible. Impact minimal code.
-- **No Laziness**: Find root causes. No temporary fixes. Senior developer standards. Design defensive architecture: error paths before happy paths, explicit edge case handling.
-- **Minimal Impact**: Changes should only touch what's necessary. Avoid introducing bugs.
-
----
-
 ## Core Values
 
 **Simplicity First**: Every feature should feel effortless to the user. Complex logic (incremental search, fuzzy matching, automatic syncing) runs invisibly.
@@ -237,25 +149,6 @@ Why Pydantic? Validation on entry (fail fast if scraper returns garbage), type h
 
 ---
 
-## Configuration
-
-All settings are environment variables. Use Pydantic as the source of truth:
-
-```bash
-ANI_TUPI__CACHE__DURATION_HOURS=48
-ANI_TUPI__MANGA__PDF_READER=zathura
-ANI_TUPI__LOG_LEVEL=debug
-```
-
-### Source Priority Configuration
-
-**Standard Priority** (used for all anime):
-```bash
-export ANI_TUPI__PLUGINS__PRIORITY_ORDER='["animesdigital", "goyabu", "animefire", "animesonlinecc"]'
-```
-
----
-
 ## How to Extend
 
 ### Add a New Scraper
@@ -312,128 +205,7 @@ def handle_new_command(args):
 ```
 
 2. Wire it in `main.py` argument parser, route to the function.
-
-### Modify AniList Integration
-
-AniList touches three places (because AniList is stateful—token, rate limits, cached queries):
-
-1. **API client**: `services/anilist_service.py`
-   - All GraphQL queries/mutations live here
-   - Handles rate limiting, token refresh
-
-2. **Discovery** (title mapping): `utils/anilist_discovery.py`
-   - Fuzzy-matches scraper titles to AniList IDs
-   - Caches winning matches in JSON
-
-3. **Commands**: `commands/anilist.py`
-   - User-facing flow: auth, list browsing, sync triggers
-
-To add a feature: modify 1 (add the API method), then 2–3 if title mapping is needed.
-
 ---
-
-## Features
-
-### Anime Download
-
-Download episodes for offline viewing. Episodes stored in `~/.local/share/ani-tupi/anime/` organized by title.
-
-**How to Download**:
-1. While watching, select "📥 Baixar para assistir depois"
-2. Enter episode range: `5`, `1-12`, `5-`, `-12`, or `5-15`
-3. Episodes download in parallel (respects `max_parallel_downloads` config, default: 2)
-4. Already-downloaded episodes are skipped automatically
-
-**Configuration**:
-```bash
-export ANI_TUPI__ANIME__MAX_PARALLEL_DOWNLOADS=4
-export ANI_TUPI__ANIME__DOWNLOAD_DIRECTORY="~/Videos/Anime"
-export ANI_TUPI__ANIME__VIDEO_FORMAT="mp4"
-```
-
-**Architecture**:
-- `AnimeDownloadService`: Orchestrates downloads with parallel queue and retry logic
-- `LocalAnimeService`: Scans and manages local library
-- Episodes stored in: `~/.local/share/ani-tupi/anime/{anime_title}/{episode_number}.mkv`
-- Metadata stored in: `~/.local/state/ani-tupi/anime_downloads.json`
-
-### Airing Episodes
-
-The "🎬 Novos Episódios" tab displays anime from your AniList watching list that have new episodes currently airing.
-
-**How to Access**:
-1. Open the AniList menu: `uv run ani-tupi`
-2. Select "🎬 Novos Episódios" (appears at top of authenticated menu)
-3. Browse anime sorted by urgency (most episodes behind first)
-4. Select an anime to start playback
-
-**Display Format**:
-```
-Jujutsu Kaisen - Ep 25 aired, você viu 22 (3 atrasado) ⭐82%
-Dandadan - Ep 18 aired, você viu 15 (3 atrasado) ⭐79%
-Blue Lock - Ep 11 aired, você viu 11 (0 atrasado) ⭐75%
-```
-
-**Architecture**:
-- `services/anime/airing_episodes_service.py`: Business logic (filtering, sorting, gap calculation)
-- `services/anilist/anime_operations.py`: GraphQL query `get_airing_episodes_for_watching()`
-- `models/models.py`: `AiringAnimeEntry` Pydantic model for display data
-
-**Testing**:
-```bash
-uv run pytest tests/test_airing_episodes_service.py tests/test_anilist_airing_query.py -v
-```
-
-### AniList Authentication (Headless Mode)
-
-Authentication works in all environments—local terminal, SSH session, container, or CI/CD pipeline. No browser required.
-
-**How It Works**:
-1. User runs `uv run ani-tupi` and selects AniList menu
-2. System displays authorization URL and prompts for token
-3. User visits URL in any browser (on same device or different machine)
-4. User authorizes the application
-5. User copies token from redirect URL and pastes into terminal
-6. Token is validated and stored locally
-
-**Authentication Flow**:
-```
-$ uv run ani-tupi
-[Select "Autenticar com AniList"]
-
-================================================
-🔐 AniList Authentication Required
-================================================
-
-1. Visit this URL in your browser:
-
-   https://anilist.co/api/v2/oauth/authorize?client_id=...&response_type=token
-
-2. Authorize the application
-3. Copy the access token from the URL (or from the page)
-4. Paste it below when prompted
-
-Paste token here: ••••••••••••••••••••
-✅ Authentication successful! Welcome, YourName!
-```
-
-**Token Input**:
-- Token input is masked with `●●●●` characters for security (uses Python's `getpass`)
-- Supports raw tokens or full URLs with token fragment
-- Validates token by making test GraphQL query to AniList
-- Auto-retries up to 3 times on invalid token
-
-**Troubleshooting Auth Failures**:
-- **"Token validation failed"**: Token is expired, revoked, or malformed. Get a fresh token from the auth URL.
-- **"Invalid token format"**: User may have copied partial token. Try copying the full URL from browser address bar.
-- **Network error during validation**: Check internet connection and retry. Auth succeeds only if token validates with AniList API.
-- **Token in SSH session**: Works the same—open auth URL on local computer, copy token, paste in SSH terminal.
-
-**Architecture**:
-- `services/anilist/client.py`: `authenticate()` method handles headless flow
-- `utils/headless_detector.py`: `get_token_from_user()` displays URL and prompts for input
-- Token stored in: `~/.local/state/ani-tupi/anilist_token.json`
-- Token includes: `access_token` and `user_id` (for faster queries)
 
 **Testing**:
 ```bash
@@ -444,17 +216,6 @@ uv run pytest tests/test_anilist_authentication.py -v
 
 ## Development Workflow
 
-**Setup**:
-```bash
-uv sync
-```
-
-**Run**:
-```bash
-uv run ani-tupi                          # Anime CLI
-uv run manga_tupi                        # Manga CLI
-uv run main.py --debug                   # Enable debug logging
-```
 
 **Quality**:
 ```bash
@@ -471,20 +232,9 @@ uv remove package-name                   # Remove dependency
 uv sync --upgrade                        # Update all
 ```
 
-**Release and Versioning**:
-
-Versions are automatically bumped based on conventional commit messages using semantic versioning (MAJOR.MINOR.PATCH). The release workflow runs automatically when commits are pushed to main after CI passes.
-
-```bash
-# Commits that trigger version bumps:
-feat: ...          # Bumps MINOR (0.1.0 → 0.2.0)
-fix: ...           # Bumps PATCH (0.1.0 → 0.1.1)
-BREAKING CHANGE:   # Bumps MAJOR (0.1.0 → 1.0.0)
-```
-
 **How to Use**:
 
-Just write conventional commits and push to main/master:
+Just write conventional commits and push to branch:
 
 ```bash
 # Feature release (bumps minor: 0.2.2 → 0.3.0)
@@ -498,7 +248,7 @@ git commit -m "feat: breaking change
 
 BREAKING CHANGE: description of breaking change"
 
-git push origin master
+git push
 # → CI runs → Release workflow triggers → v0.3.0 published!
 ```
 
@@ -527,86 +277,6 @@ The release bot commits the version bump and CHANGELOG directly to remote, so th
 
 ---
 
-## Known Issues & Solutions
-
-### Scraper Results Not Cached
-
-**Root Cause**: Service not calling `cache.set()` after fetch.
-
-**Solution**: Check `services/anime_service.py` where results are returned. If cache miss, add:
-```python
-self.cache.set(cache_key, results, ttl=settings.cache_duration_hours)
-```
-
-### New PDF Reader Not Detected
-
-**Root Cause**: `utils/manga_reader.py` detection loop doesn't check for your reader.
-
-**Solution**: Add executable name to priority list:
-```python
-PRIORITY = ["zathura", "evince", "your-reader-name", "xdg-open"]
-```
-
-### AniList Authentication Fails
-
-**Root Causes**:
-1. Invalid token—expired, revoked, or malformed
-2. Network error during token validation
-3. Wrong authorization step—user didn't authorize application
-
-**Solution**:
-- Delete stored token: `rm ~/.local/state/ani-tupi/anilist_token.json`
-- Re-run `uv run ani-tupi` and select AniList menu
-- Follow auth flow again: visit URL, authorize, copy token, paste
-- If still failing, check network connection: `curl https://graphql.anilist.co`
-
-### AniList Sync Fails
-
-**Root Causes**:
-1. Token expired (valid ~6 months)
-2. Network error (retry on next episode)
-3. Title mismatch (create mapping manually)
-
-**Debugging**:
-```bash
-export ANI_TUPI__LOG_LEVEL=debug
-uv run ani-tupi --query "anime name"
-```
-
-Logs show GraphQL requests/responses.
-
-### AnimesonlineCC Videos Fail
-
-**Root Cause**: Videos use temporary Blogger URLs with short expiry.
-
-**Solution**: Use AnimesDigital or AnimeFire as primary sources:
-```bash
-export ANI_TUPI__PLUGINS__PRIORITY_ORDER='["animesdigital", "animefire"]'
-```
-
-### Incremental Search Gives Wrong Results
-
-**Root Cause**: Words not split correctly or thresholds miscalibrated.
-
-**Solution**: Check `services/anime_service.py` incremental search algorithm:
-- Split query by space
-- Start with first 3 words
-- Add one word per iteration
-- Stop when results ≤ 5 or all words used
-
----
-
-## Design Trade-Offs
-
-**Protocol over Inheritance**: Less boilerplate, but requires discipline (protocols aren't enforced at runtime—duck typing catches mistakes late).
-
-**Centralized Config**: Simpler, but environment variables are less discoverable than a config file.
-
-**External Tools as Adapters**: Maximum flexibility, but means testing requires mocks (no integration tests with real MPV).
-
-**DRY Documentation**: This guide repeats no code flows. But it's denser to read. Always refer to actual services for truth.
-
----
 
 ## Testing Strategy
 
@@ -625,23 +295,6 @@ export ANI_TUPI__PLUGINS__PRIORITY_ORDER='["animesdigital", "animefire"]'
 - **Real plugin loading**: Load actual scrapers from `scrapers/plugins/` directory
 - **Real storage**: Use temporary directories for cache/downloads (auto-cleanup via pytest fixtures)
 
-### Available Fixtures (in `tests/conftest.py`)
-```python
-@pytest.fixture
-def repository:
-    """Real Repository with plugins loaded from scrapers/plugins/"""
-    pass
-
-@pytest.fixture
-def temp_dir:
-    """Temporary directory auto-cleaned up after test"""
-    pass
-
-@pytest.fixture
-def test_settings:
-    """Real AppSettings using temp directories"""
-    pass
-```
 
 ### Refactoring Pattern
 Old (excessive mocks):
@@ -674,17 +327,3 @@ Goal: 80%+ coverage on service layer (business logic). CLI layer and utilities n
 6. **Avoid circular imports**: commands → services → models/utils.
 7. **Persist data** in `~/.local/state/ani-tupi/` (XDG standard).
 8. **No hardcoded values**—use config or Pydantic models.
-
----
-
-## When to Refactor
-
-**Red flag**: Code is repeated in two places → extract a function.
-
-**Red flag**: A function has more than 3 parameters → create a type (dataclass, Pydantic model, or class) to hold them.
-
-**Red flag**: Two functions have identical parameters and both modify state → make them methods of a class.
-
-**Red flag**: A service has 3+ dependencies → consider dependency injection pattern.
-
-**Red flag**: A plugin doesn't implement the protocol → it's probably a command or service, not a plugin.
