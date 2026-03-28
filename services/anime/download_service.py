@@ -98,8 +98,13 @@ class AnimeDownloadService:
             logger.error(f"Invalid range '{range_input}': {e}")
             raise
 
+        # Sanitize anime_title to prevent path traversal
+        safe_title = Path(anime_title).name
+        if safe_title != anime_title or not safe_title:
+            raise ValueError("Título de anime inválido")
+
         # Create anime directory
-        anime_dir = self.download_dir / anime_title
+        anime_dir = self.download_dir / safe_title
         anime_dir.mkdir(parents=True, exist_ok=True)
 
         # Load existing history

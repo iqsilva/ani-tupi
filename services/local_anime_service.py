@@ -55,7 +55,10 @@ class LocalAnimeService:
         Raises:
             FileNotFoundError: If anime directory doesn't exist
         """
-        anime_dir = self.download_dir / anime_title
+        safe_title = Path(anime_title).name
+        if not safe_title or safe_title != anime_title:
+            raise ValueError("Título de anime inválido")
+        anime_dir = self.download_dir / safe_title
         if not anime_dir.exists():
             raise FileNotFoundError(f"Anime directory not found: {anime_title}")
 
@@ -147,7 +150,10 @@ class LocalAnimeService:
         - Updates the download database
         - Cleans up empty anime directories
         """
-        anime_dir = self.download_dir / anime_title
+        safe_title = Path(anime_title).name
+        if not safe_title or safe_title != anime_title:
+            raise ValueError("Título de anime inválido")
+        anime_dir = self.download_dir / safe_title
         if not anime_dir.exists():
             return False
 
@@ -193,7 +199,10 @@ class LocalAnimeService:
         Returns:
             True if deleted successfully
         """
-        anime_dir = self.download_dir / anime_title
+        safe_title = Path(anime_title).name
+        if not safe_title or safe_title != anime_title:
+            raise ValueError("Título de anime inválido")
+        anime_dir = self.download_dir / safe_title
         if not anime_dir.exists():
             return False
 

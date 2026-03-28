@@ -7,6 +7,8 @@ Handles offline viewing of downloaded anime episodes with:
 - Automatic file cleanup after successful sync
 """
 
+from pathlib import Path
+
 from models.config import settings
 from services.local_anime_service import LocalAnimeService
 from utils.anilist_discovery import (
@@ -55,6 +57,10 @@ def handle_local_library_playback(args) -> None:
 
     # Extract title (remove episode count)
     selected_title = selected.split(" (")[0]
+    safe_title = Path(selected_title).name
+    if not safe_title or safe_title != selected_title:
+        raise ValueError("Título de anime inválido")
+    selected_title = safe_title
 
     # Initialize selected_ep_str - will be set by menu or navigation
     selected_ep_str = None
