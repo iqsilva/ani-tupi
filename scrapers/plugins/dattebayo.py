@@ -49,15 +49,13 @@ class DattebayoBR:
             if title and href:
                 rep.add_anime(title, href, self.name)
 
-    def search_episodes(self, anime: str, url: str, params: dict | None) -> None:
+    def _fetch_episode_page(self, url: str) -> list[tuple[str, str]]:
         response = requests.get(url, headers=HEADERS, timeout=REQUEST_TIMEOUT)
         response.raise_for_status()
         soup = BeautifulSoup(response.text, "html.parser")
 
-        items = soup.select(".ultimosEpisodiosHomeItem")
-        titles = []
-        urls = []
-        for item in items:
+        results = []
+        for item in soup.select(".ultimosEpisodiosHomeItem"):
             anchor = item.select_one("a")
             if not anchor:
                 continue
@@ -67,13 +65,25 @@ class DattebayoBR:
             name_el = item.select_one(".ultimosEpisodiosHomeItemInfosNome")
             title = name_el.text.strip() if name_el else anchor.get("title", "")
             if title and href:
-                titles.append(title)
-                urls.append(href)
+                results.append((title, href))
+        return results
+
+    def search_episodes(self, anime: str, url: str, params: dict | None) -> None:
+        all_items: list[tuple[str, str]] = []
+        page = 1
+
+        while True:
+            page_url = url if page == 1 else f"{url.rstrip('/')}/page/{page}"
+            items = self._fetch_episode_page(page_url)
+            if not items:
+                break
+            all_items.extend(items)
+            page += 1
 
         # Dedup by episode number (keep first occurrence), skip episode 0, sort ascending
-        seen = set()
+        seen: set[int] = set()
         deduped = []
-        for t, u in zip(titles, urls):
+        for t, u in all_items:
             n = _extract_episode_number(t)
             if n > 0 and n not in seen:
                 seen.add(n)
