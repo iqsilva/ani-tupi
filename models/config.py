@@ -42,7 +42,7 @@ class AniListSettings(BaseModel):
         description="OAuth authorization URL",
     )
     client_id: int = Field(
-        20148,
+        38122,
         gt=0,
         description="OAuth client ID (public)",
     )
