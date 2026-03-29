@@ -94,7 +94,13 @@ class AniListClient(AnimeOperationsMixin, MangaOperationsMixin):
                 continue
 
             # Validate token
-            if self._validate_token(token):
+            try:
+                valid = self._validate_token(token)
+            except Exception as e:
+                logger.info(f"\n❌ Token validation failed: {e}\n")
+                return False
+
+            if valid:
                 self.token = token
 
                 # Get and display user info
@@ -147,8 +153,9 @@ class AniListClient(AnimeOperationsMixin, MangaOperationsMixin):
         try:
             result = self._query(query, token=token)
             return result is not None and "Viewer" in result
-        except Exception:
-            return False
+        except Exception as e:
+            logger.debug(f"Token validation error: {e}")
+            raise
 
     def _query(self, query: str, variables: dict | None = None, token: str | None = None) -> dict:
         """Execute GraphQL query with retry on rate limit (429).
@@ -188,7 +195,16 @@ class AniListClient(AnimeOperationsMixin, MangaOperationsMixin):
                 raise Exception(msg)
 
             if response.status_code != 200:
-                msg = f"Query failed with status {response.status_code}"
+                try:
+                    error_data = response.json()
+                    errors = error_data.get("errors", [])
+                    if errors:
+                        error_msg = errors[0].get("message", "Unknown error")
+                        msg = f"Query failed with status {response.status_code}: {error_msg}"
+                    else:
+                        msg = f"Query failed with status {response.status_code}"
+                except Exception:
+                    msg = f"Query failed with status {response.status_code}"
                 raise Exception(msg)
 
             result = response.json()
