@@ -6,8 +6,13 @@ This module handles:
 - Watching anime via AniList with progress sync
 """
 
+from rich.console import Console
+from rich.prompt import Confirm
+
 from services import anime_service
 from ui.anilist_menus import anilist_main_menu, authenticate_flow
+
+_console = Console()
 
 
 def anilist_auth(args) -> None:
@@ -22,6 +27,21 @@ def anilist_menu(args) -> None:
     with automatic progress synchronization.
     """
     from services.anilist_service import anilist_client
+
+    if not anilist_client.is_authenticated():
+        want_to_connect = Confirm.ask(
+            "You are not signed in to AniList. Would you like to connect?",
+            default=True,
+        )
+        if not want_to_connect:
+            _console.print("You can authenticate later with: [bold]ani-tupi anilist auth[/bold]")
+            return
+        authenticate_flow()
+        if not anilist_client.is_authenticated():
+            _console.print(
+                "[red]Authentication failed. Please try again with: ani-tupi anilist auth[/red]"
+            )
+            return
 
     # Loop to allow watching multiple anime without restarting
     while True:

@@ -93,6 +93,10 @@ EPISODES_REVERSED_HTML = """
 </body></html>
 """
 
+EPISODES_EMPTY_HTML = """
+<html><body><div class="aniContainer"></div></body></html>
+"""
+
 VIDEO_PAGE_META_HTML = """
 <html><head>
 <meta itemprop="contentURL" content="https://arft.casa2.online/appsd2/544709.mp4" />
@@ -178,7 +182,7 @@ class TestDattebayoEpisodes:
     @patch("scrapers.plugins.dattebayo.rep")
     @patch("scrapers.plugins.dattebayo.requests.get")
     def test_episodes_listed_correctly(self, mock_get, mock_rep):
-        mock_get.return_value = _make_response(EPISODES_HTML)
+        mock_get.side_effect = [_make_response(EPISODES_HTML), _make_response(EPISODES_EMPTY_HTML)]
 
         self.scraper.search_episodes("Naruto", "https://www.dattebayo-br.com/animes/naruto", None)
 
@@ -189,7 +193,10 @@ class TestDattebayoEpisodes:
     @patch("scrapers.plugins.dattebayo.rep")
     @patch("scrapers.plugins.dattebayo.requests.get")
     def test_episodes_sorted_ascending(self, mock_get, mock_rep):
-        mock_get.return_value = _make_response(EPISODES_REVERSED_HTML)
+        mock_get.side_effect = [
+            _make_response(EPISODES_REVERSED_HTML),
+            _make_response(EPISODES_EMPTY_HTML),
+        ]
 
         self.scraper.search_episodes("Naruto", "https://www.dattebayo-br.com/animes/naruto", None)
 
@@ -200,7 +207,7 @@ class TestDattebayoEpisodes:
     @patch("scrapers.plugins.dattebayo.rep")
     @patch("scrapers.plugins.dattebayo.requests.get")
     def test_episode_urls_resolved(self, mock_get, mock_rep):
-        mock_get.return_value = _make_response(EPISODES_HTML)
+        mock_get.side_effect = [_make_response(EPISODES_HTML), _make_response(EPISODES_EMPTY_HTML)]
 
         self.scraper.search_episodes("Naruto", "https://www.dattebayo-br.com/animes/naruto", None)
 

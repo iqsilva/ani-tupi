@@ -155,7 +155,7 @@ class AniListClient(AnimeOperationsMixin, MangaOperationsMixin):
             return result is not None and "Viewer" in result
         except Exception as e:
             logger.debug(f"Token validation error: {e}")
-            raise
+            return False
 
     def _query(self, query: str, variables: dict | None = None, token: str | None = None) -> dict:
         """Execute GraphQL query with retry on rate limit (429).
