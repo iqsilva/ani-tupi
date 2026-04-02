@@ -90,7 +90,7 @@ class AniTube:
             iframe = page.select_one("iframe")
             if iframe:
                 src = iframe.get("src")
-                if src:
+                if src and "api." in src:
                     if not event.is_set():
                         container.append(src)
                         event.set()
@@ -99,7 +99,7 @@ class AniTube:
             video = page.select_one("video")
             if video:
                 video_src = video.get("src") or video.get("data-src")
-                if video_src:
+                if video_src and "api." in video_src:
                     if not event.is_set():
                         container.append(video_src)
                         event.set()
@@ -108,7 +108,7 @@ class AniTube:
             source = page.select_one("video source")
             if source:
                 src = source.get("src")
-                if src:
+                if src and "api." in src:
                     if not event.is_set():
                         container.append(src)
                         event.set()
