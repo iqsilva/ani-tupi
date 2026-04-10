@@ -1052,6 +1052,7 @@ class Repository:
             Video URL or None if extraction fails
         """
         if source_name not in self.sources:
+            logger.warning(f"Source '{source_name}' not registered, cannot extract video")
             return None
 
         try:
@@ -1065,8 +1066,10 @@ class Repository:
 
             if container:
                 return container[0]
+            logger.warning(f"No video URL in container after extraction for {source_name}")
             return None
-        except Exception:
+        except Exception as e:
+            logger.warning(f"Exception extracting video from {source_name}: {e}")
             return None
 
 

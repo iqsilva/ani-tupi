@@ -216,14 +216,12 @@ class TestDattebayoEpisodes:
 
 
 def _make_selenium_mock(js_candidates: list[str]) -> MagicMock:
-    """Create a mock SeleniumWebDriver context manager returning given JS candidates."""
+    """Create a mock SeleniumWebDriver returning given JS candidates."""
     mock_driver = MagicMock()
-    mock_driver.fetch.return_value = MagicMock()
+    mock_driver.driver = MagicMock()
     mock_driver.driver.execute_script.return_value = js_candidates
-    mock_ctx = MagicMock()
-    mock_ctx.__enter__ = MagicMock(return_value=mock_driver)
-    mock_ctx.__exit__ = MagicMock(return_value=False)
-    return mock_ctx
+    mock_driver.close.return_value = None
+    return mock_driver
 
 
 def _make_requests_get_mock(status_code: int) -> MagicMock:

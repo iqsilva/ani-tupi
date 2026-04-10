@@ -80,7 +80,6 @@ class DattebayoBR:
             all_items.extend(items)
             page += 1
 
-        # Dedup by episode number (keep first occurrence), skip episode 0, sort ascending
         seen: set[int] = set()
         deduped = []
         for t, u in all_items:
@@ -94,41 +93,51 @@ class DattebayoBR:
             rep.add_episode_list(anime, list(titles), list(urls), self.name)
 
     def search_player_src(self, url: str, container: list, event) -> None:
-        # JWPlayer builds the signed video URL via JS at runtime.
-        # The rendered <video> src (inside #jwContainer_2) contains the final signed URL.
+        from selenium.webdriver.support.ui import WebDriverWait
+        from selenium.webdriver.support import expected_conditions as EC
+        from selenium.webdriver.common.by import By
+
+        driver = SeleniumWebDriver(timeout=60)
         try:
-            with SeleniumWebDriver() as driver:
-                driver.fetch(url, wait_selector="#jwContainer_0 video")
-                candidates = driver.driver.execute_script("""
-                    var containers = ['jwContainer_2', 'jwContainer_1', 'jwContainer_0'];
-                    var urls = [];
-                    for (var i = 0; i < containers.length; i++) {
-                        try {
-                            var f = jwplayer(containers[i]).getPlaylistItem().file;
-                            if (f) urls.push(f);
-                        } catch(e) {}
-                    }
-                    return urls;
-                """)
+            driver.driver.get(url)
+            try:
+                WebDriverWait(driver.driver, 30).until(
+                    EC.presence_of_element_located((By.CSS_SELECTOR, "#jwContainer_0"))
+                )
+            except Exception:
+                pass
+            candidates = driver.driver.execute_script("""
+                var containers = ['jwContainer_2', 'jwContainer_1', 'jwContainer_0'];
+                var urls = [];
+                for (var i = 0; i < containers.length; i++) {
+                    try {
+                        var f = jwplayer(containers[i]).getPlaylistItem().file;
+                        if (f) urls.push(f);
+                    } catch(e) {}
+                }
+                return urls;
+            """)
+        finally:
+            driver.close()
 
-            for candidate in candidates:
-                try:
-                    r = requests.get(
-                        candidate,
-                        headers={**HEADERS, "Range": "bytes=0-0"},
-                        timeout=10,
-                        stream=True,
-                    )
-                    if r.status_code in (200, 206):
-                        if not event.is_set():
-                            container.append(candidate)
-                            event.set()
-                        return
-                except Exception:
-                    continue
+        if not candidates:
+            return
 
-        except Exception as e:
-            raise Exception(f"Could not extract video from DattebayoBR: {e}") from e
+        for candidate in candidates:
+            try:
+                r = requests.get(
+                    candidate,
+                    headers={**HEADERS, "Range": "bytes=0-0"},
+                    timeout=10,
+                    stream=True,
+                )
+                if r.status_code in (200, 206):
+                    if not event.is_set():
+                        container.append(candidate)
+                        event.set()
+                    return
+            except Exception:
+                continue
 
 
 def load(languages_dict) -> None:
