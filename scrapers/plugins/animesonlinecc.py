@@ -1,6 +1,3 @@
-from multiprocessing.pool import ThreadPool
-from os import cpu_count
-
 from scrapers.core.selenium_driver import SeleniumWebDriver
 from services.repository import rep
 
@@ -30,23 +27,6 @@ class AnimesOnlineCC:
 
         for title, url in zip(titles, titles_urls):
             rep.add_anime(title, url, AnimesOnlineCC.name)
-
-        def parse_seasons(title, url):
-            with SeleniumWebDriver() as driver:
-                tree = driver.fetch(url)
-            num_seasons = len(tree.select("div.se-c"))
-            if num_seasons > 1:
-                for n in range(2, num_seasons + 1):
-                    rep.add_anime(
-                        title + " Temporada " + str(n),
-                        url,
-                        AnimesOnlineCC.name,
-                        {"season": n},
-                    )
-
-        with ThreadPool(cpu_count()) as pool:
-            for title, url in zip(titles, titles_urls):
-                pool.apply(parse_seasons, args=(title, url))
 
     def search_episodes(self, anime: str, url: str, params: dict | None) -> None:
         with SeleniumWebDriver() as driver:
