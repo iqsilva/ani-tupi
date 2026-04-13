@@ -107,6 +107,12 @@ def cli() -> None:
         "--query",
         "-q",
     )
+    parser.add_argument(
+        "-e",
+        "--episode",
+        type=int,
+        help="Número do episódio para assistir (ex: 5)",
+    )
     parser.add_argument("--debug", "-d", action="store_true")
     parser.add_argument("--continue-watching", "-c", action="store_true", dest="continue_watching")
     parser.add_argument("--manga", "-m", action="store_true")

@@ -276,8 +276,31 @@ def anime(args) -> None:
             ctx = prepare_playback_from_history(skip_enabled=skip_enabled)
             if ctx is None:
                 raise Exception("Problema ao conseguir informacoes do anime.")
+
+            # Handle -e flag override for continue watching
+            if hasattr(args, "episode") and args.episode is not None:
+                episode_list = rep.get_episode_list(ctx.anime_title)
+                total_episodes = len(episode_list)
+
+                # Validate episode number is within bounds
+                if args.episode < 1 or args.episode > total_episodes:
+                    logger.error(
+                        f"❌ Episódio {args.episode} não existe ou ainda não foi ao ar. "
+                        f"Episódios disponíveis: 1-{total_episodes}"
+                    )
+                    return
+
+                # Replace context with new episode (convert to 0-indexed)
+                ctx = prepare_playback_from_search(
+                    ctx.anime_title,
+                    args.episode - 1,
+                    ctx.source,
+                    skip_enabled=skip_enabled,
+                )
+                if ctx is None:
+                    return
         else:
-            # Search for anime
+            # Search for anime (handles -e flag internally)
             result = anime_service.search_anime_flow(args)
             selected_anime, episode_idx, source = result
             if not selected_anime or episode_idx is None:
@@ -295,6 +318,22 @@ def anime(args) -> None:
         selected_anime, episode_idx, source = result
         if not selected_anime or episode_idx is None:
             return
+
+        # Handle -e flag for episode specification
+        if hasattr(args, "episode") and args.episode is not None:
+            episode_list = rep.get_episode_list(selected_anime)
+            total_episodes = len(episode_list)
+
+            # Validate episode number is within bounds
+            if args.episode < 1 or args.episode > total_episodes:
+                logger.error(
+                    f"❌ Episódio {args.episode} não existe ou ainda não foi ao ar. "
+                    f"Episódios disponíveis: 1-{total_episodes}"
+                )
+                return
+
+            # Convert to 0-indexed
+            episode_idx = args.episode - 1
 
         # Prepare playback context from search results
         ctx = prepare_playback_from_search(

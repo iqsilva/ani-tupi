@@ -85,36 +85,53 @@ class SeleniumWebDriver:
         # Add request headers via CDP (Chrome DevTools Protocol)
         self.driver.execute_cdp_cmd("Network.setUserAgentOverride", {"userAgent": user_agent})
 
-    def fetch(self, url: str, wait_selector: Optional[str] = None) -> BeautifulSoup:
-        """Fetch URL and return parsed HTML.
+    def fetch(
+        self, url: str, wait_selector: Optional[str] = None, max_retries: int = 2
+    ) -> BeautifulSoup:
+        """Fetch URL and return parsed HTML with retry on timeout.
 
         Args:
             url: Target URL to fetch
             wait_selector: Optional CSS selector to wait for before returning
+            max_retries: Number of retry attempts on timeout (default: 2)
 
         Returns:
             BeautifulSoup: Parsed HTML document
 
         Raises:
-            Exception: If page load or element wait fails
+            Exception: If page load fails after all retries or element wait fails
         """
-        self.driver.get(url)
+        from selenium.common.exceptions import TimeoutException
 
-        # Add small random delay to mimic human browsing
-        time.sleep(random.uniform(0.5, 1.5))
-
-        # Wait for specific element if provided
-        if wait_selector:
+        for attempt in range(max_retries + 1):
             try:
-                WebDriverWait(self.driver, self.timeout).until(
-                    EC.presence_of_element_located((By.CSS_SELECTOR, wait_selector))
-                )
-            except Exception as e:
-                raise Exception(f"Failed to find element '{wait_selector}': {e}")
+                self.driver.get(url)
 
-        # Get rendered HTML and parse
-        html = self.driver.page_source
-        return BeautifulSoup(html, "html.parser")
+                # Add small random delay to mimic human browsing
+                time.sleep(random.uniform(0.5, 1.5))
+
+                # Wait for specific element if provided
+                if wait_selector:
+                    try:
+                        WebDriverWait(self.driver, self.timeout).until(
+                            EC.presence_of_element_located((By.CSS_SELECTOR, wait_selector))
+                        )
+                    except Exception as e:
+                        raise Exception(f"Failed to find element '{wait_selector}': {e}")
+
+                # Get rendered HTML and parse
+                html = self.driver.page_source
+                return BeautifulSoup(html, "html.parser")
+
+            except TimeoutException as e:
+                if attempt < max_retries:
+                    wait_time = 2**attempt  # Exponential backoff: 1s, 2s, 4s
+                    time.sleep(wait_time)
+                    continue
+                else:
+                    raise Exception(
+                        f"Timeout after {max_retries + 1} attempts on {url}: {e}"
+                    ) from e
 
     def fetch_json(self, url: str) -> dict:
         """Fetch URL and parse as JSON.

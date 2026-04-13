@@ -29,13 +29,19 @@ class AnimeFire:
                 rep.add_anime(title, url, self.name)
 
     def search_episodes(self, anime: str, url: str, params: dict | None) -> None:
-        with SeleniumWebDriver() as driver:
-            tree = driver.fetch(url)
+        try:
+            # AnimeFire can be slow; use 60s timeout (3x default) with retries
+            with SeleniumWebDriver(timeout=60) as driver:
+                tree = driver.fetch(url, max_retries=2)
 
-        links = tree.select("a.lEp.epT.divNumEp.smallbox.px-2.mx-1.text-left.d-flex")
-        episode_links = [a.get("href") for a in links if a.get("href") is not None]
-        opts = [str(a.text) for a in links]
-        rep.add_episode_list(anime, opts, episode_links, self.name)
+            links = tree.select("a.lEp.epT.divNumEp.smallbox.px-2.mx-1.text-left.d-flex")
+            episode_links = [a.get("href") for a in links if a.get("href") is not None]
+            opts = [str(a.text) for a in links]
+            rep.add_episode_list(anime, opts, episode_links, self.name)
+        except Exception:
+            # Silently fail - let other sources provide fallback data
+            # (No logging/printing - just graceful degradation)
+            pass
 
     def search_player_src(self, url: str, container: list, event) -> None:
         try:

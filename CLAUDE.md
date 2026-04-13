@@ -12,6 +12,46 @@
 
 ---
 
+## CLI Usage Guide
+
+### Basic Anime Playback
+
+```bash
+# Search and select anime interactively
+ani-tupi -q "anime name"
+
+# Search and jump to specific episode
+ani-tupi -q "anime name" -e 5
+```
+
+### Advanced Options
+
+```bash
+# Skip intros/outros automatically (AniSkip)
+ani-tupi -q "anime name" -e 5 -s
+
+# Continue from where you left off
+ani-tupi -c
+
+# Continue from specific episode (overrides history)
+ani-tupi -c -e 5
+
+# List available sources
+ani-tupi --list-sources
+
+# Clear cache (all or specific anime)
+ani-tupi --clear-cache
+ani-tupi --clear-cache "anime name"
+```
+
+### Episode Number Usage
+
+- `-e 5` → Episódio 5 (navegação via menu para próximo/anterior disponível)
+- `-e 1` → Início (episódio 1)
+- `-e 100` → Erro se > total de episódios disponíveis
+
+---
+
 ## Architecture Principles
 
 ### The Three-Tier System

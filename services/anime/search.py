@@ -619,10 +619,29 @@ def search_anime_flow(args):
     with loading("Carregando episódios..."):
         rep.search_episodes(selected_anime)
     episode_list = rep.get_episode_list(selected_anime)
-    selected_episode = menu_navigate(episode_list, msg="Escolha o episódio.")
 
-    if not selected_episode:
-        return None, None, None  # User cancelled
+    # Handle -e flag: skip menu if episode number provided
+    if hasattr(args, "episode") and args.episode is not None:
+        total_episodes = len(episode_list)
 
-    episode_idx = episode_list.index(selected_episode)
+        # Validate episode number is within bounds
+        if args.episode < 1 or args.episode > total_episodes:
+            logger.error(
+                f"❌ Episódio {args.episode} não existe ou ainda não foi ao ar. "
+                f"Episódios disponíveis: 1-{total_episodes}"
+            )
+            return None, None, None
+
+        # Use episode directly (0-indexed for episode_idx)
+        episode_idx = args.episode - 1
+        selected_episode = episode_list[episode_idx]
+    else:
+        # No -e flag: show menu for user to select
+        selected_episode = menu_navigate(episode_list, msg="Escolha o episódio.")
+
+        if not selected_episode:
+            return None, None, None  # User cancelled
+
+        episode_idx = episode_list.index(selected_episode)
+
     return selected_anime, episode_idx, source
