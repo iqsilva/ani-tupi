@@ -86,20 +86,38 @@ class EpisodeRepository:
             self.anime_episodes_urls[anime].append((episode_data.episode_urls, source))
             self.anime_episodes_seasons[anime].append(season)
 
-    def get_episode_list(self, anime: str) -> list[str]:
+    def get_episode_list(self, anime: str, season: int | None = None) -> list[str]:
         """Get episode list for anime (returns longest list if multiple sources).
 
         Args:
             anime: Anime title
+            season: Optional season number to filter by (default: None = all seasons)
 
         Returns:
-            List of episode titles from source with most episodes
+            List of episode titles from source with most episodes (optionally filtered by season)
         """
         episodes = self.anime_episodes_titles[anime]
         if not episodes:
             return []
-        episode_list = sorted(episodes, key=lambda title_list: len(title_list))[-1]
-        return episode_list
+
+        # If season filter requested, find episodes matching that season
+        if season is not None:
+            seasons = self.anime_episodes_seasons[anime]
+            # Find all sources with matching season and pick the longest
+            matching_episodes = []
+            for i, episode_list in enumerate(episodes):
+                source_season = seasons[i] if i < len(seasons) else 1
+                if source_season == season:
+                    matching_episodes.append(episode_list)
+
+            if not matching_episodes:
+                return []  # No episodes for this season
+            episode_list = sorted(matching_episodes, key=len)[-1]
+            return episode_list
+        else:
+            # No season filter: return longest from all sources
+            episode_list = sorted(episodes, key=lambda title_list: len(title_list))[-1]
+            return episode_list
 
     def get_episode_url_and_source(self, anime: str, episode_num: int) -> tuple[str, str] | None:
         """Get episode URL and source name for a specific episode.

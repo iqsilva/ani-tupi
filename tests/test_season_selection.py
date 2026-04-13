@@ -196,3 +196,48 @@ class TestSeasonIntegration:
         assert len(seasons) == 2
         assert 1 in seasons
         assert 2 in seasons
+
+
+class TestRepositorySeasonFiltering:
+    """Tests for repository season filtering functionality."""
+
+    def test_repository_get_episode_list_with_season_filter(self):
+        """Test that repository can filter episodes by season."""
+        from services.repository import rep
+
+        # Reset and add test data
+        rep.reset_singleton()
+
+        # Add episodes from different seasons
+        rep.add_episode_list(
+            "Test Anime",
+            [f"S1Ep {i}" for i in range(1, 13)],
+            [f"http://ex.com/s1/{i}" for i in range(1, 13)],
+            "source1",
+            season=1,
+        )
+        rep.add_episode_list(
+            "Test Anime",
+            [f"S2Ep {i}" for i in range(1, 14)],
+            [f"http://ex.com/s2/{i}" for i in range(1, 14)],
+            "source2",
+            season=2,
+        )
+
+        # Get all episodes
+        all_episodes = rep.get_episode_list("Test Anime")
+        assert len(all_episodes) > 0
+
+        # Get season 1 episodes only
+        season_1_episodes = rep.get_episode_list("Test Anime", season=1)
+        assert len(season_1_episodes) == 12
+        assert all("S1Ep" in ep for ep in season_1_episodes)
+
+        # Get season 2 episodes only
+        season_2_episodes = rep.get_episode_list("Test Anime", season=2)
+        assert len(season_2_episodes) == 13
+        assert all("S2Ep" in ep for ep in season_2_episodes)
+
+        # Get non-existent season
+        season_3_episodes = rep.get_episode_list("Test Anime", season=3)
+        assert len(season_3_episodes) == 0

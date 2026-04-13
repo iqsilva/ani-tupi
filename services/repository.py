@@ -117,9 +117,17 @@ class Repository:
         """
         self._episode_repo.add_episode_list(anime, title_list, url_list, source, season)
 
-    def get_episode_list(self, anime: str) -> list[str]:
-        """Get episode list for anime."""
-        return self._episode_repo.get_episode_list(anime)
+    def get_episode_list(self, anime: str, season: int | None = None) -> list[str]:
+        """Get episode list for anime, optionally filtered by season.
+
+        Args:
+            anime: Anime title
+            season: Optional season number to filter by
+
+        Returns:
+            List of episode titles
+        """
+        return self._episode_repo.get_episode_list(anime, season)
 
     def get_available_seasons(self, anime: str) -> list[int]:
         """Get available seasons for an anime.

@@ -618,12 +618,9 @@ def search_anime_flow(args):
     # At this point, selected_anime is set from either cache or scrapers
     with loading("Carregando episódios..."):
         rep.search_episodes(selected_anime)
-    episode_list = rep.get_episode_list(selected_anime)
 
     # Handle season selection
-    # Note: selected_season is captured for future use when scrapers
-    # return episodes organized by season. Currently, episodes from each
-    # source are typically single-season, so the menu is informational.
+    requested_season = None
     if hasattr(args, "season") and args.season is not None:
         # User specified season via -S flag
         requested_season = args.season
@@ -634,6 +631,7 @@ def search_anime_flow(args):
                 f"Estações disponíveis: {available_seasons}"
             )
             return None, None, None
+        logger.info(f"🎬 Filtrando: Estação {requested_season}")
     else:
         # Show season menu if applicable
         available_seasons = rep.get_available_seasons(selected_anime)
@@ -642,14 +640,26 @@ def search_anime_flow(args):
             season_options = []
             for season in available_seasons:
                 try:
-                    season_episodes = rep.get_episode_list_for_season(selected_anime, season)
+                    season_episodes = rep.get_episode_list(selected_anime, season=season)
                     ep_count = len(season_episodes)
                     season_options.append((season, f"🎬 Estação {season} ({ep_count} episódios)"))
                 except Exception:
                     season_options.append((season, f"🎬 Estação {season}"))
 
             season_options_display = [opt[1] for opt in season_options]
-            menu_navigate(season_options_display, msg="Escolha a estação.")
+            selected_option = menu_navigate(season_options_display, msg="Escolha a estação.")
+
+            if selected_option is None:
+                return None, None, None  # User cancelled
+
+            # Extract season from selected option
+            for season_num, display in season_options:
+                if display == selected_option:
+                    requested_season = season_num
+                    break
+
+    # Now get episodes filtered by season (if specified)
+    episode_list = rep.get_episode_list(selected_anime, season=requested_season)
 
     # Handle -e flag: skip menu if episode number provided
     if hasattr(args, "episode") and args.episode is not None:
