@@ -583,13 +583,43 @@ def search_anime_flow(args):
                     return None, None, None  # No results found at all
                 continue
 
+            # If user specified a season with -S flag, filter results to match that season
+            filtered_titles = titles_with_sources
+            if hasattr(args, "season") and args.season is not None:
+                requested_season = args.season
+                season_keywords = {
+                    2: ["2nd", "2º", "season 2", "temporada 2"],
+                    3: ["3rd", "3º", "season 3", "temporada 3"],
+                    4: ["4th", "4º", "season 4", "temporada 4"],
+                    5: ["5th", "5º", "season 5", "temporada 5"],
+                }
+
+                keywords = season_keywords.get(requested_season, [])
+                if requested_season > 1 and keywords:
+                    # Filter to titles containing season keywords
+                    filtered_titles = [
+                        title
+                        for title in titles_with_sources
+                        if any(keyword.lower() in title.lower() for keyword in keywords)
+                    ]
+
+                    # If no exact matches, still show all (user can select manually)
+                    if not filtered_titles:
+                        logger.warning(
+                            f"⚠️  Nenhum resultado encontrado especificamente para a estação {requested_season}. "
+                            f"Mostrando todos os resultados."
+                        )
+                        filtered_titles = titles_with_sources
+                    else:
+                        logger.info(f"🎬 Filtrando resultados para estação {requested_season}")
+
             # Add "Continue searching" button if we can reduce words further
             CONTINUE_BUTTON = "🔍 Continuar buscando (menos palavras)"
             if current_word_count > min_words:
-                titles_with_button = [CONTINUE_BUTTON] + titles_with_sources
+                titles_with_button = [CONTINUE_BUTTON] + filtered_titles
                 show_continue_msg = f" (usando {current_word_count} palavras)"
             else:
-                titles_with_button = titles_with_sources
+                titles_with_button = filtered_titles
                 show_continue_msg = ""
 
             selected_anime_with_source = menu_navigate(
