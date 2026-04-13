@@ -1,7 +1,11 @@
 """Episode repository for managing episode data and caching."""
 
 from collections import defaultdict
+from threading import Thread
+
+from models.config import settings
 from models.models import EpisodeData
+from services.priority_utils import sort_by_priority
 
 
 class EpisodeRepository:
@@ -12,14 +16,29 @@ class EpisodeRepository:
     """
 
     _instance = None
+    _initialized = False
 
     def __new__(cls):
         """Enforce singleton pattern."""
         if not cls._instance:
             cls._instance = super().__new__(cls)
-            cls._instance._anime_episodes_titles = defaultdict(list)
-            cls._instance._anime_episodes_urls = defaultdict(list)
+            cls._initialized = False
         return cls._instance
+
+    def __init__(self) -> None:
+        """Initialize episode repository (only once)."""
+        if EpisodeRepository._initialized:
+            return
+
+        self.sources = {}  # Will be injected when needed
+        self.anime_episodes_titles = defaultdict(list)
+        self.anime_episodes_urls = defaultdict(list)
+
+        EpisodeRepository._initialized = True
+
+    def set_sources(self, sources: dict) -> None:
+        """Set available sources (scrapers). Called during initialization."""
+        self.sources = sources
 
     def add_episode_list(
         self, anime: str, title_list: list[str], url_list: list[str], source: str
@@ -43,8 +62,24 @@ class EpisodeRepository:
             source=source,
         )
 
-        self._anime_episodes_titles[anime].append(episode_data.episode_titles)
-        self._anime_episodes_urls[anime].append((episode_data.episode_urls, source))
+        # Check if entry for (anime, source) already exists
+        existing_index = None
+        for i, (_urls, existing_source) in enumerate(self.anime_episodes_urls[anime]):
+            if existing_source == source:
+                existing_index = i
+                break
+
+        if existing_index is not None:
+            # Replace existing entry
+            self.anime_episodes_titles[anime][existing_index] = episode_data.episode_titles
+            self.anime_episodes_urls[anime][existing_index] = (
+                episode_data.episode_urls,
+                source,
+            )
+        else:
+            # Add new entry
+            self.anime_episodes_titles[anime].append(episode_data.episode_titles)
+            self.anime_episodes_urls[anime].append((episode_data.episode_urls, source))
 
     def get_episode_list(self, anime: str) -> list[str]:
         """Get episode list for anime (returns longest list if multiple sources).
@@ -55,31 +90,16 @@ class EpisodeRepository:
         Returns:
             List of episode titles from source with most episodes
         """
-        episodes = self._anime_episodes_titles[anime]
+        episodes = self.anime_episodes_titles[anime]
         if not episodes:
             return []
         episode_list = sorted(episodes, key=lambda title_list: len(title_list))[-1]
         return episode_list
 
-    def get_episode_url(self, anime: str, episode_idx: int) -> str | None:
-        """Get episode URL for a specific episode (0-indexed).
-
-        Args:
-            anime: Anime title
-            episode_idx: Episode index (0-indexed)
-
-        Returns:
-            Episode URL or None if not found
-        """
-        # Convert from 0-indexed to 1-indexed
-        episode_num = episode_idx + 1
-        result = self.get_episode_url_and_source(anime, episode_num)
-        if result:
-            return result[0]
-        return None
-
     def get_episode_url_and_source(self, anime: str, episode_num: int) -> tuple[str, str] | None:
         """Get episode URL and source name for a specific episode.
+
+        Respects the priority order configured in settings.
 
         Args:
             anime: Anime title
@@ -92,11 +112,51 @@ class EpisodeRepository:
         if episode_num < 1:
             return None
 
-        for urls, source in self._anime_episodes_urls[anime]:
+        # Get available sources for this episode with their priorities
+        available_sources = []
+        for urls, source in self.anime_episodes_urls[anime]:
             if len(urls) >= episode_num:
-                return (urls[episode_num - 1], source)
+                available_sources.append((urls[episode_num - 1], source))
 
-        return None
+        if not available_sources:
+            return None
+
+        # Get appropriate priority order based on anime type
+        priority_order = settings.plugins.priority_order
+        sorted_sources = sort_by_priority(available_sources, priority_order, source_index=1)
+
+        # Return the highest priority source
+        return sorted_sources[0] if sorted_sources else None
+
+    def get_all_episode_sources(self, anime: str, episode_num: int) -> list[tuple[str, str]]:
+        """Get all available sources for an episode, sorted by priority.
+
+        Returns all (url, source) pairs for an episode, ordered by configured
+        priority. Used for source fallback when playback fails.
+
+        Args:
+            anime: Anime title
+            episode_num: Episode number (1-indexed)
+
+        Returns:
+            List of (url, source) tuples sorted by priority, or empty list if episode not found
+        """
+        if episode_num < 1:
+            return []
+
+        available_sources = []
+        for urls, source in self.anime_episodes_urls[anime]:
+            if len(urls) >= episode_num:
+                available_sources.append((urls[episode_num - 1], source))
+
+        if not available_sources:
+            return []
+
+        # Sort by priority order
+        priority_order = settings.plugins.priority_order
+        sorted_sources = sort_by_priority(available_sources, priority_order, source_index=1)
+
+        return sorted_sources
 
     def save_episode_state(self, anime: str) -> dict:
         """Save the current episode state for an anime.
@@ -110,8 +170,8 @@ class EpisodeRepository:
             Dict with keys 'urls' and 'titles' containing episode data
         """
         return {
-            "urls": list(self._anime_episodes_urls[anime]),
-            "titles": list(self._anime_episodes_titles[anime]),
+            "urls": list(self.anime_episodes_urls[anime]),
+            "titles": list(self.anime_episodes_titles[anime]),
         }
 
     def restore_episode_state(self, anime: str, state: dict) -> None:
@@ -123,8 +183,8 @@ class EpisodeRepository:
             anime: Anime title
             state: Dict with 'urls' and 'titles' keys
         """
-        self._anime_episodes_urls[anime] = state["urls"]
-        self._anime_episodes_titles[anime] = state["titles"]
+        self.anime_episodes_urls[anime] = state["urls"]
+        self.anime_episodes_titles[anime] = state["titles"]
 
     def load_from_cache(self, anime: str, cache_data) -> None:
         """Populate repository from cached data.
@@ -154,8 +214,8 @@ class EpisodeRepository:
         episode_titles = [f"Episódio {i + 1}" for i in range(len(episode_urls))]
 
         # Add to repository as if it came from a "cache" source
-        self._anime_episodes_titles[anime].append(episode_titles)
-        self._anime_episodes_urls[anime].append((episode_urls, "cache"))
+        self.anime_episodes_titles[anime].append(episode_titles)
+        self.anime_episodes_urls[anime].append((episode_urls, "cache"))
 
         # Note: We don't add a "dummy" entry to anime_to_urls here because:
         # 1. It's not a real scraper source - just cached episode data
@@ -165,7 +225,8 @@ class EpisodeRepository:
     def get_next_available_episode(self, anime: str, from_episode: int) -> tuple[int, str] | None:
         """Get next available episode from a given episode number.
 
-        Searches all sources for the next available episode after the given one.
+        Searches all sources for the next available episode after the given one,
+        respecting the priority order configured in settings.
 
         Args:
             anime: Anime title
@@ -177,20 +238,25 @@ class EpisodeRepository:
         if from_episode < 1:
             from_episode = 1
 
-        # Search all sources to find the highest available episode
-        max_episode = 0
-        best_url = None
-
-        for urls, source in self._anime_episodes_urls.get(anime, []):
+        # Find available episodes after from_episode
+        available_sources = []
+        for urls, source in self.anime_episodes_urls.get(anime, []):
             # Check if this source has more episodes after from_episode
             if len(urls) > from_episode:
                 # Has next episode
-                max_episode = max(max_episode, len(urls))
-                if not best_url:
-                    best_url = urls[from_episode]  # Get next episode (0-indexed)
+                available_sources.append((urls[from_episode], source))
 
-        if best_url:
-            return (from_episode + 1, best_url)  # Return 1-indexed episode number
+        if not available_sources:
+            return None
+
+        # Get appropriate priority order based on anime type
+        priority_order = settings.plugins.priority_order
+        sorted_sources = sort_by_priority(available_sources, priority_order, source_index=1)
+
+        # Return the highest priority source's next episode
+        if sorted_sources:
+            best_url = sorted_sources[0][0]
+            return (from_episode + 1, best_url)
 
         return None
 
@@ -200,8 +266,8 @@ class EpisodeRepository:
         Args:
             anime: Anime title
         """
-        self._anime_episodes_titles[anime] = []
-        self._anime_episodes_urls[anime] = []
+        self.anime_episodes_titles[anime] = []
+        self.anime_episodes_urls[anime] = []
 
     @classmethod
     def reset_singleton(cls) -> None:
@@ -210,3 +276,54 @@ class EpisodeRepository:
         Use only in test fixtures.
         """
         cls._instance = None
+
+    def search_episodes(
+        self, anime: str, anime_to_urls: dict, source_filter: str | None = None
+    ) -> None:
+        """Search for episodes from all sources or a specific source.
+
+        Args:
+            anime: Anime title to search episodes for
+            anime_to_urls: Dict mapping anime titles to (url, source, params) tuples
+            source_filter: Optional source name to search only that source (e.g., "animefire")
+        """
+        urls_and_scrapers = anime_to_urls.get(anime, [])
+
+        # Filter by source if specified
+        if source_filter:
+            urls_and_scrapers = [
+                (url, source, params)
+                for url, source, params in urls_and_scrapers
+                if source == source_filter
+            ]
+
+        # Build threads safely, avoiding potential race conditions
+        threads = []
+        for url, source, params in urls_and_scrapers:
+            # Handle invalid source names (e.g., "animefire, animesdigital")
+            actual_source = source
+
+            # If source is not valid, try to detect from URL
+            if actual_source not in self.sources:
+                # Try comma-separated sources
+                if "," in actual_source:
+                    # Split and try the first valid one
+                    for candidate_source in actual_source.split(","):
+                        candidate_source = candidate_source.strip()
+                        if candidate_source in self.sources:
+                            actual_source = candidate_source
+                            break
+
+            # Only create thread if we have a valid source
+            if actual_source in self.sources:
+                th = Thread(
+                    target=self.sources[actual_source].search_episodes,
+                    args=(anime, url, params),
+                )
+                threads.append(th)
+
+        for th in threads:
+            th.start()
+
+        for th in threads:
+            th.join()
