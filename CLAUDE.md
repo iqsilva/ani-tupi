@@ -30,11 +30,20 @@ ani-tupi -q "anime name" -e 5
 # Skip intros/outros automatically (AniSkip)
 ani-tupi -q "anime name" -e 5 -s
 
+# Select specific season (for anime with multiple seasons)
+ani-tupi -q "anime name" -S 2
+
+# Select specific season and episode
+ani-tupi -q "anime name" -S 2 -e 5
+
 # Continue from where you left off
 ani-tupi -c
 
 # Continue from specific episode (overrides history)
 ani-tupi -c -e 5
+
+# Continue from history but override to different season
+ani-tupi -c -S 2
 
 # List available sources
 ani-tupi --list-sources
@@ -44,11 +53,15 @@ ani-tupi --clear-cache
 ani-tupi --clear-cache "anime name"
 ```
 
-### Episode Number Usage
+### Season and Episode Usage
 
+- `-S 2` → Seleciona estação 2 (para anime com múltiplas estações)
+- `-S 2 -e 5` → Estação 2, episódio 5 (pula menus)
 - `-e 5` → Episódio 5 (navegação via menu para próximo/anterior disponível)
 - `-e 1` → Início (episódio 1)
 - `-e 100` → Erro se > total de episódios disponíveis
+
+**Nota sobre estações**: Se um anime tem apenas uma estação, o menu de seleção é automaticamente pulado.
 
 ---
 

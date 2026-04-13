@@ -56,11 +56,13 @@ class EpisodeData(BaseModel):
         episode_skip_available: List of booleans indicating which episodes have skip times
             (True = has skip times, False = no skip times). Length must equal num episodes.
             Optional: defaults to empty list (skip times not fetched yet).
+        season: Season number (1-indexed). Optional: defaults to 1.
 
     Validation:
         - episode_titles and episode_urls must have same length
         - All episode URLs must be valid http(s) URLs
         - episode_skip_available (if provided) must match episode count
+        - season must be positive integer
     """
 
     anime_title: str = Field(..., min_length=1, description="Anime title")
@@ -71,6 +73,7 @@ class EpisodeData(BaseModel):
         default_factory=list,
         description="Which episodes have skip times (True/False per episode)",
     )
+    season: int = Field(default=1, ge=1, description="Season number (1-indexed)")
 
     @field_validator("episode_urls", mode="before")
     @classmethod

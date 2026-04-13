@@ -104,14 +104,45 @@ class Repository:
 
     # Episode Methods
     def add_episode_list(
-        self, anime: str, title_list: list[str], url_list: list[str], source: str
+        self, anime: str, title_list: list[str], url_list: list[str], source: str, season: int = 1
     ) -> None:
-        """Add episode list."""
-        self._episode_repo.add_episode_list(anime, title_list, url_list, source)
+        """Add episode list.
+
+        Args:
+            anime: Anime title
+            title_list: List of episode titles
+            url_list: List of episode URLs
+            source: Plugin source name
+            season: Season number (default: 1)
+        """
+        self._episode_repo.add_episode_list(anime, title_list, url_list, source, season)
 
     def get_episode_list(self, anime: str) -> list[str]:
         """Get episode list for anime."""
         return self._episode_repo.get_episode_list(anime)
+
+    def get_available_seasons(self, anime: str) -> list[int]:
+        """Get available seasons for an anime.
+
+        Args:
+            anime: Anime title
+
+        Returns:
+            List of available season numbers
+        """
+        return self._episode_repo.get_available_seasons(anime)
+
+    def get_episode_list_for_season(self, anime: str, season: int) -> list[str]:
+        """Get episode list for a specific season.
+
+        Args:
+            anime: Anime title
+            season: Season number
+
+        Returns:
+            List of episode titles for that season
+        """
+        return self._episode_repo.get_episode_list_for_season(anime, season)
 
     def save_episode_state(self, anime: str) -> dict:
         """Save episode state."""

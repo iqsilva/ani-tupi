@@ -113,6 +113,12 @@ def cli() -> None:
         type=int,
         help="Número do episódio para assistir (ex: 5)",
     )
+    parser.add_argument(
+        "-S",
+        "--season",
+        type=int,
+        help="Número da estação para anime com múltiplas estações (ex: -S 2 | -S 2 -e 5 para estação 2 episódio 5)",
+    )
     parser.add_argument("--debug", "-d", action="store_true")
     parser.add_argument("--continue-watching", "-c", action="store_true", dest="continue_watching")
     parser.add_argument("--manga", "-m", action="store_true")

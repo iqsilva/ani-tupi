@@ -33,6 +33,7 @@ class EpisodeRepository:
         self.sources = {}  # Will be injected when needed
         self.anime_episodes_titles = defaultdict(list)
         self.anime_episodes_urls = defaultdict(list)
+        self.anime_episodes_seasons = defaultdict(list)  # Season info for each episode
 
         EpisodeRepository._initialized = True
 
@@ -41,7 +42,7 @@ class EpisodeRepository:
         self.sources = sources
 
     def add_episode_list(
-        self, anime: str, title_list: list[str], url_list: list[str], source: str
+        self, anime: str, title_list: list[str], url_list: list[str], source: str, season: int = 1
     ) -> None:
         """Add episode list with validation.
 
@@ -50,6 +51,7 @@ class EpisodeRepository:
             title_list: List of episode titles
             url_list: List of episode URLs
             source: Plugin source name
+            season: Season number (default: 1)
 
         Raises:
             ValueError: If title_list and url_list have different lengths.
@@ -60,11 +62,12 @@ class EpisodeRepository:
             episode_titles=title_list,
             episode_urls=url_list,
             source=source,
+            season=season,
         )
 
         # Check if entry for (anime, source) already exists
         existing_index = None
-        for i, (_urls, existing_source) in enumerate(self.anime_episodes_urls[anime]):
+        for i, (_, existing_source) in enumerate(self.anime_episodes_urls[anime]):
             if existing_source == source:
                 existing_index = i
                 break
@@ -76,10 +79,12 @@ class EpisodeRepository:
                 episode_data.episode_urls,
                 source,
             )
+            self.anime_episodes_seasons[anime][existing_index] = season
         else:
             # Add new entry
             self.anime_episodes_titles[anime].append(episode_data.episode_titles)
             self.anime_episodes_urls[anime].append((episode_data.episode_urls, source))
+            self.anime_episodes_seasons[anime].append(season)
 
     def get_episode_list(self, anime: str) -> list[str]:
         """Get episode list for anime (returns longest list if multiple sources).
@@ -327,3 +332,52 @@ class EpisodeRepository:
 
         for th in threads:
             th.join()
+
+    def get_available_seasons(self, anime: str) -> list[int]:
+        """Get available season numbers for an anime (from longest episode list).
+
+        Args:
+            anime: Anime title
+
+        Returns:
+            Sorted list of available season numbers
+        """
+        # Get seasons from the longest episode list (most complete source)
+        episodes_by_source = self.anime_episodes_seasons[anime]
+        if not episodes_by_source:
+            return [1]  # Default to season 1 if no info
+
+        # Get the season from the source with most episodes
+        episodes_titles = self.anime_episodes_titles[anime]
+        longest_idx = max(range(len(episodes_titles)), key=lambda i: len(episodes_titles[i]))
+        season = episodes_by_source[longest_idx] if longest_idx < len(episodes_by_source) else 1
+
+        return [season]  # For now, return single season per source
+
+    def get_episode_list_for_season(self, anime: str, season: int) -> list[str]:
+        """Get episode list for a specific season.
+
+        For now, since episodes are organized by source and each source
+        returns one season, this returns the full episode list if season matches.
+
+        Args:
+            anime: Anime title
+            season: Season number
+
+        Returns:
+            List of episode titles for that season, or empty list if not found
+        """
+        # Get the longest episode list
+        episodes = self.anime_episodes_titles[anime]
+        if not episodes:
+            return []
+        longest_idx = max(range(len(episodes)), key=lambda i: len(episodes[i]))
+        longest_episodes = episodes[longest_idx]
+
+        # Check if the season matches
+        seasons = self.anime_episodes_seasons[anime]
+        source_season = seasons[longest_idx] if longest_idx < len(seasons) else 1
+
+        if source_season == season:
+            return longest_episodes
+        return []
