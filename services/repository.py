@@ -156,6 +156,10 @@ class Repository:
             # Standalone number patterns (be careful not to match episode numbers)
             r"\s-\s(\d+)(?:\s|$|[^0-9])",  # " - 2 ", " - 7 "
             r"\|\s(\d+)(?:\s|$|[^0-9])",  # "| 2 ", "| 7 "
+            # Number at the end of title (most lenient, checked last)
+            # "Anime 2", "Anime 12", but NOT "Episode 100"
+            # Accept 1-2 digits to cover seasons 2-99 but not huge episode numbers
+            r"\s([2-9]|[1-9]\d)(?:\s|$)",  # 2-99 at end: "Anime 2 " or "Anime 12"
         ]
 
         # Try each pattern

@@ -587,21 +587,19 @@ def search_anime_flow(args):
             filtered_titles = titles_with_sources
             if hasattr(args, "season") and args.season is not None:
                 requested_season = args.season
-                season_keywords = {
-                    2: ["2nd", "2º", "season 2", "temporada 2"],
-                    3: ["3rd", "3º", "season 3", "temporada 3"],
-                    4: ["4th", "4º", "season 4", "temporada 4"],
-                    5: ["5th", "5º", "season 5", "temporada 5"],
-                }
 
-                keywords = season_keywords.get(requested_season, [])
-                if requested_season > 1 and keywords:
-                    # Filter to titles containing season keywords
-                    filtered_titles = [
-                        title
-                        for title in titles_with_sources
-                        if any(keyword.lower() in title.lower() for keyword in keywords)
-                    ]
+                if requested_season > 1:
+                    # Use the same season inference function for consistency
+                    filtered_titles = []
+                    for title in titles_with_sources:
+                        # Extract base title (without source list)
+                        base_title = title.split(" [")[0] if " [" in title else title
+                        # Use repository's season inference function
+                        inferred_season = rep._infer_season_from_title(base_title)
+                        inferred_season = inferred_season or 1  # Default to season 1
+
+                        if inferred_season == requested_season:
+                            filtered_titles.append(title)
 
                     # If no exact matches, still show all (user can select manually)
                     if not filtered_titles:
