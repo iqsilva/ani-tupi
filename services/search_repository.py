@@ -103,7 +103,8 @@ class SearchRepository:
 
         return SearchResults(query=query, results=tuple(results), metadata={})
 
-    def _normalize_for_filter(self, text: str) -> str:
+    @staticmethod
+    def _normalize_for_filter(text: str) -> str:
         """Normalize text for filtering (same logic as add_anime).
 
         Removes punctuation, converts to lowercase, removes multiple spaces.
@@ -493,9 +494,11 @@ class SearchRepository:
 
         if filter_by_query:
             # Improved filtering: normalize both query and titles before matching
-            query_normalized = self._normalize_for_filter(filter_by_query)
+            query_normalized = SearchRepository._normalize_for_filter(filter_by_query)
             titles = [
-                title for title in titles if query_normalized in self._normalize_for_filter(title)
+                title
+                for title in titles
+                if query_normalized in SearchRepository._normalize_for_filter(title)
             ]
 
         # Build titles with sources
