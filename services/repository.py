@@ -113,9 +113,79 @@ class Repository:
             title_list: List of episode titles
             url_list: List of episode URLs
             source: Plugin source name
-            season: Season number (default: 1)
+            season: Season number (default: 1, inferred from title if not specified)
         """
+        # Infer season from anime title if not explicitly provided
+        if season == 1:  # Only infer if default
+            inferred_season = self._infer_season_from_title(anime)
+            if inferred_season:
+                season = inferred_season
         self._episode_repo.add_episode_list(anime, title_list, url_list, source, season)
+
+    @staticmethod
+    def _infer_season_from_title(title: str) -> int | None:
+        """Infer season number from anime title.
+
+        Detects patterns like:
+        - "Season 2", "season 2", "temporada 2"
+        - "2nd Season", "2º", "2ª"
+        - "Season 2nd", etc.
+
+        Args:
+            title: Anime title
+
+        Returns:
+            Inferred season number (2-5) or None if season 1 (default)
+        """
+        title_lower = title.lower()
+
+        # Map patterns to season numbers
+        season_patterns = {
+            2: [
+                "season 2",
+                "temporada 2",
+                "2nd season",
+                "2º temporada",
+                "2ª temporada",
+                "2nd temporada",
+                " 2 ",
+                "- 2",
+                "| 2",
+            ],
+            3: [
+                "season 3",
+                "temporada 3",
+                "3rd season",
+                "3º temporada",
+                "3ª temporada",
+                "3rd temporada",
+            ],
+            4: [
+                "season 4",
+                "temporada 4",
+                "4th season",
+                "4º temporada",
+                "4ª temporada",
+                "4th temporada",
+            ],
+            5: [
+                "season 5",
+                "temporada 5",
+                "5th season",
+                "5º temporada",
+                "5ª temporada",
+                "5th temporada",
+            ],
+        }
+
+        # Check patterns in order (prefer more specific matches)
+        for season_num in [5, 4, 3, 2]:  # Check higher seasons first
+            patterns = season_patterns[season_num]
+            for pattern in patterns:
+                if pattern in title_lower:
+                    return season_num
+
+        return None  # Default to season 1
 
     def get_episode_list(self, anime: str, season: int | None = None) -> list[str]:
         """Get episode list for anime, optionally filtered by season.
