@@ -127,62 +127,44 @@ class Repository:
         """Infer season number from anime title.
 
         Detects patterns like:
-        - "Season 2", "season 2", "temporada 2"
-        - "2nd Season", "2º", "2ª"
-        - "Season 2nd", etc.
+        - "Season 2", "season 7", "temporada 12"
+        - "2nd Season", "7º", "7ª"
+        - Works for any season number 2-99
 
         Args:
             title: Anime title
 
         Returns:
-            Inferred season number (2-5) or None if season 1 (default)
+            Inferred season number (2+) or None if season 1 (default)
         """
+        import re
+
         title_lower = title.lower()
 
-        # Map patterns to season numbers
-        season_patterns = {
-            2: [
-                "season 2",
-                "temporada 2",
-                "2nd season",
-                "2º temporada",
-                "2ª temporada",
-                "2nd temporada",
-                " 2 ",
-                "- 2",
-                "| 2",
-            ],
-            3: [
-                "season 3",
-                "temporada 3",
-                "3rd season",
-                "3º temporada",
-                "3ª temporada",
-                "3rd temporada",
-            ],
-            4: [
-                "season 4",
-                "temporada 4",
-                "4th season",
-                "4º temporada",
-                "4ª temporada",
-                "4th temporada",
-            ],
-            5: [
-                "season 5",
-                "temporada 5",
-                "5th season",
-                "5º temporada",
-                "5ª temporada",
-                "5th temporada",
-            ],
-        }
+        # Patterns to detect season numbers
+        # Ordered by specificity (most specific first)
+        patterns = [
+            # English patterns: "Season N", "season N", "Nth season"
+            r"season\s+(\d+)",  # "Season 2", "season 7"
+            r"(\d+)(?:st|nd|rd|th)\s+season",  # "2nd season", "7th season"
+            r"season\s+(\d+)(?:st|nd|rd|th)",  # "season 2nd"
+            # Portuguese patterns
+            r"temporada\s+(\d+)",  # "temporada 2", "temporada 7"
+            r"(\d+)º\s+temporada",  # "2º temporada", "7º temporada"
+            r"(\d+)ª\s+temporada",  # "2ª temporada", "7ª temporada"
+            r"temp\s+(\d+)",  # "temp 2"
+            # Standalone number patterns (be careful not to match episode numbers)
+            r"\s-\s(\d+)(?:\s|$|[^0-9])",  # " - 2 ", " - 7 "
+            r"\|\s(\d+)(?:\s|$|[^0-9])",  # "| 2 ", "| 7 "
+        ]
 
-        # Check patterns in order (prefer more specific matches)
-        for season_num in [5, 4, 3, 2]:  # Check higher seasons first
-            patterns = season_patterns[season_num]
-            for pattern in patterns:
-                if pattern in title_lower:
+        # Try each pattern
+        for pattern in patterns:
+            match = re.search(pattern, title_lower)
+            if match:
+                season_num = int(match.group(1))
+                # Return if season number is 2 or higher (skip if season 1)
+                if season_num >= 2:
                     return season_num
 
         return None  # Default to season 1
