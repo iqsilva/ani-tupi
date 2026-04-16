@@ -777,25 +777,15 @@ def anilist_anime_flow(
             return  # User cancelled
 
         if choice == "📋 Escolher outro episódio":
-            # Fetch skip times for ALL episodes (was deferred for performance)
-            if aniskip_service and mal_id and scraper_episode_count and len(episode_list) > 0:
-                try:
-                    with loading(f"Carregando skip times para {len(episode_list)} episódios..."):
-                        full_skip_available = aniskip_service.get_skip_available_batch(
-                            mal_id, len(episode_list)
-                        )
-                    episode_skip_available = full_skip_available
-                except Exception as e:
-                    import logging
+            # Don't fetch skip times upfront - load them on-demand when playing
+            # This avoids loading skip times for all episodes when user only plays 1-2
 
-                    logging.debug(f"Failed to fetch full skip times: {e}")
-                    # Continue without updated skip times - show menu anyway
-
-            # Format episode list with skip indicators
+            # Format episode list WITHOUT skip indicators (will be fetched later)
             from commands.anime import format_episode_list_with_skip
 
             formatted_episode_list = format_episode_list_with_skip(
-                tuple(episode_list), episode_skip_available
+                tuple(episode_list),
+                {},  # Empty dict - skip times loaded on-demand
             )
 
             # Let user choose from full episode list
@@ -908,24 +898,15 @@ def anilist_anime_flow(
         if action == "🔙 Voltar":
             # Go back to episode selection menu
             # Fetch skip times for ALL episodes if not already fetched
-            if aniskip_service and mal_id and scraper_episode_count and len(episode_list) > 0:
-                try:
-                    with loading(f"Carregando skip times para {len(episode_list)} episódios..."):
-                        full_skip_available = aniskip_service.get_skip_available_batch(
-                            mal_id, len(episode_list)
-                        )
-                    episode_skip_available = full_skip_available
-                except Exception as e:
-                    import logging
+            # Don't fetch skip times upfront - load them on-demand when playing
+            # This avoids loading skip times for all episodes when user only plays 1-2
 
-                    logging.debug(f"Failed to fetch full skip times: {e}")
-                    # Continue without updated skip times - show menu anyway
-
-            # Format episode list with skip indicators
+            # Format episode list WITHOUT skip indicators (will be fetched later)
             from commands.anime import format_episode_list_with_skip
 
             formatted_episode_list = format_episode_list_with_skip(
-                tuple(episode_list), episode_skip_available
+                tuple(episode_list),
+                {},  # Empty dict - skip times loaded on-demand
             )
 
             # Let user choose from full episode list
