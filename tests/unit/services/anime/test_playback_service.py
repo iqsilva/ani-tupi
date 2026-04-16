@@ -286,10 +286,7 @@ class TestPreparePlaybackFromHistory:
     @patch("services.anime.playback_service.rep")
     @patch("services.anime.playback_service.discover_anilist_info")
     @patch("services.anime.playback_service.load_history")
-    @patch("services.anime.playback_service.AniSkipService")
-    def test_load_from_history_success(
-        self, mock_aniskip_cls, mock_load_history, mock_discover, mock_rep
-    ):
+    def test_load_from_history_success(self, mock_load_history, mock_discover, mock_rep):
         """Load history with and without AniList enrichment."""
         from services.anime.playback_service import prepare_playback_from_history
 

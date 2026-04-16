@@ -63,9 +63,9 @@ class TestEpisodeRepository:
 
         episode_repo.add_episode_list("Naruto", titles, urls, "animefire")
 
-        assert episode_repo.get_episode_url("Naruto", 0) == "http://ep1.com"
-        assert episode_repo.get_episode_url("Naruto", 1) == "http://ep2.com"
-        assert episode_repo.get_episode_url("Naruto", 2) == "http://ep3.com"
+        assert episode_repo.get_episode_url_and_source("Naruto", 1)[0] == "http://ep1.com"
+        assert episode_repo.get_episode_url_and_source("Naruto", 2)[0] == "http://ep2.com"
+        assert episode_repo.get_episode_url_and_source("Naruto", 3)[0] == "http://ep3.com"
 
     def test_get_episode_url_out_of_range(self, episode_repo):
         """Should return None for out-of-range episode index."""
@@ -74,7 +74,7 @@ class TestEpisodeRepository:
 
         episode_repo.add_episode_list("Naruto", titles, urls, "animefire")
 
-        assert episode_repo.get_episode_url("Naruto", 10) is None
+        assert episode_repo.get_episode_url_and_source("Naruto", 10) is None
 
     def test_get_episode_url_and_source(self, episode_repo):
         """Should return URL and source for 1-indexed episode number."""
