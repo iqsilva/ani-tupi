@@ -4,6 +4,7 @@ import urllib.parse
 import requests
 
 from scrapers.core.selenium_driver import SeleniumWebDriver
+from scrapers.plugins.utils import load_plugin_if_supported, store_player_source
 from services.repository import rep
 
 
@@ -91,28 +92,22 @@ class AniTube:
             if iframe:
                 src = iframe.get("src")
                 if src and "api." in src:
-                    if not event.is_set():
-                        container.append(src)
-                        event.set()
-                    return
+                    if store_player_source(container, event, src):
+                        return
 
             video = page.select_one("video")
             if video:
                 video_src = video.get("src") or video.get("data-src")
                 if video_src and "api." in video_src:
-                    if not event.is_set():
-                        container.append(video_src)
-                        event.set()
-                    return
+                    if store_player_source(container, event, video_src):
+                        return
 
             source = page.select_one("video source")
             if source:
                 src = source.get("src")
                 if src and "api." in src:
-                    if not event.is_set():
-                        container.append(src)
-                        event.set()
-                    return
+                    if store_player_source(container, event, src):
+                        return
 
             raise Exception("No video source found in AniTube episode page")
         except Exception as e:
@@ -120,11 +115,4 @@ class AniTube:
 
 
 def load(languages_dict) -> None:
-    can_load = False
-    for language in AniTube.languages:
-        if language in languages_dict:
-            can_load = True
-            break
-    if not can_load:
-        return
-    rep.register(AniTube())
+    load_plugin_if_supported(AniTube, languages_dict, rep.register)

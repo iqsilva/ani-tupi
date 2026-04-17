@@ -76,3 +76,4 @@ vendor/
 coverage/
 .cache/
 tmp/
+/.codex

@@ -82,39 +82,26 @@ def load_plugins(languages: dict, plugins: list[str] | None = None) -> None:
 
     path = get_resource_path("plugins/")
     system = {"__init__.py", "utils.py"}
-
-    # Get all available plugin files
-    all_plugin_files = [
+    available_plugins = [
         file[:-3] for file in listdir(path) if isfile(join(path, file)) and file not in system
     ]
 
-    # Apply filtering based on configuration
     if plugins is None:
-        # Get disabled plugins and priority order from settings
         from models.config import settings
 
         disabled_plugins = set(settings.plugins.disabled_plugins)
+        enabled_plugins = [plugin for plugin in available_plugins if plugin not in disabled_plugins]
 
-        # Filter out disabled plugins
-        plugins = [p for p in all_plugin_files if p not in disabled_plugins]
-
-        # Apply priority ordering if configured
         priority_order = settings.plugins.priority_order
         if priority_order:
-            # Sort plugins by priority order
-            # Plugins in priority_order come first (in order), others come after
+            priority_index = {plugin: index for index, plugin in enumerate(priority_order)}
+
             def priority_key(plugin):
-                if plugin in priority_order:
-                    return (0, priority_order.index(plugin))
-                else:
-                    return (1, plugin)
+                return (0, priority_index[plugin]) if plugin in priority_index else (1, plugin)
 
-            plugins = sorted(plugins, key=priority_key)
-    else:
-        # Use explicit plugin list (for debug mode)
-        pass
+            plugins = sorted(enabled_plugins, key=priority_key)
+        else:
+            plugins = enabled_plugins
 
-    # Load each enabled plugin
     for plugin in plugins:
-        plugin_module = importlib.import_module("scrapers.plugins." + plugin)
-        plugin_module.load(languages)
+        importlib.import_module(f"scrapers.plugins.{plugin}").load(languages)

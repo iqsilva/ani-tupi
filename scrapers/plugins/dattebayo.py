@@ -4,6 +4,7 @@ import requests
 from bs4 import BeautifulSoup
 
 from scrapers.core.selenium_driver import SeleniumWebDriver
+from scrapers.plugins.utils import load_plugin_if_supported, store_player_source
 from services.repository import rep
 
 BASE_URL = "https://www.dattebayo-br.com"
@@ -132,16 +133,11 @@ class DattebayoBR:
                     stream=True,
                 )
                 if r.status_code in (200, 206):
-                    if not event.is_set():
-                        container.append(candidate)
-                        event.set()
-                    return
+                    if store_player_source(container, event, candidate):
+                        return
             except Exception:
                 continue
 
 
 def load(languages_dict) -> None:
-    can_load = any(lang in languages_dict for lang in DattebayoBR.languages)
-    if not can_load:
-        return
-    rep.register(DattebayoBR())
+    load_plugin_if_supported(DattebayoBR, languages_dict, rep.register)

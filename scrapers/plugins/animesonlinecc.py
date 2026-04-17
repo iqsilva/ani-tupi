@@ -1,4 +1,5 @@
 from scrapers.core.selenium_driver import SeleniumWebDriver
+from scrapers.plugins.utils import load_plugin_if_supported, store_player_source
 from services.repository import rep
 
 
@@ -64,17 +65,8 @@ class AnimesOnlineCC:
         except Exception as e:
             raise Exception(f"Could not extract video from AnimesonlineCC: {e}") from e
 
-        if not event.is_set():
-            container.append(link)
-            event.set()
+        store_player_source(container, event, link)
 
 
 def load(languages_dict) -> None:
-    can_load = False
-    for language in AnimesOnlineCC.languages:
-        if language in languages_dict:
-            can_load = True
-            break
-    if not can_load:
-        return
-    rep.register(AnimesOnlineCC())
+    load_plugin_if_supported(AnimesOnlineCC, languages_dict, rep.register)

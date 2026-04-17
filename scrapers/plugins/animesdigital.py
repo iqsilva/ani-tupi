@@ -16,6 +16,7 @@ import requests
 from bs4 import BeautifulSoup
 
 from scrapers.core.selenium_driver import SeleniumWebDriver
+from scrapers.plugins.utils import load_plugin_if_supported, store_player_source
 from services.repository import rep
 
 logger = logging.getLogger(__name__)
@@ -770,10 +771,8 @@ class AnimesDigital:
                 selected_url = video_sources["mp4_encoded"]
 
             if selected_url:
-                if not event.is_set():
-                    container.append(selected_url)
-                    event.set()
-                return
+                if store_player_source(container, event, selected_url):
+                    return
 
             # Fallback: Try iframe method if no direct sources found
             logger.debug("No direct video sources found, falling back to iframe method")
@@ -799,15 +798,12 @@ class AnimesDigital:
             for src in iframe_matches:
                 # Prioritize api.anivideo
                 if "api.anivideo" in src:
-                    if not event.is_set():
-                        container.append(src)
-                        event.set()
-                    return
+                    if store_player_source(container, event, src):
+                        return
 
             # Use any iframe as fallback
-            if iframe_matches and not event.is_set():
-                container.append(iframe_matches[0])
-                event.set()
+            if iframe_matches:
+                store_player_source(container, event, iframe_matches[0])
 
         except Exception as e:
             logger.debug(f"Could not extract iframe src: {e}")
@@ -1019,11 +1015,4 @@ class AnimesDigital:
 
 def load(languages_dict) -> None:
     """Load plugin if language is supported."""
-    can_load = False
-    for language in AnimesDigital.languages:
-        if language in languages_dict:
-            can_load = True
-            break
-    if not can_load:
-        return
-    rep.register(AnimesDigital())
+    load_plugin_if_supported(AnimesDigital, languages_dict, rep.register)

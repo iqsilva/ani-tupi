@@ -1,4 +1,5 @@
 from scrapers.core.selenium_driver import SeleniumWebDriver
+from scrapers.plugins.utils import load_plugin_if_supported, store_player_source
 from services.repository import rep
 
 
@@ -77,10 +78,8 @@ class AnimeFire:
                                     best_video = videos[-1].get("src")
 
                                 if best_video:
-                                    if not event.is_set():
-                                        container.append(best_video)
-                                        event.set()
-                                    return
+                                    if store_player_source(container, event, best_video):
+                                        return
                     except Exception:
                         # API fetch failed, try fallback methods
                         pass
@@ -88,30 +87,24 @@ class AnimeFire:
                 # Fallback: try standard src attribute
                 src = video.get("src")
                 if src:
-                    if not event.is_set():
-                        container.append(src)
-                        event.set()
-                    return
+                    if store_player_source(container, event, src):
+                        return
 
             # Try to find source tag inside video
             source = page.select_one("video source")
             if source:
                 src = source.get("src")
                 if src:
-                    if not event.is_set():
-                        container.append(src)
-                        event.set()
-                    return
+                    if store_player_source(container, event, src):
+                        return
 
             # Try to find iframe
             iframe = page.select_one("iframe")
             if iframe:
                 src = iframe.get("src")
                 if src:
-                    if not event.is_set():
-                        container.append(src)
-                        event.set()
-                    return
+                    if store_player_source(container, event, src):
+                        return
 
             raise Exception("No video source found in AnimeFire episode page")
         except Exception as e:
@@ -119,11 +112,4 @@ class AnimeFire:
 
 
 def load(languages_dict) -> None:
-    can_load = False
-    for language in AnimeFire.languages:
-        if language in languages_dict:
-            can_load = True
-            break
-    if not can_load:
-        return
-    rep.register(AnimeFire())
+    load_plugin_if_supported(AnimeFire, languages_dict, rep.register)
