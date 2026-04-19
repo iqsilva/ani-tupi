@@ -26,8 +26,8 @@ jobs:
       - name: Install uv
         uses: astral-sh/setup-uv@v3
         with:
+          version: latest
           enable-cache: true
-          python-version: "3.12"
 
       - name: Install dependencies
         run: uv sync --group dev
@@ -37,11 +37,65 @@ jobs:
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
           git config --local user.name "github-actions[bot]"
 
+      - name: Determine release strategy
+        id: release_strategy
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          # Default: let semantic-release infer bump from commits as usual.
+          mode="normal"
+          bump=""
+
+          last_released_tag="$(uv run semantic-release version --print-last-released-tag || true)"
+          echo "last_released_tag=${last_released_tag:-<none>}"
+
+          if [[ -n "${last_released_tag}" ]]; then
+            if ! git merge-base --is-ancestor "${last_released_tag}" HEAD; then
+              # Safety fallback: if the latest released tag is not in current branch history,
+              # semantic-release may refuse to bump because project.version already exists.
+              mode="forced"
+
+              base_tag="$(git tag --merged HEAD --list 'v*' | sort -V | tail -n 1)"
+              if [[ -n "${base_tag}" ]]; then
+                range="${base_tag}..HEAD"
+              else
+                range="HEAD"
+              fi
+
+              messages="$(git log --format=%B ${range})"
+              if echo "${messages}" | grep -Eq 'BREAKING CHANGE|^[^[:space:]]+!:'; then
+                bump="major"
+              elif echo "${messages}" | grep -Eq '^feat(\(.+\))?: '; then
+                bump="minor"
+              elif echo "${messages}" | grep -Eq '^(fix|perf)(\(.+\))?: '; then
+                bump="patch"
+              else
+                # Conservative fallback: ensure forward progress even for chore/docs-only ranges.
+                bump="patch"
+              fi
+            fi
+          fi
+
+          echo "mode=${mode}" >> "$GITHUB_OUTPUT"
+          echo "bump=${bump}" >> "$GITHUB_OUTPUT"
+          echo "release_mode=${mode} bump=${bump:-<auto>}"
+
       - name: Bump version and create tag
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: uv run semantic-release version --push
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "${{ steps.release_strategy.outputs.mode }}" == "forced" ]]; then
+            bump="${{ steps.release_strategy.outputs.bump }}"
+            echo "Using forced bump mode: --${bump}"
+            uv run semantic-release version --"${bump}" --push
+          else
+            echo "Using normal semantic-release mode"
+            uv run semantic-release version --push
+          fi
 
       - name: Publish GitHub Release
         env:
