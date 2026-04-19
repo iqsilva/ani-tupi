@@ -18,7 +18,7 @@ from enum import Enum
 from pathlib import Path
 from typing import Any, Optional
 
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 
 class AnimeMetadata(BaseModel):
@@ -895,6 +895,40 @@ class OfflineSyncQueue(BaseModel):
     )
     last_updated: datetime = Field(
         default_factory=datetime.now, description="Last update timestamp"
+    )
+
+
+class UpdateCheckState(BaseModel):
+    """Persisted update-check state for cooldown behavior."""
+
+    last_checked_at: datetime | None = Field(
+        default=None,
+        description="Timestamp of the last successful remote version check",
+    )
+    last_latest_version: str | None = Field(
+        default=None,
+        description="Latest known upstream version from the last successful check",
+    )
+    last_update_available: bool = Field(
+        default=False,
+        description="Whether the last successful check reported an available update",
+    )
+
+
+class UpdateCheckResult(BaseModel):
+    """Immutable startup update-check result."""
+
+    model_config = ConfigDict(frozen=True)
+
+    local_version: str = Field(..., min_length=1, description="Installed local version")
+    latest_version: str | None = Field(default=None, description="Latest upstream version")
+    update_available: bool = Field(
+        default=False,
+        description="True when a newer upstream version is available",
+    )
+    message: str | None = Field(
+        default=None,
+        description="User-facing update message when an update is available",
     )
 
 

@@ -390,6 +390,35 @@ class AiringSettings(BaseModel):
     )
 
 
+class UpdateCheckSettings(BaseModel):
+    """Configuration for startup update checks."""
+
+    enabled: bool = Field(
+        True,
+        description="Enable automatic update checks on startup",
+    )
+    interval_hours: int = Field(
+        24,
+        ge=1,
+        le=720,
+        description="Minimum hours between successful remote update checks",
+    )
+    request_timeout_seconds: float = Field(
+        2.0,
+        gt=0,
+        le=30,
+        description="HTTP timeout for update-check requests",
+    )
+    release_source_url: str = Field(
+        "https://api.github.com/repos/levyvix/ani-tupi/releases/latest",
+        description="Canonical endpoint used to fetch latest release version",
+    )
+    update_command: str = Field(
+        "curl -sSL https://raw.githubusercontent.com/levyvix/ani-tupi/master/install.sh | bash",
+        description="Command shown to users when an update is available",
+    )
+
+
 class AppSettings(BaseSettings):
     """Root application settings with environment variable support.
 
@@ -419,6 +448,7 @@ class AppSettings(BaseSettings):
     manga: MangaSettings = MangaSettings()  # type: ignore[call-arg]
     performance: PerformanceSettings = PerformanceSettings()  # type: ignore[call-arg]
     airing: AiringSettings = AiringSettings()  # type: ignore[call-arg]
+    updates: UpdateCheckSettings = UpdateCheckSettings()  # type: ignore[call-arg]
 
 
 # Singleton instance - import and use throughout the app

@@ -82,6 +82,39 @@ def cleanup_zombie_browsers() -> None:
         pass
 
 
+def run_startup_update_check() -> None:
+    """Check for updates and render startup notice when available."""
+    try:
+        from services.update_check_service import UpdateCheckService
+
+        result = UpdateCheckService().check_for_updates()
+        if result.update_available and result.message:
+            logger.info(result.message)
+    except Exception as exc:
+        logger.debug(f"Startup update check skipped due to unexpected error: {exc}")
+
+
+def show_version_info() -> None:
+    """Show local version and compare with latest remote release."""
+    from services.update_check_service import UpdateCheckService
+    from models.config import settings
+
+    service = UpdateCheckService()
+    local_version = service._get_local_version()
+    latest_version = service._fetch_latest_version()
+
+    logger.info(f"ani-tupi local: {local_version}")
+    if not latest_version:
+        logger.info("ani-tupi remoto: indisponível (falha ao consultar release)")
+        return
+
+    logger.info(f"ani-tupi remoto: {latest_version}")
+    if service._is_remote_newer(local_version, latest_version):
+        logger.info(f"⬆️  Atualização disponível. Execute: {settings.updates.update_command}")
+    else:
+        logger.info("✅ Você já está na versão mais recente.")
+
+
 def cli() -> None:
     """Entry point for CLI."""
     parser = argparse.ArgumentParser(
@@ -120,6 +153,11 @@ def cli() -> None:
         help="Número da estação para anime com múltiplas estações (ex: -S 2 | -S 2 -e 5 para estação 2 episódio 5)",
     )
     parser.add_argument("--debug", "-d", action="store_true")
+    parser.add_argument(
+        "--version",
+        action="store_true",
+        help="Mostrar versão local e comparar com a release remota",
+    )
     parser.add_argument("--continue-watching", "-c", action="store_true", dest="continue_watching")
     parser.add_argument("--manga", "-m", action="store_true")
     parser.add_argument(
@@ -153,6 +191,12 @@ def cli() -> None:
     from utils.logging import configure_logging
 
     configure_logging(debug=args.debug)
+
+    if args.version:
+        show_version_info()
+        sys.exit(0)
+
+    run_startup_update_check()
 
     # Load plugins once at startup
     loader.load_plugins({"pt-br"})  # type: ignore
