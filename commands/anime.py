@@ -86,7 +86,7 @@ def handle_anime_download(ctx: "PlaybackContext", args) -> None:
         ctx: Current playback context
         args: Command-line arguments
     """
-    logger.info("\n📥 Baixar episódios para assistir depois")
+    logger.info("📥 Baixar episódios para assistir depois")
     logger.info(f"   Anime: {ctx.anime_title}")
     logger.info(f"   Total de episódios: {ctx.num_episodes}")
 
@@ -128,7 +128,7 @@ def handle_anime_download(ctx: "PlaybackContext", args) -> None:
         return None
 
     # Download episodes
-    logger.info(f"\n⏳ Baixando {len(episodes)} episódio(s)...")
+    logger.info(f"⏳ Baixando {len(episodes)} episódio(s)...")
     try:
         with loading(f"Baixando {len(episodes)} episódio(s)..."):
             result = service.download_episodes(
@@ -139,7 +139,7 @@ def handle_anime_download(ctx: "PlaybackContext", args) -> None:
             )
 
         # Show result
-        logger.info(f"\n{result.summary}")
+        logger.info(f"{result.summary}")
 
         if result.successful > 0:
             logger.info(f"✅ {result.successful} episódio(s) baixado(s) com sucesso!")
@@ -405,7 +405,7 @@ def anime(args) -> None:
                 logger.info(f"[DEBUG] Final sources count: {len(sources)}")
 
         if not sources:
-            logger.info("\n❌ Nenhuma fonte conseguiu extrair o video.")
+            logger.info("❌ Nenhuma fonte conseguiu extrair o video.")
             logger.info("   💡 O episódio pode estar indisponível em todas as fontes.")
             logger.info("   💡 Tente outro episódio ou espere e tente novamente mais tarde.\n")
             continue
@@ -430,7 +430,7 @@ def anime(args) -> None:
 
         progress_info = get_episode_progress_info(episode, ctx.num_episodes, anilist_result)
 
-        logger.info(f"\n▶️  Iniciando reprodução do episódio {progress_info.progress_str}...")
+        logger.info(f"▶️  Iniciando reprodução do episódio {progress_info.progress_str}...")
         if len(sources) > 1:
             logger.info(f"   Fontes disponíveis: {', '.join(s[1] for s in sources)}")
         else:
@@ -440,7 +440,7 @@ def anime(args) -> None:
         # Fetch skip times if enabled
         skip_times = None
         if ctx.skip_enabled:
-            logger.info("\n⏩ Auto-skip ATIVADO - buscando tempos de intro/outro...")
+            logger.info("⏩ Auto-skip ATIVADO - buscando tempos de intro/outro...")
             aniskip = AniSkipService()
             mal_id = ctx.mal_id
 
@@ -518,24 +518,24 @@ def anime(args) -> None:
 
         # Show appropriate message based on playback outcome
         if exit_code == 0:
-            logger.info(f"\n✅ Reprodução concluída (Fonte: {source_used})")
+            logger.info(f"✅ Reprodução concluída (Fonte: {source_used})")
         elif exit_code == 3:
-            logger.info("\n⏸️  Reprodução interrompida pelo usuário")
+            logger.info("⏸️  Reprodução interrompida pelo usuário")
         elif all_failed:
-            logger.info("\n❌ Nenhuma fonte conseguiu reproduzir o episódio")
+            logger.info("❌ Nenhuma fonte conseguiu reproduzir o episódio")
             sources_tried = ", ".join(f"{source}" for _, source in fallback_result.sources_tried)
             logger.info(f"   Fontes tentadas: {sources_tried}")
             logger.info("   💡 Tente trocar de fonte manualmente ou verifique sua conexão.")
         else:
-            logger.info(f"\n⚠️  Erro ao reproduzir (código: {exit_code})")
+            logger.info(f"⚠️  Erro ao reproduzir (código: {exit_code})")
 
-        logger.info("\n📊 Reprodução encerrada:")
+        logger.info("📊 Reprodução encerrada:")
         logger.info(f"   Exit code: {exit_code}")
         logger.info(f"   Ação: {playback_result.action}")
 
         # Log MPV exit code if it's not a normal exit
         if exit_code not in [0, 3]:  # 0=normal, 3=user quit with 'q'
-            logger.info(f"\n⚠️  MPV exit code: {exit_code}")
+            logger.info(f"⚠️  MPV exit code: {exit_code}")
             if exit_code == 2:
                 logger.info("    (Possível erro ao reproduzir ou janela fechada)")
 
@@ -543,7 +543,7 @@ def anime(args) -> None:
         # If there was an error, keep messages visible for user to read
         if exit_code != 0:
             # Error occurred - give user time to see error messages
-            logger.info("\n⏳ Pressione Enter para continuar...")
+            logger.info("⏳ Pressione Enter para continuar...")
             try:
                 input()
             except (EOFError, KeyboardInterrupt):
