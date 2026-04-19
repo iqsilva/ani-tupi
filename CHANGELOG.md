@@ -1,6 +1,327 @@
 # CHANGELOG
 
 
+## v0.9.0 (2026-04-19)
+
+### Bug Fixes
+
+- Implement JSON debug logging with custom sink instead of format parameter
+  ([`44d805c`](https://github.com/levyvix/ani-tupi/commit/44d805c00336981f70b7be8a3c93d71afe00f465))
+
+- Improve guarded compact key title dedup ([#21](https://github.com/levyvix/ani-tupi/pull/21),
+  [`00d9474`](https://github.com/levyvix/ani-tupi/commit/00d9474017e137c08fa5cabf7c1f4df7c91bebf4))
+
+- Make _normalize_for_filter a static method for backward compatibility
+  ([`f1acaec`](https://github.com/levyvix/ani-tupi/commit/f1acaecfcc68515f3b20f9324f03c8073cb858f5))
+
+SearchRepository._normalize_for_filter was incorrectly defined as an instance method when it was a
+  @staticmethod in the original Repository class. This broke code that calls
+  Repository._normalize_for_filter(text) directly.
+
+- Make _normalize_for_filter @staticmethod in SearchRepository - Update all internal calls to use
+  class method - Ensure Repository wrapper also exposes as @staticmethod
+
+- Remove empty info log lines in anime playback flow
+  ([`02ae4f1`](https://github.com/levyvix/ani-tupi/commit/02ae4f1f6d04f60df7f8b91c9c4f1778ab80ec86))
+
+- Remove incorrect SensitiveDataFilter sink in logging config
+  ([`a8e42f4`](https://github.com/levyvix/ani-tupi/commit/a8e42f4866fc0721c8ff1e774c76da8c6f297bcc))
+
+- Resolve type checking errors with isinstance guards
+  ([#20](https://github.com/levyvix/ani-tupi/pull/20),
+  [`0a88e94`](https://github.com/levyvix/ani-tupi/commit/0a88e94c5b666363d21cfd000200e7651cfbd7ad))
+
+Add proper type guards for string operations and remove unsupported parameters from Selenium
+  integration. Ensure all string operations are guarded with isinstance checks to satisfy mypy
+  requirements.
+
+- Respect --query argument in search flow
+  ([`5690179`](https://github.com/levyvix/ani-tupi/commit/569017955481e26d7994bb3f513d4c4f44399d02))
+
+The debug stub (if not args.debug else 'eva') was overriding the user's --query argument, causing
+  searches to always use 'eva' when --debug was set. Removed the unconditional override to respect
+  the provided query.
+
+- Sync tests with implementation
+  ([`37f12fa`](https://github.com/levyvix/ani-tupi/commit/37f12fa175afe96aa7f0d71587cd5f0ea517fc15))
+
+- Remove unused AniSkipService mock from test_playback_service.py - Replace get_episode_url with
+  get_episode_url_and_source in test_episode_repository.py
+
+- Use dynamic season inference for search result filtering
+  ([`2fb93ba`](https://github.com/levyvix/ani-tupi/commit/2fb93ba6868208c374d33cadda45949126cc00fd))
+
+- Replace hardcoded season keywords with regex-based inference - Now filters search results using
+  same logic as episode storage - Detects any number format: 'Anime 2', 'Anime 6', 'Anime 12' -
+  Supports 1-2 digit numbers (2-99) to avoid detecting episode numbers
+
+Fixes issue where 'Boku no Hero Academia 6' wasn't being filtered when using ani-tupi -q 'boku no
+  hero' -S 6
+
+Now works correctly: ani-tupi -q 'boku no hero' -S 6 → Shows only 'Boku no Hero Academia 6' in
+  search results
+
+- **anilist**: Show API error message on authentication failure
+  ([`8ab9685`](https://github.com/levyvix/ani-tupi/commit/8ab9685c3d04af16dc689c1825b05948dcfd6800))
+
+- **anitube**: Validate api presence before extracting video source
+  ([`2d8a7c6`](https://github.com/levyvix/ani-tupi/commit/2d8a7c6cf7f141ce43c5aec17b48487004ade1ef))
+
+- **dattebayo**: Extract video URL directly via driver.get instead of fetch
+  ([`9338cdd`](https://github.com/levyvix/ani-tupi/commit/9338cdd8398f5648d5e8d1c4e36fd0dbb9a864e8))
+
+- Wait for #jwContainer_0 instead of #jwContainer_0 video (page never has video element) - Use
+  WebDriverWait directly instead of fetch() method for better error handling - Increase timeout to
+  60s to avoid renderer timeout issues - Add debugging logs in repository.search_player_from_page
+  for better diagnostics - Fix test mock to work with new driver instantiation approach
+
+- **dattebayo**: Paginate episode listing until empty page
+  ([`284e67e`](https://github.com/levyvix/ani-tupi/commit/284e67e58e1032b41aa9ff4c8cb6297d542a5116))
+
+- **security**: Prevent path traversal in anime title file operations
+  ([`25ce363`](https://github.com/levyvix/ani-tupi/commit/25ce3633ced6e99ac396704a56c4a1d73653ec9c))
+
+Validate anime_title with Path().name before using it to construct filesystem paths in download and
+  local anime services.
+
+Also configure Pyright LSP to use the project .venv via pyproject.toml.
+
+- **tests**: Update manga_reader tests to assert on logger.info instead of print
+  ([`07e299d`](https://github.com/levyvix/ani-tupi/commit/07e299df4eddcf555f52a266d01509ca4f40c65b))
+
+### Chores
+
+- Init gsd
+  ([`080c669`](https://github.com/levyvix/ani-tupi/commit/080c66909d6e1acdaebc2099f03e5014ea59b251))
+
+- Remove unused scrapling/cloakbrowser references
+  ([#22](https://github.com/levyvix/ani-tupi/pull/22),
+  [`18249ab`](https://github.com/levyvix/ani-tupi/commit/18249ab1c854c1a114eed1fd51f401d17faa6f0b))
+
+* chore: remove unused scrapling and cloakbrowser references
+
+* fix(ci): remove playwright setup from smoke-test job
+
+- **anilist**: Update client_id to new registered app (38122)
+  ([`bacb22c`](https://github.com/levyvix/ani-tupi/commit/bacb22c9c5f601dbbe12eebeefacbd82f590c80e))
+
+- **S02/T01**: Start print replacement — services/anime/search.py done
+  ([`04f1f57`](https://github.com/levyvix/ani-tupi/commit/04f1f5780c003ca146040de0b555e7b824efea98))
+
+### Code Style
+
+- Apply ruff format to 9 files
+  ([`db74f6f`](https://github.com/levyvix/ani-tupi/commit/db74f6f90d05c35be5b16c6b10638dcdb7717982))
+
+### Continuous Integration
+
+- Add smoke test job for ani-tupi -q naruto to catch playwright/scrapling install errors
+  ([`e83abe3`](https://github.com/levyvix/ani-tupi/commit/e83abe3c9e2a1a494b9a6ba23f609a3b68a8b218))
+
+- Fix semantic release when latest tag is off-branch
+  ([`4dd08d2`](https://github.com/levyvix/ani-tupi/commit/4dd08d239225c0864be7d0723171fa229bccab08))
+
+### Documentation
+
+- Add performance testing guide and historical benchmarks
+  ([`6feaa4e`](https://github.com/levyvix/ani-tupi/commit/6feaa4e97f78cb10f39999a80cc8bf5087502245))
+
+Document how to use test_parallelism.py and test_search_performance.py for measuring search
+  performance. Include historical benchmarks and guidelines for detecting regressions.
+
+Current baseline: - 'Jujutsu Kaisen': 3.87s - 'Naruto': 3.18s - 'Dragon Ball': 3.73s
+
+All tests pass and scripts are ready for CI/CD monitoring.
+
+- **M001**: Context, requirements, and roadmap
+  ([`946f5a7`](https://github.com/levyvix/ani-tupi/commit/946f5a72e31e3a7cb20890823a50985499d07f5c))
+
+- **M001**: Mark milestone complete — all slices done, 28 tests passing
+  ([`309333e`](https://github.com/levyvix/ani-tupi/commit/309333e51cb97cf9114f2b08ff932b269ffd9434))
+
+### Features
+
+- Add -e/--episode flag for direct episode selection
+  ([`6302002`](https://github.com/levyvix/ani-tupi/commit/6302002931e1e3cc0ba2c624f6ea107af87521e7))
+
+- Add -e/--episode argument to CLI (accepts episode number only, e.g. -e 5) - Skip episode selection
+  menu when -e flag is provided - Validate episode number is within available range - Show
+  user-friendly error if episode doesn't exist or hasn't aired yet
+
+perf: improve selenium scraper reliability
+
+- Add automatic retry with exponential backoff for timeout errors - Increase AnimeFire timeout from
+  20s to 60s (known to be slow) - Gracefully handle AnimeFire failures (fallback to other sources) -
+  Remove stack trace exceptions from user view (silent failure)
+
+Tests: - 16 new unit tests covering episode validation and parsing - All tests passing
+
+Fixes issue where Selenium timeouts would crash the scraper and show error traces. Now retries
+  automatically and falls back to other sources.
+
+- Add DattebayoBR scraper plugin ([#19](https://github.com/levyvix/ani-tupi/pull/19),
+  [`6e8b34d`](https://github.com/levyvix/ani-tupi/commit/6e8b34d1f918be7a0b7ce33ae69d46250299c0d9))
+
+* feat: add DattebayoBR scraper plugin
+
+- Implements search_anime, search_episodes, search_player_src - Extracts signed video URL via
+  JWPlayer API after Selenium render - Validates URL availability (FullHD → HD → SD fallback) -
+  Filters episode 0 and deduplicates by episode number - 13 unit tests, all passing - Added
+  cloakbrowser dependency for stealth browser support - Set dattebayo as highest priority scraper
+  source
+
+* test: fix dattebayo player src tests to mock SeleniumWebDriver
+
+- Add season selection flag for multi-season anime
+  ([`2c61581`](https://github.com/levyvix/ani-tupi/commit/2c61581e28835fb887998373b697b31e225c6c5a))
+
+- Add -S/--season CLI flag for direct season selection - Extend EpisodeData model with season field
+  (default=1) - Create season_service with filtering and organization functions - Integrate season
+  selection into search flow with interactive menu - Add 14 unit tests for season functionality (all
+  passing) - Update CLI help text and documentation in CLAUDE.md - Maintain backward compatibility
+  (single-season default) - Add Repository methods for season info retrieval
+
+Features: - Users can now specify season: ani-tupi -q 'anime' -S 2 - Multi-season anime show
+  interactive season menu - Single-season anime auto-select without menu - Combine with episode
+  flag: -S 2 -e 5 for direct navigation
+
+Implementation note: Using -S instead of -s (which is reserved for --skip)
+
+- Add startup update check and version comparison
+  ([`948220a`](https://github.com/levyvix/ani-tupi/commit/948220a9de365783cbd50c95115406de5d8721c7))
+
+- Configure python-semantic-release for automated versioning
+  ([#16](https://github.com/levyvix/ani-tupi/pull/16),
+  [`d74f401`](https://github.com/levyvix/ani-tupi/commit/d74f40194e5c90b91c8c434650263d1a973b4db8))
+
+- Add [tool.semantic_release] config to pyproject.toml (replaces Node.js .releaserc.json) - Fix
+  pyproject.toml version to match latest git tag (0.8.0) - Rewrite release.yml to use
+  semantic-release version --push + publish - Remove .releaserc.json (Node.js format, incompatible
+  with python-semantic-release) - Add release troubleshooting docs to CLAUDE.md
+
+- Filter search results by season when -S flag provided
+  ([`42202b6`](https://github.com/levyvix/ani-tupi/commit/42202b6ea72a032f220e175a2d8e5ef6477f96f6))
+
+- When -S 2 is used, filter results to show only 'season 2', '2nd season' titles - Supports seasons
+  2-5 with keyword matching (2nd, season 2, temporada 2, etc) - Falls back to all results if no
+  exact matches found - Helps users find the right season from search results immediately
+
+Now: ani-tupi -q 'blue lock' -S 2 -e 5 Shows only 'Blue Lock 2nd Season' in search menu, not 'Blue
+  Lock' season 1
+
+- Grace period de 60 dias para animes finalizados na aba de novos episódios
+  ([#17](https://github.com/levyvix/ani-tupi/pull/17),
+  [`5b37e5f`](https://github.com/levyvix/ani-tupi/commit/5b37e5f3b716fb6b9de1e3676ba298a482cb93d2))
+
+* feat: keep recently finished anime visible in new episodes tab for 60 days
+
+Anime that finish airing disappear from the New Episodes tab immediately, even if the user hasn't
+  caught up yet. This adds a configurable grace period (default 60 days) so recently finished shows
+  remain visible until the user finishes watching or the TTL expires.
+
+- Expand AniList GraphQL query with endDate, episodes and status fields - Add _parse_end_date() with
+  conservative fallback for partial dates - Add _is_within_grace_period() using
+  settings.airing.grace_period_days - Add grace period branch in get_watching_with_airing_episodes()
+  - Add AiringSettings to config (ANI_TUPI__AIRING__GRACE_PERIOD_DAYS) - Show 'Anime finalizado,
+  você viu X/Y' label for grace period entries - Add 13 new tests covering all grace period
+  scenarios (40 total passing)
+
+* docs: add grace period feature to README airing episodes section
+
+- Implement proper season filtering in repository
+  ([`57d1de6`](https://github.com/levyvix/ani-tupi/commit/57d1de69f5adb30da620c92f33b775f947d15449))
+
+- Modify get_episode_list() to accept optional season parameter - Filter episodes by season when -S
+  flag is provided - Update search flow to show only requested season episodes - Add repository
+  season filtering test (1 new test) - Now '-S 2' properly filters episodes from season 2 only
+
+Total: 15 tests passing
+
+- Infer season from anime title automatically
+  ([`b1ec083`](https://github.com/levyvix/ani-tupi/commit/b1ec0834b61376d657f86c6395168ce3a2ae435c))
+
+- Parse anime titles to detect season numbers automatically - Detect patterns: 'Season 2', '2nd
+  Season', 'temporada 2', '2º', etc - Supports seasons 2-5 in both English and Portuguese - When
+  'Blue Lock 2nd Season' episodes are fetched, auto-tag as season=2 - Fixes issue where season
+  filter didn't work after anime selection
+
+Now the complete flow works: ani-tupi -q 'blue lock' -S 2 -e 5 1. Search filters to show only '2nd
+  Season' titles ✓ 2. Episodes auto-tagged as season 2 ✓ 3. Only season 2 episodes shown ✓ 4.
+  Episode 5 from season 2 plays ✓
+
+- Remove topanimes scraper due to anti-bot CDN migration
+  ([#18](https://github.com/levyvix/ani-tupi/pull/18),
+  [`86d33af`](https://github.com/levyvix/ani-tupi/commit/86d33af4da10d43f9eae10451af87e52d58be2c1))
+
+- Support unlimited season numbers (2-99+)
+  ([`a2b4124`](https://github.com/levyvix/ani-tupi/commit/a2b4124c868ab57bb2786dc1a2f19e81da118fb1))
+
+- Replace hardcoded season patterns with dynamic regex - Now detects any season number, not just 2-5
+  - Supports: 'Season 7', 'temporada 12', '99th season', etc - Works with One Piece (20+ seasons),
+  Naruto, Dragon Ball, etc
+
+Patterns detected: English: 'Season N', 'Nth season', 'season Nth'
+
+Portuguese: 'temporada N', 'Nº temporada', 'Nª temporada'
+
+Other: ' - N ', '| N ' (for separators)
+
+Examples: ani-tupi -q 'one piece' -S 7 # Season 7 ani-tupi -q 'naruto' -S 12 # Season 12 ani-tupi -q
+  'bleach' -S 10 # Season 10
+
+- **S01/T01**: Logging infrastructure with JSON format, rotation, and sensitive data masking
+  ([`d6a7fd0`](https://github.com/levyvix/ani-tupi/commit/d6a7fd0e8b813a341928367e484afd4e3716ae16))
+
+- **S02**: Replace all 495+ print() calls with loguru logger calls across 30 files
+  ([`0486ac5`](https://github.com/levyvix/ani-tupi/commit/0486ac5c9ad875f8dec86ef37d66ba00bff2802e))
+
+### Performance Improvements
+
+- **animesonlinecc**: Remove expensive season detection from search
+  ([`ac708d9`](https://github.com/levyvix/ani-tupi/commit/ac708d9ca4c63ad77d8960fbd7b32b97079a511a))
+
+Remove parse_seasons() logic that was fetching each anime page with Selenium during search to count
+  seasons. This was causing 50+ extra Selenium requests per search, making anime search 7-10x slower
+  than necessary.
+
+Seasons are now discovered on-demand when user accesses search_episodes(), not during initial
+  search. Users typically don't expand all seasons anyway.
+
+Performance improvement: - animesonlinecc: 20.6s → 4.4s (4.6x faster) - Search 'Naruto': 25s → 3.18s
+  (7.8x faster) - Search 'Dragon Ball': 38.5s → 3.73s (10.3x faster)
+
+Testing: - test_parallelism.py: All scrapers finish in ~4.4s - test_search_performance.py: All
+  queries complete in <4s
+
+Removed: - parse_seasons() function - ThreadPool usage for parallel Selenium fetches - Dependencies:
+  ThreadPool, cpu_count imports
+
+### Refactoring
+
+- Split Repository into SearchRepository, EpisodeRepository, and PlaybackCoordinator
+  ([`4797974`](https://github.com/levyvix/ani-tupi/commit/4797974ba88a40bb7c5711c6a045296cfa531052))
+
+- Extract priority sorting into shared utility (priority_utils.sort_by_priority) - Create
+  SearchRepository for anime search and deduplication - Create EpisodeRepository for episode
+  management and source selection - Create PlaybackCoordinator for video extraction and player
+  coordination - Repository now aggregates the three specialized repositories - All existing callers
+  work transparently via Repository aggregator - Eliminates 3x duplicate priority sorting logic -
+  Each repository has single responsibility and own tests - 44 tasks completed with 52+ new tests,
+  all passing
+
+### Testing
+
+- Remove low-value tests to focus coverage on critical paths
+  ([`d8ba2e6`](https://github.com/levyvix/ani-tupi/commit/d8ba2e6f6bc6adc39a523699fdb8ed7d0edf2db6))
+
+Remove 27 test files (~54% reduction) covering logging config, simple Pydantic models, download
+  feature, offline sync, manga, UI prompts, and architecture enforcement tests. Remaining 371 tests
+  cover playback, search, progress, AniList, aniskip, and plugin registry.
+
+- **S03**: Add integration tests for debug logging
+  ([`e17896d`](https://github.com/levyvix/ani-tupi/commit/e17896d4a6e42c6ed86bbbd09b29adfe157824b4))
+
+
 ## v0.7.0 (2026-03-14)
 
 ### Chores
@@ -51,6 +372,7 @@ New service: RandomAnimeService in services/anime/random_anime_service.py
 
 - Replace sync_playwright mocks with SeleniumWebDriver in test_anitube_episode_ordering.py - Update
   mock setup to match SeleniumWebDriver context manager interface - Update BeautifulSoup selector
+  calls from query_selector_all to select - Clean up docstring references from Scrapling to
   SeleniumWebDriver in manga scrapers
 
 All 697 unit tests pass. Scrapers fully migrated to Selenium (except topanimes which uses Playwright
@@ -112,6 +434,7 @@ When a CDN URL follows a predictable episode pattern (e.g. /11.mp4/index.m3u8), 
 
 ### Features
 
+- Run scrapling install before tool install
   ([`1422d66`](https://github.com/levyvix/ani-tupi/commit/1422d665389a8688732df0d7f3a414f887a4b257))
 
 
@@ -1357,9 +1680,11 @@ These changes eliminate the cascade of API calls that was exceeding AniList's ra
 - Resolve AnimesDigital episode scraping with css_first() compatibility
   ([`49cfccb`](https://github.com/levyvix/ani-tupi/commit/49cfccbf41a29d1983460e505bc55f853386efb1))
 
+Fix compatibility issue with scrapling 0.3.14+ where individual Selector objects returned from css()
   don't have css_first() method. Only the root tree object has this method.
 
 Changes: - Replace css_first() calls with css() and array indexing pattern - More defensive approach
+  works across all scrapling versions - Add requests dependency to pyproject.toml
 
 Files: - scrapers/plugins/animesdigital.py: Fix css() usage in _scrape_series_page() -
   pyproject.toml: Add requests>=2.32.5 dependency
@@ -1406,8 +1731,11 @@ Scenario fixed: 1. User searches 'Jujutsu Kaisen' in Mugiwaras 2. Changes to Man
 
 The fix is transparent to users - automatic validation on source switch.
 
+- Resolve Scrapling dependency conflict
   ([`5f98432`](https://github.com/levyvix/ani-tupi/commit/5f984326f7de11a4d649e43f549cbc2a7b0aae8e))
 
+Remove explicit playwright and curl-cffi versions to avoid conflicts with Scrapling[all] which pins
+  its own versions: - scrapling[all]>=0.3.14 includes playwright==1.56.0 - Let Scrapling provide
   these dependencies transitively
 
 uv sync now succeeds with no dependency conflicts
@@ -2565,6 +2893,7 @@ prek is a Rust-based pre-commit alternative with full .pre-commit-config.yaml co
 * fix: replace pre-commit with prek and resolve pyright import error
 
 - Replace pre-commit tool with prek (Rust-based alternative) in dev dependencies - Fix pyright error
+  by adding type: ignore for optional scrapling import - All prek hooks now pass successfully
 
 - Implement anime title normalization for multi-source deduplication
   ([`692212a`](https://github.com/levyvix/ani-tupi/commit/692212aca4784fcf960fbf09f1056904a6d51b8c))
@@ -2771,6 +3100,7 @@ Search improvements: - Remove pagination in results (show all results directly) 
   Re-search when filtering returns ≤3 results for better coverage
 
 Scraper updates: - Increase AnimesDigital API limit from 90 to 200 episodes - Update AnimeFire to
+  use css()[0] pattern for scrapling compatibility - Set default dubbed_priority_order in config
 
 Test updates: - Update incremental search tests for new re-search behavior - Update AnimesDigital
   limit tests to expect 200
@@ -2854,12 +3184,15 @@ Co-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>
 
 Co-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>
 
+- Migrate Phase 1 scrapers to Scrapling.Fetcher
   ([`a12c9ee`](https://github.com/levyvix/ani-tupi/commit/a12c9ee113708b7be73cc65be25a9496997229fc))
 
+Update AnimeFire, AnimesonlineCC, and MangaDex to use Scrapling.Fetcher for static HTTP requests
   instead of requests library.
 
 Changes: - Replace requests.get() with Fetcher().fetch() for HTTP requests - Update response
   attribute access: .text → .html, .json() unchanged - Add curl_cffi and playwright as dependencies
+  (required by Scrapling) - Keep selectolax for HTML parsing - Phase 1 static scrapers complete
 
 Scrapers updated: - scrapers/plugins/animefire.py: search_anime, search_episodes -
   scrapers/plugins/animesonlinecc.py: search_anime, search_episodes -
@@ -2887,8 +3220,12 @@ Co-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>
 - Phase 3 cleanup - remove Selenium and requests
   ([`1e7cdee`](https://github.com/levyvix/ani-tupi/commit/1e7cdeecd2ea55f8f64ea924ec63a798787ca481))
 
+Delete browser_pool.py: - No longer needed, replaced by Scrapling.DynamicFetcher - All scrapers
+  updated to use Scrapling
 
 Update pyproject.toml: - Remove: selenium>=4.26.1 (no longer used) - Remove: requests>=2.32.3
+  (Scrapling includes it) - Update: scrapling[all]>=0.3.14 (was 0.1.0, now includes all features) -
+  Keep: curl-cffi and playwright (added for Scrapling support)
 
 Phase 3.1-3.3 complete Remaining: uv sync to validate dependency resolution
 
@@ -2965,10 +3302,13 @@ Resolve problema onde buscava no AniList usando nome do scraper (ex: "Shangri-La
 
 Co-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>
 
+- Simplify AnimePlyer Phase 2.4 - always use Scrapling
   ([`6d49890`](https://github.com/levyvix/ani-tupi/commit/6d498906b214da19b4d149ffb20b077c7b1f8a61))
 
+Remove HAS_SCRAPLING conditional logic: - Always use StealthySession (no fallback to Selenium for
   search/episodes) - Remove browser_pool fallback from search_episodes
 
+Replace selectolax HTMLParser with Scrapling's native Selector API: - search_anime: Use native
   Selector (.css, .attrib, .text) - search_episodes: Use native Selector
 
 Update HTML parsing: - Use .attrib instead of .attributes - Use .text property instead of .text()
@@ -2976,6 +3316,7 @@ Update HTML parsing: - Use .attrib instead of .attributes - Use .text property i
 
 Note: search_player_src still uses Selenium (complex dynamic rendering)
 
+Phase 2 COMPLETE: All 7 scrapers now use Scrapling consistently - 4 anime scrapers (AnimeFire,
   AnimesonlineCC, AnimePlyer, AnimesDigital) - 3 manga scrapers (MangaDex, MangaLivre,
   MugiwarasOficial)
 
@@ -3033,38 +3374,52 @@ Updated plugins: - animefire.py: Use selectolax parser for search and episodes -
 
 Performance improvement: ~30-50% faster HTML parsing for searches
 
+- Update AnimesDigital Phase 2.1 - migrate to Scrapling APIs
   ([`4df6243`](https://github.com/levyvix/ani-tupi/commit/4df62435f0a188b027e6c48d13674e0437032e12))
 
+Replace requests + selectolax with Scrapling.Fetcher (static content): - search_anime: Use
   Fetcher.get() with native Selector API - search_episodes: Use Fetcher.get() with native Selector
   API - Update attribute access: .attributes → .attrib, .text() → .text
 
+Replace Selenium with Scrapling.DynamicFetcher (dynamic content): - search_player_src: Use
   DynamicFetcher.fetch() for JavaScript rendering - Extract iframes directly from rendered Selector
   - Remove browser_pool usage
 
+Benefits: - Unified HTTP handling via Scrapling - No Selenium overhead for dynamic content - Cleaner
   code with native Selector API
 
 Phase 2.1 complete
 
+- Update MangaLivre Phase 2.2 - migrate to Scrapling APIs
   ([`f5f2a65`](https://github.com/levyvix/ani-tupi/commit/f5f2a6576dc8e860f3b111451688341bf189e30a))
 
+Replace requests.Session with Scrapling.Fetcher for search: - search_manga: Use Fetcher.get() with
   native Selector API
 
+Replace Selenium WebDriver with Scrapling.DynamicFetcher for AJAX: - get_chapters: Render page and
   wait for AJAX-loaded chapter list - get_chapter_pages: Render page and extract lazy-loaded images
 
+Update HTML parsing: - Replace selectolax.HTMLParser with Scrapling's native Selector - Use .attrib
   instead of .attributes - Use .text property instead of .text() method
 
+Phase 2.2 complete: MangaLivre now uses Scrapling throughout
 
+- Update MugiwarasOficial Phase 2.3 - migrate to Scrapling APIs
   ([`6b2110a`](https://github.com/levyvix/ani-tupi/commit/6b2110aa992b04b1f9d8356c0acee354e9540ff2))
 
+Replace requests.Session with Scrapling.Fetcher for search: - search_manga: Use Fetcher.get() with
   native Selector API
 
+Replace Selenium with Scrapling.DynamicFetcher for AJAX + modal: - get_chapters: Render page and
   wait for AJAX-loaded chapter list - get_chapter_pages: Render page (handles age modal
   automatically)
 
+Update HTML parsing: - Replace selectolax.HTMLParser with Scrapling's native Selector - Use .attrib
   instead of .attributes - Use .text property instead of .text() method
 
 Note: Age verification modal is handled by DynamicFetcher's JavaScript rendering
 
+Phase 2.3 complete: MugiwarasOficial now uses Scrapling throughout
 
 - Upgrade AnimesDigital scraper to use Selenium with #termo_busca
   ([`a36e5d3`](https://github.com/levyvix/ani-tupi/commit/a36e5d36c7dc15e353fb346dd2217e70bc2fce81))
@@ -3382,14 +3737,18 @@ Images were never displayed in the terminal UI, so these fields were unnecessary
 - Reorganize imports and format code in video_player.py
   ([`73f94a1`](https://github.com/levyvix/ani-tupi/commit/73f94a1d83552278f1a262d9d1f5e71907dd9288))
 
+- Replace selectolax with Scrapling's native parser in Phase 1 scrapers
   ([`762fc00`](https://github.com/levyvix/ani-tupi/commit/762fc007d9cd59b43ce67df5b4d524f639b95c52))
 
+Use Scrapling's built-in HTML parsing (Selector API) instead of selectolax: - Fetcher.get() returns
   a Selector object with .css(), .xpath(), etc. - Use .attrib for attributes instead of .attributes
   - Use .text property for text content instead of .text() method - Remove selectolax imports from
   AnimeFire, AnimesonlineCC
 
 Benefits: - One fewer dependency to manage - Consistent HTML parsing across static and dynamic
+  fetching - Cleaner integration with Scrapling
 
+Phase 1 now complete: All static scrapers use Scrapling.Fetcher with native parser
 
 - Replace Textual with Rich + InquirerPy for TUI
   ([`69c5b2c`](https://github.com/levyvix/ani-tupi/commit/69c5b2cda837119526ce9c01d25fdbdc4b8ec421))
@@ -3545,6 +3904,7 @@ Remove test files that require complex HTTP/browser mocking: -
   tests/test_manga_workflow_integration.py - tests/test_mangalivre_integration.py -
   tests/test_mangalivre_plugin.py
 
+These tests were failing due to Scrapling DynamicFetcher mocking issues, not application code
   issues. Since app works perfectly, these can be reimplemented with proper test infrastructure
   later.
 
