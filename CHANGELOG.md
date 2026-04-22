@@ -1,6 +1,19 @@
 # CHANGELOG
 
 
+## v0.10.1 (2026-04-22)
+
+### Bug Fixes
+
+- **cache**: Clear AniList mappings on cache reset
+  ([`ec4e26d`](https://github.com/levyvix/ani-tupi/commit/ec4e26df8eface12e97567c950465b0039c078c3))
+
+### Documentation
+
+- Update contributor and install docs
+  ([`335957c`](https://github.com/levyvix/ani-tupi/commit/335957ccd6e649b88ae86512dc5f33cb5c55f82d))
+
+
 ## v0.10.0 (2026-04-22)
 
 ### Features
