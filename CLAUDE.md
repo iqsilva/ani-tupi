@@ -1,3 +1,27 @@
+## General Rules and Guidelines
+
+**Best Practices for writing Python code:**
+
+### Design Principles
+- Apply the DRY principle - Don't Repeat Yourself
+- Prefer composition over inheritance for more maintainable code
+- Write pure functions when possible (no side effects, same output for same input)
+- Follow SOLID principles for maintainable object-oriented design
+- Write tests first (TDD) or alongside code development
+- Use dataclasses for data containers
+
+### Handling Complexity
+- Hide implementation details behind clean interfaces
+- Create abstractions that eliminate complexity for users
+- Encapsulate related data and behavior in cohesive classes
+- Use interfaces or abstract base classes to define contracts
+- Apply dependency injection for more flexible and testable code
+- Favor simple solutions over complex or clever ones
+- Design for the most common use case first
+- Keep component coupling loose through well-defined interfaces
+
+---
+
 ## Core Values
 
 **Simplicity First**: Every feature should feel effortless to the user. Complex logic (incremental search, fuzzy matching, automatic syncing) runs invisibly.

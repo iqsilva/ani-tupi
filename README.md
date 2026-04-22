@@ -17,13 +17,6 @@ A forma mais fácil de instalar - execute apenas um comando:
 curl -sSL https://raw.githubusercontent.com/levyvix/ani-tupi/master/install.sh | bash
 ```
 
-Ou se preferir salvar o script primeiro:
-
-```bash
-curl -sSL https://raw.githubusercontent.com/levyvix/ani-tupi/master/install.sh -o install.sh
-bash install.sh
-```
-
 **O instalador faz automaticamente:**
 - ✅ Detecta seu sistema (Linux, macOS, WSL)
 - ✅ Verifica dependências (git, Python 3.12+)
@@ -36,27 +29,6 @@ bash install.sh
 - `curl` - para baixar o script
 - `git` - para clonar o repositório
 - `Python 3.12+` - será detectado automaticamente
-
-### Instalação CLI Global (Alternativa)
-
-Instala `ani-tupi` e `manga-tupi` como comandos globais - use em qualquer lugar do sistema!
-
-**Requisito:** Apenas Python 3.12+ (UV é instalado automaticamente pelo script)
-
-```bash
-# Clone o repositório
-git clone https://github.com/levyvix/ani-tupi
-cd ani-tupi
-
-# Execute o instalador
-python3 install-cli.py
-```
-
-**O instalador faz automaticamente:**
-- ✅ Instala UV se não estiver presente
-- ✅ Instala ani-tupi como ferramenta global usando UV
-- ✅ Configura comandos `ani-tupi` e `manga-tupi`
-- ✅ Mostra instruções para adicionar ao PATH se necessário
 
 ---
 
@@ -90,45 +62,7 @@ ani-tupi --debug
 ani-tupi --help
 ```
 
-### Testando a Instalação
-
-```bash
-# Verificar se instalou corretamente
-ani-tupi --help
-
-# Testar busca básica (sem AniList)
-ani-tupi -q "naruto"
-
-# Testar integração AniList (opcional)
-ani-tupi anilist auth
-ani-tupi anilist           # Ver menu com listas
-```
-
 ---
-
-## 💻 Como Usar
-
-### Fluxo Básico
-
-1. **Abrir** - `ani-tupi`
-2. **Buscar** - Digite nome do anime (fuzzy search automática)
-3. **Selecionar** - Use setas (↑↓) e Enter
-4. **Assistir** - Player abre automaticamente
-5. **Sincronizar** - Progresso salvo automaticamente (local + AniList se autenticado)
-
-### Com AniList (Recomendado)
-
-```bash
-# 1. Fazer login (30 segundos, apenas uma vez)
-ani-tupi anilist auth
-
-# 2. Usar normalmente
-ani-tupi anilist           # Ver listas + trending
-ani-tupi -q "anime-name"   # Busca também sincroniza
-ani-tupi -c                # Continua do último episódio
-
-# Tudo sincroniza automaticamente! ✨
-```
 
 ### Atalhos Durante Reprodução
 
@@ -136,9 +70,7 @@ ani-tupi -c                # Continua do último episódio
 |--------|------|
 | `Shift+N` | Próximo episódio |
 | `Shift+P` | Episódio anterior |
-| `Shift+M` | Marcar e voltar ao menu |
 | `Shift+A` | Ativar auto-play |
-| `ESC` | Voltar |
 
 ---
 
@@ -156,36 +88,24 @@ ani-tupi -c                # Continua do último episódio
 ```bash
 # Instalar dependências do sistema
 sudo pacman -S python mpv zathura firefox git libxml2 libvpx flite webkit2gtk-4.1
-
-# Depois de clonar e instalar ani-tupi, instalar Playwright:
-uv run playwright install
 ```
 
 #### Linux (Ubuntu/Debian)
 ```bash
 # Instalar dependências do sistema
 sudo apt install python3 mpv zathura firefox git libxml2 libvpx libflite1 webkit2gtk-4.1
-
-# Depois de clonar e instalar ani-tupi, instalar Playwright:
-uv run playwright install
 ```
 
 #### Linux (Fedora)
 ```bash
 # Instalar dependências do sistema
 sudo dnf install python3 mpv zathura firefox git libxml2 libvpx flite webkit2gtk-4.1
-
-# Depois de clonar e instalar ani-tupi, instalar Playwright:
-uv run playwright install
 ```
 
 #### macOS
 ```bash
 # Instalar dependências do sistema
 brew install python@3.12 mpv zathura firefox git
-
-# Depois de clonar e instalar ani-tupi, instalar Playwright:
-uv run playwright install
 ```
 
 #### Windows
@@ -194,42 +114,13 @@ Recomendamos usar [Chocolatey](https://chocolatey.org/install):
 # Como administrador
 choco install python mpv zathura firefox git
 
-# Depois de clonar e instalar ani-tupi, instalar Playwright:
 uv run playwright install
 ```
 
 **Nota:** Zathura é primariamente para Linux. No Windows, o sistema detectará automaticamente outros leitores de PDF instalados (Adobe Reader, SumatraPDF, etc).
 
-### Modo Desenvolvimento
 
-Para desenvolvedores - roda sem instalar globalmente:
-
-```bash
-git clone https://github.com/levyvix/ani-tupi
-cd ani-tupi
-uv sync                # Instala dependências
-uv run ani-tupi        # Executa sem instalar
-uv run main.py --debug # Modo debug
-```
-
-## 📦 Outras Opções de Instalação
-
-### Instalação Manual
-
-Se preferir instalar manualmente com UV:
-
-```bash
-# 1. Instale UV (se não tiver)
-curl -LsSf https://astral.sh/uv/install.sh | sh         # Linux/macOS
-# ou: irm https://astral.sh/uv/install.ps1 | iex        # Windows PowerShell
-
-# 2. Clone e instale
-git clone https://github.com/levyvix/ani-tupi
-cd ani-tupi
-uv tool install .
-```
-
-## ✨ Novos Recursos (Fevereiro 2025)
+## ✨ Novos Recursos
 
 ### 🎬 Airing Episodes - Descubra Novos Episódios
 Veja automaticamente quais animes da sua lista AniList têm novos episódios no ar!
@@ -262,14 +153,6 @@ export ANI_TUPI__ANIME__MAX_PARALLEL_DOWNLOADS=4
 export ANI_TUPI__ANIME__VIDEO_FORMAT="mp4"
 ```
 
-### 🔍 Busca Incremental com Histórico
-Resultados mais precisos com busca progressiva!
-
-- Digitar query e ani-tupi refina resultados incrementalmente
-- Mostra historicamente todas as buscas anteriores
-- Menu com navegação por histórico
-- Melhor experiência para títulos longos/ambíguos
-
 ---
 
 ## ✨ Integração com AniList (Recomendado!)
@@ -301,36 +184,9 @@ ani-tupi anilist auth      # Login (apenas uma vez)
 ani-tupi anilist           # Navegar listas + trending
 ```
 
-Mesmo método usado por [viu-media](https://github.com/viu-media/viu) - simples e confiável!
-
-### Atalhos Durante Reprodução (MPV)
-
-Durante a reprodução de episódios, você pode usar estes atalhos para navegação rápida:
-
-| Atalho | Ação | Efeito | Feedback no Terminal |
-|--------|------|--------|---------------------|
-| `Shift+N` | Próximo | Marca como assistido e carrega próximo episódio | `▶️  Reproduzindo Episódio {N}` |
-| `Shift+P` | Anterior | Volta para o episódio anterior | `⏪ Voltando para Episódio {N}` |
-| `Shift+M` | Marcar e Menu | Marca como assistido e volta ao menu | `📋 Episódio {N} marcado - Retornando ao menu` |
-| `Shift+R` | Recarregar | Recarrega o episódio atual | `🔄 Recarregando Episódio {N}` |
-| `Shift+A` | Auto-play | Alterna auto-play: ao sair (q) vai para próximo episódio automaticamente | `🔄 Auto-play ATIVADO/DESATIVADO` |
-| `Shift+T` | Trocar Áudio | Alterna entre legendado/dublado (se disponível) | `🔄 Alternando legendado/dublado (se disponível)` |
-
-**Notas:**
-- Todos os atalhos exibem feedback tanto no terminal quanto na tela do MPV (OSD)
-- O progresso é salvo automaticamente no histórico local e sincronizado com AniList (se autenticado)
-- **Auto-play (Shift+A):**
-  - Alterna modo global para toda a sessão (funciona mesmo trocando de anime)
-  - Por padrão: **desativado** ao iniciar o app
-  - Quando **ativado**: ao sair do player com `q`, marca episódio como assistido e carrega próximo automaticamente
-  - Quando **desativado**: ao sair com `q`, volta ao menu normalmente
-- Use `q` para sair do player (com auto-play ativado, avança automaticamente; desativado, volta ao menu)
-
 ---
 
-## 📚 Recursos Detalhados
-
-### 📖 Ler Mangá
+## 📖 Ler Mangá
 
 Leia mangá do MangaDex direto do terminal com integração AniList!
 
@@ -352,111 +208,13 @@ export ANI_TUPI__MANGA__OUTPUT_DIRECTORY=~/Mangas
 export ANI_TUPI__MANGA__CACHE_DURATION_HOURS=48
 ```
 
-[Guia completo abaixo em "Integração AniList - Guia Completo"]
-
-### 🎬 Airing Episodes (Novos Episódios)
-
-Veja automaticamente quais animes da sua lista AniList têm novos episódios no ar!
-
-- **Tab "🎬 Novos Episódios"** no menu AniList
-- Mostra quanto você está atrasado em cada anime (gap em episódios)
-- Ordena por urgência (animes com maior atraso primeiro)
-- **Grace period de 60 dias**: animes recém-finalizados permanecem visíveis com o label "Anime finalizado, você viu X/Y" (configurável via `ANI_TUPI__AIRING__GRACE_PERIOD_DAYS`)
-- Selecione para assistir diretamente
-
-### 🏠 Biblioteca Local (Download & Offline)
-
-Baixe episódios para assistir depois, sem internet!
-
-- **Tab "📂 Biblioteca Local"** no menu principal
-- Range flexível: `5`, `1-12`, `5-`, `-12`
-- Downloads paralelos configuráveis
-- Sincronização com AniList após playback
-
-### 🔍 Busca Incremental
-
-Resultados mais precisos com busca progressiva!
-
-- Refina automaticamente ao digitar
-- Histórico de buscas com navegação
-- Melhor experiência para títulos longos/ambíguos
-
 ---
-
-## 🔐 Integração AniList - Guia Completo
-
-A integração com [AniList.co](https://anilist.co) permite sincronizar automaticamente seu progresso ao assistir anime e ler mangá. Funciona de forma transparente - após fazer login uma vez, tudo sincroniza automáticamente!
-
-### Como Funciona
-
-```
-1. AUTENTICAÇÃO (Uma vez)
-   → ani-tupi anilist auth
-   → OAuth token salvo em ~/.local/state/ani-tupi/anilist_token.json
-
-2. SINCRONIZAÇÃO (Automática)
-   → Episódio/Capítulo termina
-   → ani-tupi envia para AniList
-   → Seu progresso atualiza em tempo real
-
-3. NAVEGAÇÃO (Integrada)
-   → ani-tupi anilist mostra suas listas
-   → Selecione anime/manga
-   → ani-tupi busca nos scrapers automaticamente
-```
-
-### Setup Inicial (5 minutos)
-
-```bash
-# 1. Autenticar (apenas uma vez)
-ani-tupi anilist auth
-
-# 2. Usar normalmente
-ani-tupi anilist    # Ver menu com listas + trending
-ani-tupi -q "anime" # Buscar também sincroniza
-ani-tupi -c         # Continuar do último episódio
-```
-
-### Opções de Menu AniList
-
-```bash
-ani-tupi anilist
-# 📈 Trending - Populares agora
-# 📺 Watching - Seus animes atuais
-# 📋 Planning - Para começar depois
-# ✅ Completed - Já assistiu
-# ⏸️ Paused / ❌ Dropped / 🔁 Rewatching
-# 📚 Manga Reading / Planning / Completed
-# 📊 Account - Ver perfil
-```
-
-### Mapeamento Inteligente (Busca Automática)
-
-Problema: AniList tem "Demon Slayer", scraper tem "Kimetsu no Yaiba".
-Solução: ani-tupi memoriza automaticamente!
-
-**Primeira vez:** Seleciona anime → Sistema busca → Você escolhe → Salva mapeamento
-**Próximas vezes:** Clica no anime → Abre direto, sem pergunta
-
-Salvo em: `~/.local/state/ani-tupi/anilist_mappings.json`
-
-### Segurança
-
-- Token armazenado localmente (não enviado para terceiros)
-- Permissões mínimas (apenas leitura/escrita de listas)
-- Sem acesso a dados sensíveis
-- Validade: ~6 meses
 
 ### Troubleshooting
 
 **Token expirou:**
 ```bash
 ani-tupi anilist auth  # Faça login novamente
-```
-
-**Mapeamento errado:**
-```bash
-rm ~/.local/state/ani-tupi/anilist_mappings.json  # Refaz na próxima vez
 ```
 
 **Sincronização lenta:**
