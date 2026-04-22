@@ -1,6 +1,14 @@
 # CHANGELOG
 
 
+## v0.10.0 (2026-04-22)
+
+### Features
+
+- **sushianimes**: Add season-aware title matching
+  ([`9d697b1`](https://github.com/levyvix/ani-tupi/commit/9d697b193fecbb3b38acbfd19b3428148c1f39af))
+
+
 ## v0.9.0 (2026-04-19)
 
 ### Bug Fixes
