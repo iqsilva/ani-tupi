@@ -155,3 +155,17 @@ def save_language_preference(anilist_id: int, language_choice: str) -> None:
         _anilist_mappings_store.set(mapping_id, existing)
     except PersistenceError as e:
         logger.error(f"Failed to save language preference: {e}")
+
+
+def clear_anilist_mapping(anilist_id: int | None = None) -> None:
+    """Clear saved AniList mappings or a single mapping entry."""
+    try:
+        from models.config import get_data_path
+
+        store = JSONStore(get_data_path() / "anilist_mappings.json")
+        if anilist_id is None:
+            store.clear()
+        else:
+            store.delete(str(anilist_id))
+    except PersistenceError as e:
+        logger.error(f"Failed to clear AniList mappings: {e}")

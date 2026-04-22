@@ -46,9 +46,13 @@ def save_video_url(cache_key, episode: int, source: str, url: str) -> None:
 
 
 def clear_cache_all() -> None:
-    """Clear entire cache, including mappings and history."""
+    """Clear entire cache and saved AniList mapping state."""
     # Use unified cache clear
     _clear_all()
+
+    from services.anime.mappings import clear_anilist_mapping
+
+    clear_anilist_mapping()
 
 
 def clear_cache_by_prefix(prefix: str) -> None:

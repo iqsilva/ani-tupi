@@ -234,6 +234,7 @@ def cli() -> None:
     if args.clear_cache:
         from utils.cache_manager import clear_cache_all, clear_cache_by_prefix
         from utils.anilist_discovery import auto_discover_anilist_id
+        from services.anime.mappings import clear_anilist_mapping
 
         if args.clear_cache is True:
             # Clear all cache
@@ -244,6 +245,7 @@ def cli() -> None:
             anilist_id = auto_discover_anilist_id(args.clear_cache)
             if anilist_id:
                 clear_cache_by_prefix(f":{anilist_id}:")
+                clear_anilist_mapping(anilist_id)
                 logger.info(
                     f"✅ Cache de '{args.clear_cache}' (AniList ID {anilist_id}) foi limpo!"
                 )
