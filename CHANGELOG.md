@@ -1,6 +1,15 @@
 # CHANGELOG
 
 
+## v0.11.2 (2026-04-24)
+
+### Bug Fixes
+
+- Resolve manual anime search titles via AniList and Jikan
+  ([#23](https://github.com/levyvix/ani-tupi/pull/23),
+  [`84232f8`](https://github.com/levyvix/ani-tupi/commit/84232f82956bee5174db0695ab88cbca9f998858))
+
+
 ## v0.11.1 (2026-04-24)
 
 ### Bug Fixes
