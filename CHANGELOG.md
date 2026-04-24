@@ -1,6 +1,14 @@
 # CHANGELOG
 
 
+## v0.11.3 (2026-04-24)
+
+### Bug Fixes
+
+- Clean up Jikan title resolution logging ([#24](https://github.com/levyvix/ani-tupi/pull/24),
+  [`ba144a3`](https://github.com/levyvix/ani-tupi/commit/ba144a327fe81daf9a8966dac72fcc6e39e3e126))
+
+
 ## v0.11.2 (2026-04-24)
 
 ### Bug Fixes
