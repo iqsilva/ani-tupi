@@ -1,6 +1,19 @@
 # CHANGELOG
 
 
+## v0.11.1 (2026-04-24)
+
+### Bug Fixes
+
+- **history**: Fix continue watching flow
+  ([`420041f`](https://github.com/levyvix/ani-tupi/commit/420041f52ca9060bc28584d47baee807302924c0))
+
+### Documentation
+
+- Add search tips to README
+  ([`5ec80fd`](https://github.com/levyvix/ani-tupi/commit/5ec80fdad4675f55a28577cf8f87988779995230))
+
+
 ## v0.11.0 (2026-04-24)
 
 ### Features
