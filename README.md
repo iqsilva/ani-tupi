@@ -62,6 +62,13 @@ ani-tupi --debug
 ani-tupi --help
 ```
 
+**💡 Dica para melhores resultados de busca:**
+Tente usar o nome do anime em japonês ou romaji para maior precisão. Por exemplo:
+- Em vez de "Attack on Titan", tente "Shingeki no Kyojin"
+- Em vez de "My Hero Academia", tente "Boku no Hero Academia"
+- Em vez de "Demon Slayer", tente "Kimetsu no Yaiba"
+- Em vez de "Jujutsu Kaisen", mantenha como está (já é o título original)
+
 ---
 
 ### Atalhos Durante Reprodução
