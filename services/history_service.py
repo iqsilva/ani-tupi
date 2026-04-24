@@ -20,6 +20,7 @@ from utils.exceptions import PersistenceError
 from utils.logging import get_logger
 from utils.anilist_discovery import get_anilist_id_with_interactive_fallback
 from models.models import Status
+from services.anime.mappings import load_anilist_urls
 
 logger = get_logger(__name__)
 
@@ -32,7 +33,7 @@ def load_history() -> tuple[str, int, int | None, str | None] | None:
     """Load watch history and let user choose episode (-1/0/+1 from last watched).
 
     Format:
-    - v5: {"anime_name": [timestamp, episode_idx, anilist_id, source, total_episodes], ...}
+        - v6: {"anime_name": [timestamp, episode_idx, anilist_id, source, total_episodes, anime_url], ...}
 
     Returns: (anime_name, episode_idx, anilist_id, anilist_title)
     """
@@ -64,6 +65,7 @@ def load_history() -> tuple[str, int, int | None, str | None] | None:
         local_episode_idx = data[anime][1]
         anilist_id = data[anime][2] if len(data[anime]) > 2 else None
         saved_source = data[anime][3] if len(data[anime]) > 3 else None
+        saved_urls = data[anime][5] if len(data[anime]) > 5 else None
 
         # If we have anilist_id, check AniList for progress (source of truth)
         anilist_title = None
@@ -112,13 +114,33 @@ def load_history() -> tuple[str, int, int | None, str | None] | None:
             # Keep "Local" as default if both are equal or local is higher
 
         # Search for episodes to offer -1/0/+1 options
-        # For local episodes, don't search scrapers - use AniList if available
-        if saved_source == "local" and anilist_id:
+        # If we already stored the anime page URL, reuse it and skip anime search.
+        direct_episode_selection = False
+        search_results = None
+        if saved_urls and saved_source:
+            search_title = anime
+            rep.clear_search_results()
+            if isinstance(saved_urls, dict):
+                for src, url in saved_urls.items():
+                    rep.add_anime(search_title, url, src)
+            else:
+                rep.add_anime(search_title, saved_urls, saved_source)
+
+            with loading(f"Carregando episódios de {saved_source}..."):
+                rep.search_episodes(search_title)
+
+            episode_list = rep.get_episode_list(search_title)
+            if episode_list:
+                direct_episode_selection = True
+                selected_anime_title = search_title
+                anime_titles = [selected_anime_title]
+                search_results = None
+        elif saved_source == "local" and anilist_id:
             # Local episode with AniList ID: use AniList as source of episodes
             search_title = anilist_title or anime
             # Don't search scrapers, just prepare to show AniList info
             search_results = None  # Will handle differently below
-        else:
+        elif not direct_episode_selection:
             # Streaming episode or local without AniList ID: search scrapers normally
             search_title = clean_title_for_display(anime) if saved_source != "local" else anime
             rep.clear_search_results()
@@ -130,8 +152,31 @@ def load_history() -> tuple[str, int, int | None, str | None] | None:
                 with loading(f"Buscando '{anime}'..."):
                     search_results = rep.search_anime(anime)
 
+        # Fallback: if we already have saved AniList URLs, skip the anime search and reuse them.
+        if not direct_episode_selection and anilist_id:
+            saved_urls = load_anilist_urls(anilist_id)
+            if saved_urls:
+                selected_anime_title = anime
+                rep.clear_search_results()
+
+                for src, url in saved_urls.items():
+                    rep.add_anime(selected_anime_title, url, src)
+
+                with loading(f"Carregando episódios de {selected_anime_title}..."):
+                    rep.search_episodes(selected_anime_title, source_filter=saved_source)
+
+                episode_list = rep.get_episode_list(selected_anime_title)
+                if episode_list:
+                    direct_episode_selection = True
+                    anime_titles = [selected_anime_title]
+                    search_results = None
+
         # Check if multiple anime results (different sources/versions)
-        if search_results is None:
+        if direct_episode_selection:
+            selected_anime_title = anime
+            episode_list = rep.get_episode_list(selected_anime_title)
+            anime_titles = [selected_anime_title]
+        elif search_results is None:
             # Local episode with AniList ID - use AniList as source
             selected_anime_title = anilist_title or anime
             episode_list = []  # Will load episodes on demand
@@ -196,12 +241,13 @@ def load_history() -> tuple[str, int, int | None, str | None] | None:
             selected_anime_title = anime_titles[0]
 
             # Use saved source if available (faster and more accurate)
-            if saved_source:
-                with loading(f"Carregando episódios de {saved_source}..."):
-                    rep.search_episodes(selected_anime_title, source_filter=saved_source)
-            else:
-                with loading("Carregando episódios..."):
-                    rep.search_episodes(selected_anime_title)
+            if not direct_episode_selection:
+                if saved_source:
+                    with loading(f"Carregando episódios de {saved_source}..."):
+                        rep.search_episodes(selected_anime_title, source_filter=saved_source)
+                else:
+                    with loading("Carregando episódios..."):
+                        rep.search_episodes(selected_anime_title)
             episode_list = rep.get_episode_list(selected_anime_title)
         else:
             # No results - will be handled below
@@ -382,10 +428,11 @@ def save_history(
     anilist_id: int | None = None,
     source: str | None = None,
     total_episodes: int | None = None,
+    anime_urls: dict[str, str] | None = None,
 ) -> None:
     """Save watch history with timestamp, optional AniList ID, source, and total episodes.
 
-    Format: {"anime_name": [timestamp, episode_idx, anilist_id, source, total_episodes], ...}
+    Format: {"anime_name": [timestamp, episode_idx, anilist_id, source, total_episodes, anime_urls], ...}
     - anilist_id can be None for anime not from AniList
     - source is the scraper name (e.g., "animefire", "animesonlinecc")
     - total_episodes is the known total count of episodes (auto-detected if not provided)
@@ -396,8 +443,23 @@ def save_history(
         if episode_list:
             total_episodes = len(episode_list)
 
+    if anime_urls is None:
+        anime_urls = {}
+        for url, url_source, _ in rep.anime_to_urls.get(anime, []):
+            anime_urls[url_source] = url
+
+        if not anime_urls and source:
+            anime_list = rep.anime_to_urls.get(anime, [])
+            for url, url_source, _ in anime_list:
+                if url_source == source:
+                    anime_urls[url_source] = url
+                    break
+
     try:
-        _history_store.set(anime, [int(time.time()), episode, anilist_id, source, total_episodes])
+        _history_store.set(
+            anime,
+            [int(time.time()), episode, anilist_id, source, total_episodes, anime_urls],
+        )
     except PersistenceError as e:
         logger.error(f"Failed to save history: {e}")
 
@@ -442,16 +504,8 @@ def save_history_from_event(
             except Exception:
                 pass
 
-    try:
-        # Save with action metadata in a separate tracking object
-        # Keep the original history format intact for backward compatibility
-        _history_store.set(
-            anime_title,
-            [int(time.time()), episode_idx, anilist_id, source, total_episodes],
-        )
-        logger.info(f"Saved history for '{anime_title}' Ep {episode_idx + 1} (action: {action})")
-    except PersistenceError as e:
-        logger.error(f"Failed to save history event for '{anime_title}': {e}")
+    save_history(anime_title, episode_idx, anilist_id, source, total_episodes)
+    logger.info(f"Saved history for '{anime_title}' Ep {episode_idx + 1} (action: {action})")
 
     # Sync with AniList if authenticated and anilist_id is available
     if anilist_id and action == "watched":

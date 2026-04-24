@@ -53,6 +53,9 @@ build/
 .claude/
 openspec/
 
+# images i accidentaly take with 's'
+*.jpg
+
 
 # hidden dir
 .playwright-cli
