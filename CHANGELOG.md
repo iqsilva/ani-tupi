@@ -1,6 +1,14 @@
 # CHANGELOG
 
 
+## v0.11.0 (2026-04-24)
+
+### Features
+
+- Add update command to check for and apply updates
+  ([`2d29bfa`](https://github.com/levyvix/ani-tupi/commit/2d29bfa05fecb7cd1f5f0dd44c39d86c8cf7e5dd))
+
+
 ## v0.10.1 (2026-04-22)
 
 ### Bug Fixes
