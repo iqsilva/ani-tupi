@@ -1,6 +1,14 @@
 # CHANGELOG
 
 
+## v0.11.4 (2026-04-25)
+
+### Bug Fixes
+
+- Refine incremental anime search for compact titles
+  ([`d86077b`](https://github.com/levyvix/ani-tupi/commit/d86077b03f81182279edefe5853011ef69f6cc14))
+
+
 ## v0.11.3 (2026-04-24)
 
 ### Bug Fixes
