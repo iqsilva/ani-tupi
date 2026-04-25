@@ -121,6 +121,24 @@ class SearchRepository:
         text = " ".join(text.split())
         return text
 
+    @staticmethod
+    def _matches_filter_query(title: str, filter_by_query: str) -> bool:
+        """Match filter query against titles using normalized and compact forms."""
+        query_normalized = SearchRepository._normalize_for_filter(filter_by_query)
+        title_normalized = SearchRepository._normalize_for_filter(title)
+
+        query_compact = get_compact_normalized_title_key(query_normalized)
+        title_compact = get_compact_normalized_title_key(title_normalized)
+
+        query_words = query_normalized.split()
+        title_words = title_normalized.split()
+
+        return (
+            query_normalized in title_normalized
+            or query_compact in title_compact
+            or all(word in title_words for word in query_words)
+        )
+
     def _search_with_incremental_results(self, query: str, verbose: bool = True) -> None:
         """Search anime with incremental results respecting configured priority order."""
 
@@ -506,12 +524,10 @@ class SearchRepository:
         titles = list(self.anime_to_urls.keys())
 
         if filter_by_query:
-            # Improved filtering: normalize both query and titles before matching
-            query_normalized = SearchRepository._normalize_for_filter(filter_by_query)
             titles = [
                 title
                 for title in titles
-                if query_normalized in SearchRepository._normalize_for_filter(title)
+                if SearchRepository._matches_filter_query(title, filter_by_query)
             ]
 
         # Build titles with sources

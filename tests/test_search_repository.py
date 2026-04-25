@@ -186,6 +186,16 @@ class TestSearchRepository:
         assert len(titles) == 1
         assert "[animefire, dattebayo]" in titles[0] or "[dattebayo, animefire]" in titles[0]
 
+    def test_get_anime_titles_with_sources_matches_compact_filter(self):
+        """Compact title variants should survive filter_by_query."""
+        repo = SearchRepository()
+        repo.add_anime("Himekishi wa Barbaroi no Yome", "http://url1.com", "animefire", {})
+        repo.add_anime("Himegoto", "http://url2.com", "dattebayo", {})
+
+        titles = repo.get_anime_titles_with_sources(filter_by_query="hime kishi")
+
+        assert titles == ["Himekishi wa Barbaroi no Yome [animefire]"]
+
     def test_normalize_for_filter(self):
         """Normalize text for filtering."""
         repo = SearchRepository()

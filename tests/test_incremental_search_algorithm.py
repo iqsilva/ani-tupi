@@ -60,8 +60,8 @@ def no_anilist():
         yield
 
 
-def test_incremental_search_stops_at_5_results(patch_repository, no_anilist):
-    """Test that filtering stops when results ≤ 5.
+def test_incremental_search_stops_at_20_results(patch_repository, no_anilist):
+    """Test that filtering stops when results ≤ 20.
 
     With the new filtering approach, we search once with 1 word to get base results,
     then filter for subsequent iterations instead of re-searching.
@@ -72,7 +72,7 @@ def test_incremental_search_stops_at_5_results(patch_repository, no_anilist):
     """
     mock_rep = patch_repository
 
-    # Setup: 1 word returns 8 results (>5, so continue)
+    # Setup: 1 word returns 21 results (>20, so continue)
     # Results contain anime titles with sources, so filtering can work on them
     mock_rep.setup_search_result(
         "boku",
@@ -85,10 +85,23 @@ def test_incremental_search_stops_at_5_results(patch_repository, no_anilist):
             "A3",
             "A4",
             "A5",
+            "A6",
+            "A7",
+            "A8",
+            "A9",
+            "A10",
+            "A11",
+            "A12",
+            "A13",
+            "A14",
+            "A15",
+            "A16",
+            "A17",
+            "A18",
         ],
     )
 
-    # Setup: 2 words returns the filtered results (3 items)
+    # Setup: 2 words returns the filtered results (20 items)
     # When filtering "boku" -> "boku no" returns 3 results with fast scrapers,
     # we re-search with "boku no" to get better API results
     mock_rep.setup_search_result(
@@ -97,6 +110,23 @@ def test_incremental_search_stops_at_5_results(patch_repository, no_anilist):
             "Boku no Hero [animefire]",
             "Boku no Hero Season 2 [animefire]",
             "Boku no Hero Season 3 [animefire]",
+            "Boku no Hero Season 4 [animefire]",
+            "Boku no Hero Season 5 [animefire]",
+            "Boku no Hero Season 6 [animefire]",
+            "Boku no Hero OVA 1 [animefire]",
+            "Boku no Hero OVA 2 [animefire]",
+            "Boku no Hero Movie 1 [animefire]",
+            "Boku no Hero Movie 2 [animefire]",
+            "Boku no Hero Special 1 [animefire]",
+            "Boku no Hero Special 2 [animefire]",
+            "Boku no Hero Special 3 [animefire]",
+            "Boku no Hero Extra 1 [animefire]",
+            "Boku no Hero Extra 2 [animefire]",
+            "Boku no Hero Extra 3 [animefire]",
+            "Boku no Hero Extra 4 [animefire]",
+            "Boku no Hero Extra 5 [animefire]",
+            "Boku no Hero Extra 6 [animefire]",
+            "Boku no Hero Extra 7 [animefire]",
         ],
     )
 
@@ -104,7 +134,7 @@ def test_incremental_search_stops_at_5_results(patch_repository, no_anilist):
 
     # Should search twice:
     # 1. Initial search with "boku" (1 word)
-    # 2. Re-search with "boku no" (2 words) because filtered had ≤ 3 results with fast scrapers
+    # 2. Filter/re-search with "boku no" after the base result set stayed > 20
     assert len(mock_rep.search_calls) == 2
     assert "boku" in mock_rep.search_calls
     assert "boku no" in mock_rep.search_calls
@@ -114,13 +144,13 @@ def test_incremental_search_stops_at_5_results(patch_repository, no_anilist):
 
 
 def test_incremental_search_uses_all_words_if_needed(patch_repository, no_anilist):
-    """Test that filtering uses all words if results still > 5.
+    """Test that filtering uses all words if results still > 20.
 
     With filtering approach: search once with 3 words, then filter progressively.
     """
     mock_rep = patch_repository
 
-    # Setup: base 3-word search returns > 5 results with many titles
+    # Setup: base 3-word search returns > 20 results with many titles
     # Note: "attack on titan season 4" gets normalized to "attack on titan 4" (season removed)
     # So it has 4 words: "attack", "on", "titan", "4"
     # Starts with min(3,4)=3 words
@@ -134,6 +164,20 @@ def test_incremental_search_uses_all_words_if_needed(patch_repository, no_anilis
             "B1",
             "B2",
             "B3",
+            "B4",
+            "B5",
+            "B6",
+            "B7",
+            "B8",
+            "B9",
+            "B10",
+            "B11",
+            "B12",
+            "B13",
+            "B14",
+            "B15",
+            "B16",
+            "B17",
         ],
     )
 
@@ -246,8 +290,150 @@ def test_incremental_search_zero_results_fallback(patch_repository, no_anilist):
     # Filtering will find some results (those containing "test")
     assert len(mock_rep.search_calls) == 1
 
-    # Should return some results from the search
+    # Should return some results from the last valid step
     assert len(results) > 0
+    assert state.get_current() is not None
+    assert state.get_current().word_count == 1
+
+
+def test_incremental_search_continues_after_empty_intermediate_refinement(
+    patch_repository, no_anilist
+):
+    """A failed intermediate refinement should not block later words from being tried."""
+    mock_rep = patch_repository
+
+    mock_rep.setup_search_result(
+        "hime",
+        [
+            "Himegoto [animefire]",
+            "Mushikaburi Hime [animefire]",
+            "Niehime to Kemono no Ou [animefire]",
+            "Akagami no Shirayuki Hime [animefire]",
+            "Koihime Musou [animefire]",
+            "T1",
+            "T2",
+            "T3",
+            "T4",
+            "T5",
+            "T6",
+            "T7",
+            "T8",
+            "T9",
+            "T10",
+            "T11",
+            "T12",
+            "T13",
+            "T14",
+            "T15",
+            "T16",
+        ],
+    )
+    mock_rep.setup_search_result("hime kishi", [])
+    mock_rep.setup_search_result("hime kishi wa", [])
+    mock_rep.setup_search_result(
+        "hime kishi wa barbaroi",
+        ["Hime Kishi wa Barbaroi no Yome [animefire]"],
+    )
+
+    state, results = incremental_search_anime("hime kishi wa barbaroi no yome")
+
+    assert mock_rep.search_calls == [
+        "hime",
+        "hime kishi",
+        "hime kishi wa",
+        "hime kishi wa barbaroi",
+    ]
+    assert state.get_current() is not None
+    assert state.get_current().word_count == 4
+    assert results == ["Hime Kishi wa Barbaroi no Yome [animefire]"]
+
+
+def test_incremental_search_preserves_last_valid_filtered_step(patch_repository, no_anilist):
+    """If a later word yields zero results, preserve the last narrowed result set."""
+    mock_rep = patch_repository
+
+    mock_rep.setup_search_result(
+        "hime",
+        [
+            "Himekishi wa Barbaroi no Yome [animefire]",
+            "Himegoto [animefire]",
+            "Mushikaburi Hime [animefire]",
+            "Niehime to Kemono no Ou [animefire]",
+            "Akagami no Shirayuki Hime [animefire]",
+            "T1",
+            "T2",
+            "T3",
+            "T4",
+            "T5",
+            "T6",
+            "T7",
+            "T8",
+            "T9",
+            "T10",
+            "T11",
+            "T12",
+            "T13",
+            "T14",
+            "T15",
+            "T16",
+        ],
+    )
+    mock_rep.setup_search_result(
+        "hime kishi",
+        ["Himekishi wa Barbaroi no Yome [animefire]"],
+    )
+
+    state, results = incremental_search_anime("hime kishi xyz")
+
+    assert len(mock_rep.search_calls) == 2
+    assert state.get_current() is not None
+    assert state.get_current().word_count == 2
+    assert results == ["Himekishi wa Barbaroi no Yome [animefire]"]
+
+
+def test_incremental_search_zero_filtered_results_trigger_fresh_search(
+    patch_repository, no_anilist
+):
+    """If base filtering misses a title entirely, retry with a real refined search."""
+    mock_rep = patch_repository
+
+    mock_rep.setup_search_result(
+        "hime",
+        [
+            "Himegoto [animefire]",
+            "Mushikaburi Hime [animefire]",
+            "Niehime to Kemono no Ou [animefire]",
+            "Akagami no Shirayuki Hime [animefire]",
+            "Koihime Musou [animefire]",
+            "T1",
+            "T2",
+            "T3",
+            "T4",
+            "T5",
+            "T6",
+            "T7",
+            "T8",
+            "T9",
+            "T10",
+            "T11",
+            "T12",
+            "T13",
+            "T14",
+            "T15",
+            "T16",
+        ],
+    )
+    mock_rep.setup_search_result(
+        "hime kishi",
+        ["Hime Kishi wa Barbaroi no Yome [animefire]"],
+    )
+
+    state, results = incremental_search_anime("hime kishi wa barbaroi no yome")
+
+    assert mock_rep.search_calls == ["hime", "hime kishi"]
+    assert state.get_current() is not None
+    assert state.get_current().word_count == 2
+    assert results == ["Hime Kishi wa Barbaroi no Yome [animefire]"]
 
 
 def test_incremental_search_source_counts(patch_repository, no_anilist):
@@ -266,19 +452,25 @@ def test_incremental_search_source_counts(patch_repository, no_anilist):
     assert len(current.source_counts) > 0 or len(current.source_counts) == 0  # Flexible for now
 
 
-def test_incremental_search_exactly_5_results(patch_repository, no_anilist):
-    """Test that exactly 5 results triggers stop condition."""
+def test_incremental_search_exactly_20_results(patch_repository, no_anilist):
+    """Test that exactly 20 results triggers stop condition."""
     mock_rep = patch_repository
 
     # "test anime series long" has 4 words, starts with 1
-    mock_rep.setup_search_result("test", ["A1", "A2", "A3", "A4", "A5"])
-    mock_rep.setup_search_result("test anime series long", ["B1", "B2", "B3", "B4", "B5", "B6"])
+    mock_rep.setup_search_result(
+        "test",
+        [f"A{i}" for i in range(1, 21)],
+    )
+    mock_rep.setup_search_result(
+        "test anime series long",
+        [f"B{i}" for i in range(1, 23)],
+    )
 
     state, results = incremental_search_anime("test anime series long")
 
-    # Should stop at first iteration (5 results = ≤ 5)
+    # Should stop at first iteration (20 results = ≤ 20)
     assert len(mock_rep.search_calls) == 1
-    assert len(results) == 5
+    assert len(results) == 20
 
 
 def test_incremental_search_returns_state_and_results(patch_repository, no_anilist):
@@ -460,7 +652,7 @@ def test_incremental_search_filters_not_searches(patch_repository, no_anilist):
 
     state, results = incremental_search_anime("tate no yuusha no nariagari 2")
 
-    # With new filtering approach: should stop at 3 words if results <= 5
+    # With new filtering approach: should stop at 3 words if results <= 20
     # Because filtering reduces results from 8 to 3 (all contain "shield hero")
     # Actually, let's adjust: all base results contain "shield" so first search returns 8
     # After min(3,6)=3 words, we have 8 results which is > 5
@@ -481,7 +673,7 @@ def test_incremental_search_fallback_on_zero_filter(patch_repository, no_anilist
     """
     mock_rep = patch_repository
 
-    # Setup: 1-word search returns 6 results (>5, so continue filtering)
+    # Setup: 1-word search returns 21 results (>20, so continue filtering)
     mock_rep.setup_search_result(
         "test",
         [
@@ -491,6 +683,21 @@ def test_incremental_search_fallback_on_zero_filter(patch_repository, no_anilist
             "A4",
             "A5",
             "A6",
+            "A7",
+            "A8",
+            "A9",
+            "A10",
+            "A11",
+            "A12",
+            "A13",
+            "A14",
+            "A15",
+            "A16",
+            "A17",
+            "A18",
+            "A19",
+            "A20",
+            "A21",
         ],
     )
     # When filtering "test" -> "test anime" returns 3 results with fast scrapers,
@@ -540,7 +747,7 @@ def test_incremental_search_is_filtered_flag_set(patch_repository, no_anilist):
 
 
 def test_incremental_search_small_base_results_stops():
-    """Test that algorithm stops immediately if base search returns ≤ 5 results."""
+    """Test that algorithm stops immediately if base search returns ≤ 20 results."""
     with patch("services.anime.search.rep") as mock_rep:
         mock_rep.clear_search_results = Mock()
         mock_rep.search_anime = Mock()
@@ -554,7 +761,7 @@ def test_incremental_search_small_base_results_stops():
         ):
             state, results = incremental_search_anime("test anime series long")
 
-        # Should stop after one search (base search returned <= 5)
+        # Should stop after one search (base search returned <= 20)
         assert mock_rep.search_anime.call_count == 1
         assert len(results) == 3
 
@@ -586,6 +793,19 @@ def test_filter_anime_results_preserves_source_info():
     assert "]" in filtered[0]
 
 
+def test_filter_anime_results_matches_compact_titles():
+    """Compact normalized matching should handle concatenated scraper titles."""
+    titles = [
+        "Himekishi wa Barbaroi no Yome [animefire]",
+        "Himegoto [animefire]",
+        "Mushikaburi Hime [animefire]",
+    ]
+
+    filtered = _filter_anime_results(titles, "hime kishi")
+
+    assert filtered == ["Himekishi wa Barbaroi no Yome [animefire]"]
+
+
 def test_incremental_search_season_2_query_real_world(patch_repository, no_anilist):
     """Test real-world scenario: "Tate no Yuusha no Nariagari Season 2".
 
@@ -593,12 +813,13 @@ def test_incremental_search_season_2_query_real_world(patch_repository, no_anili
     When the number "2" is added, filtering should find Season 2 results
     because those titles contain all words in the expanded query.
 
-    With the new re-search logic: if filtering returns ≤ 3 results with fast scrapers,
-    we re-search with the full query to get better API results.
+    With the new stop condition, the search should keep adding words until the
+    filtered results are <= 20. In this fixture, it reaches that threshold
+    before needing a fresh full-query re-search.
     """
     mock_rep = patch_repository
 
-    # Setup: base search with 1 word returns various titles
+    # Setup: base search with 1 word returns various titles (>20, so continue filtering)
     # This simulates what would happen when searching "tate"
     mock_rep.setup_search_result(
         "tate",
@@ -609,12 +830,26 @@ def test_incremental_search_season_2_query_real_world(patch_repository, no_anili
             "Tate no Yuusha no Nariagari Season 2 [animefire, animesonlinecc]",
             "Tate no Yuusha no Nariagari Season 3 [animefire]",
             "Tate no Yuusha no Nariagari Season 4 [animefire, animesonlinecc]",
+            "T1",
+            "T2",
+            "T3",
+            "T4",
+            "T5",
+            "T6",
+            "T7",
+            "T8",
+            "T9",
+            "T10",
+            "T11",
+            "T12",
+            "T13",
+            "T14",
+            "T15",
         ],
     )
 
-    # Setup: re-search with full query returns Season 2 results
-    # When filtering "tate" -> full query returns 2 results with fast scrapers,
-    # we re-search with the full query
+    # Setup: full-query search remains available, but should not be used here
+    # because the filtered result set drops to <= 20 before that point.
     mock_rep.setup_search_result(
         "tate no yuusha no nariagari 2",
         [
@@ -627,19 +862,18 @@ def test_incremental_search_season_2_query_real_world(patch_repository, no_anili
     # "tate no yuusha no nariagari season 2" normalizes to "tate no yuusha no nariagari 2"
     state, results = incremental_search_anime("tate no yuusha no nariagari season 2")
 
-    # Should search twice:
-    # 1. Initial search with "tate" (1 word)
-    # 2. Re-search with full query because filtered had ≤ 3 results with fast scrapers
-    assert len(mock_rep.search_calls) == 2
+    # Should only search once, then stop after filtering down to <= 20 results
+    assert len(mock_rep.search_calls) == 1
     assert "tate" in mock_rep.search_calls
-    assert "tate no yuusha no nariagari 2" in mock_rep.search_calls
 
-    # Results should include Season 2 variants
+    # Results should still include Season 2 variants in the filtered set
     assert len(results) > 0
+    assert any("season 2" in title.lower() or "nariagari 2" in title.lower() for title in results)
 
     # Check that the state tracks iterations
     assert state.get_current() is not None
     assert state.search_history[0].word_count == 1  # Base search with 1 word
+    assert state.get_current().word_count == 2
 
 
 def test_filter_by_number_finds_all_containing_results():
