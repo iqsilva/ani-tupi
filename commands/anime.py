@@ -77,6 +77,46 @@ def format_playback_menu_option(
     return label
 
 
+def build_post_playback_options(ctx: "PlaybackContext") -> list[str]:
+    """Build post-playback action options for current context."""
+    opts = []
+    if ctx.episode_idx < ctx.num_episodes - 1:
+        next_ep_num = ctx.episode_idx + 2  # 1-indexed
+        opts.append(
+            format_playback_menu_option("▶️  Próximo", next_ep_num, ctx.episode_skip_available)
+        )
+    if ctx.episode_idx > 0:
+        prev_ep_num = ctx.episode_idx  # 1-indexed (episode_idx is 0-indexed)
+        opts.append(
+            format_playback_menu_option("◀️  Anterior", prev_ep_num, ctx.episode_skip_available)
+        )
+
+    current_ep_num = ctx.episode_idx + 1  # 1-indexed
+    opts.append(
+        format_playback_menu_option("🔁 Replay", current_ep_num, ctx.episode_skip_available)
+    )
+    opts.append("📋 Escolher outro episódio")
+    opts.append("📥 Baixar para assistir depois")
+    opts.append("🔄 Trocar fonte")
+    return opts
+
+
+def select_episode_from_menu(ctx: "PlaybackContext") -> "PlaybackContext | None":
+    """Select an episode from menu and return updated context.
+
+    Returns:
+        Updated PlaybackContext when episode is selected.
+        None when user chooses to go back from episode selection.
+    """
+    formatted_episodes = format_episode_list_with_skip(ctx.episode_list, ctx.episode_skip_available)
+    selected_episode = menu_navigate(formatted_episodes, msg="Escolha o episódio.")
+    if not selected_episode:
+        return None
+
+    episode_idx = formatted_episodes.index(selected_episode)
+    return navigate_episodes(ctx, "choose", episode_idx)
+
+
 def handle_anime_download(ctx: "PlaybackContext", args) -> None:
     """Handle anime download workflow.
 
@@ -587,62 +627,46 @@ def anime(args) -> None:
             if anime_service.offer_sequel_and_continue(ctx.anilist_id, args):
                 return  # Sequel started, exit this flow
 
-        # Episode navigation menu with skip time indicators
-        opts = []
-        if ctx.episode_idx < ctx.num_episodes - 1:
-            next_ep_num = ctx.episode_idx + 2  # 1-indexed
-            opts.append(
-                format_playback_menu_option("▶️  Próximo", next_ep_num, ctx.episode_skip_available)
-            )
-        if ctx.episode_idx > 0:
-            prev_ep_num = ctx.episode_idx  # 1-indexed (episode_idx is 0-indexed)
-            opts.append(
-                format_playback_menu_option("◀️  Anterior", prev_ep_num, ctx.episode_skip_available)
+        # Post-playback action layer
+        while True:
+            selected_opt = menu_navigate(
+                build_post_playback_options(ctx), msg="O que quer fazer agora?"
             )
 
-        current_ep_num = ctx.episode_idx + 1  # 1-indexed
-        opts.append(
-            format_playback_menu_option("🔁 Replay", current_ep_num, ctx.episode_skip_available)
-        )
-        opts.append("📋 Escolher outro episódio")
-        opts.append("📥 Baixar para assistir depois")
-        opts.append("🔄 Trocar fonte")
+            if not selected_opt:
+                return  # Exit to main menu
 
-        selected_opt = menu_navigate(list(opts), msg="O que quer fazer agora?")
+            if "▶️  Próximo" in selected_opt:  # May have ⏭️ indicator
+                ctx = navigate_episodes(ctx, "next")
+                break
 
-        if not selected_opt or selected_opt == "🔙 Voltar":
-            return  # Exit to main menu
-        elif "▶️  Próximo" in selected_opt:  # May have ⏭️ indicator
-            ctx = navigate_episodes(ctx, "next")
-        elif "◀️  Anterior" in selected_opt:  # May have ⏭️ indicator
-            ctx = navigate_episodes(ctx, "previous")
-        elif "🔁 Replay" in selected_opt:  # May have ⏭️ indicator
-            ctx = navigate_episodes(ctx, "replay")
-        elif selected_opt == "📋 Escolher outro episódio":
-            # User selects episode from menu with skip time indicators
-            formatted_episodes = format_episode_list_with_skip(
-                ctx.episode_list, ctx.episode_skip_available
-            )
-            selected_episode = menu_navigate(formatted_episodes, msg="Escolha o episódio.")
-            if not selected_episode:
-                return  # User cancelled, exit function
-            # Find the index in the formatted list (safe because formatting doesn't change order)
-            episode_idx = formatted_episodes.index(selected_episode)
-            ctx = navigate_episodes(ctx, "choose", episode_idx)
-        elif selected_opt == "📥 Baixar para assistir depois":
-            # Download episodes for offline viewing
-            handle_anime_download(ctx, args)
-        elif selected_opt == "🔄 Trocar fonte":
-            # Source switching
-            result = anime_service.switch_anime_source(ctx.anime_title, args, ctx.anilist_id)
-            new_anime, new_episode_idx = result
-            if new_anime and new_episode_idx is not None:
-                # Prepare new context with switched source
-                new_ctx = prepare_playback_from_search(new_anime, new_episode_idx, source)
-                if new_ctx:
-                    ctx = new_ctx
-                    # Update episode count and list
-                    ctx = navigate_episodes(ctx, "choose", new_episode_idx)
+            if "◀️  Anterior" in selected_opt:  # May have ⏭️ indicator
+                ctx = navigate_episodes(ctx, "previous")
+                break
+
+            if "🔁 Replay" in selected_opt:  # May have ⏭️ indicator
+                ctx = navigate_episodes(ctx, "replay")
+                break
+
+            if selected_opt == "📋 Escolher outro episódio":
+                selected_ctx = select_episode_from_menu(ctx)
+                if selected_ctx is None:
+                    continue  # Back to action layer
+                ctx = selected_ctx
+                break
+
+            if selected_opt == "📥 Baixar para assistir depois":
+                handle_anime_download(ctx, args)
+                continue  # Stay in action layer
+
+            if selected_opt == "🔄 Trocar fonte":
+                result = anime_service.switch_anime_source(ctx.anime_title, args, ctx.anilist_id)
+                new_anime, new_episode_idx = result
+                if new_anime and new_episode_idx is not None:
+                    new_ctx = prepare_playback_from_search(new_anime, new_episode_idx, source)
+                    if new_ctx:
+                        ctx = navigate_episodes(new_ctx, "choose", new_episode_idx)
+                        break
 
 
 def handle_random_anime(args) -> None:
