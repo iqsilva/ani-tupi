@@ -241,16 +241,6 @@ uv run main.py --debug       # Com debug
 uv run main.py -q "naruto"   # Buscar direto
 ```
 
-### Build para Distribuição
-
-Para criar executável standalone (não precisa Python instalado):
-
-```bash
-uv run build.py
-```
-
-O executável será criado em `dist/ani-tupi` (Linux/macOS) ou `dist/ani-tupi.exe` (Windows), junto com a pasta `plugins/`.
-
 ## 🔧 Para Desenvolvedores
 
 ### Estrutura do Projeto
@@ -273,7 +263,6 @@ ani-tupi/
 │   ├── animefire.py
 │   └── animesonlinecc.py
 ├── install-cli.py       # Instalador CLI global (principal)
-├── build.py             # Build executável standalone
 ├── monitor-actions.sh   # Monitor GitHub Actions
 ├── .github/workflows/   # CI/CD automático
 │   ├── ci.yml           # Validação rápida
@@ -295,9 +284,6 @@ uv tool uninstall ani-tupi
 # Instalar dependências (desenvolvimento)
 uv sync
 
-# Buildar executável standalone
-uv run build.py
-
 # Adicionar nova dependência
 uv add nome-do-pacote
 
@@ -313,19 +299,6 @@ uv add --dev nome-do-pacote
 - 📦 Gerenciamento de venv automático
 - 🌍 Multiplataforma (Linux, macOS, Windows)
 - 🚀 Instalação zero-config
-
-## 📦 Usando Release Pré-compilada
-
-Se houver uma release disponível, você pode baixar o executável direto:
-
-```bash
-# Baixe a release do GitHub
-# Dê permissão de execução (Linux/macOS)
-chmod +x ./ani-tupi
-
-# Execute
-./ani-tupi
-```
 
 ## 🐛 Problemas Conhecidos
 
@@ -565,7 +538,6 @@ Para questões legais específicas em sua jurisdição, consulte um advogado esp
 - ✅ Menu curses em português brasileiro
 - ✅ Histórico local de episódios assistidos
 - ✅ Suporte a modo debug
-- ✅ Build com PyInstaller
 - ✅ Instalação via UV tool
 
 ---

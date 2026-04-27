@@ -53,12 +53,6 @@ class MangaDexError(MangaError):
     user_message = "Erro ao conectar com MangaDex. Verifique sua conexão."
 
 
-class ChapterNotAvailableError(MangaError):
-    """Chapter not available in selected languages."""
-
-    user_message = "Capítulo não disponível no idioma selecionado."
-
-
 # ============================================================================
 # UTILITY CLASSES
 # ============================================================================

@@ -620,17 +620,6 @@ class CacheStats(BaseModel):
     total_items: int = Field(..., ge=0, description="Total items")
 
 
-# Plugin Models
-class PluginPreferences(BaseModel):
-    """Plugin preferences configuration.
-
-    Attributes:
-        disabled_plugins: List of disabled plugin names
-    """
-
-    disabled_plugins: list[str] = Field(default_factory=list, description="Disabled plugins")
-
-
 class Status(str, Enum):
     CURRENT = "CURRENT"
     PLANNING = "PLANNING"
@@ -959,67 +948,3 @@ class UpdateCheckResult(BaseModel):
         default=None,
         description="User-facing update message when an update is available",
     )
-
-
-class RecentEpisodeData(BaseModel):
-    """Recent episode from AnimesDigital homepage.
-
-    Represents a single episode scraped from AnimesDigital's homepage
-    "últimos episódios" section. Contains parsed data extracted from the
-    episode link HTML structure.
-
-    Attributes:
-        anime_title: Anime title as shown on AnimesDigital
-        episode_number: Episode number (parsed from title, must be positive)
-        episode_url: Direct link to episode page (must be valid HTTP(S) URL)
-        source: Source identifier (default: "animesdigital")
-        fetched_at: When this data was scraped (auto-set to now)
-    """
-
-    anime_title: str = Field(..., min_length=1, description="Anime title from AnimesDigital")
-    episode_number: int = Field(..., ge=1, description="Episode number (must be > 0)")
-    episode_url: str = Field(..., min_length=1, description="Episode page URL")
-    source: str = Field(default="animesdigital", description="Source identifier")
-    fetched_at: datetime = Field(default_factory=datetime.now, description="When scraped")
-
-    @field_validator("episode_url")
-    @classmethod
-    def validate_episode_url(cls, v: str) -> str:
-        """Validate URL format."""
-        if not v.startswith(("http://", "https://")):
-            raise ValueError(f"Episode URL must be http(s), got: {v}")
-        return v
-
-
-class RecentEpisodeMatch(BaseModel):
-    """Recent episode matched with AniList watching list entry.
-
-    Result of cross-referencing AnimesDigital recent episodes with the
-    user's AniList watching list. Contains both AnimesDigital data and
-    AniList context (ID, user-facing title) for direct playback.
-
-    Attributes:
-        anilist_id: User's AniList anime ID (for history/sync)
-        anilist_title: User's AniList anime title
-        animesdigital_title: Original title from AnimesDigital
-        episode_number: Episode number from AnimesDigital
-        episode_url: Episode URL ready for playback
-        matched_confidence: Fuzzy match score (0.0-1.0, where 1.0 is perfect match)
-    """
-
-    anilist_id: int = Field(..., gt=0, description="AniList anime ID")
-    anilist_title: str = Field(..., min_length=1, description="User's AniList anime title")
-    animesdigital_title: str = Field(
-        ..., min_length=1, description="Original title from AnimesDigital"
-    )
-    episode_number: int = Field(..., ge=1, description="Episode number")
-    episode_url: str = Field(..., min_length=1, description="Episode URL for playback")
-    matched_confidence: float = Field(..., ge=0.0, le=1.0, description="Fuzzy match score")
-
-    @field_validator("episode_url")
-    @classmethod
-    def validate_episode_url(cls, v: str) -> str:
-        """Validate URL format."""
-        if not v.startswith(("http://", "https://")):
-            raise ValueError(f"Episode URL must be http(s), got: {v}")
-        return v

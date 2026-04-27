@@ -6,7 +6,6 @@ Uses StealthyFetcher with adaptive mode for robust scraping.
 """
 
 import importlib
-import sys
 from os import listdir
 from os.path import abspath, dirname, isfile, join
 from typing import Protocol
@@ -84,12 +83,7 @@ MangaScraperInterface = MangaScraperProtocol
 
 
 def get_resource_path(relative_path):
-    """Get the path to resources, whether running as script or executable."""
-    if hasattr(sys, "_MEIPASS"):
-        # PyInstaller executable
-        meipass = getattr(sys, "_MEIPASS", "")
-        return join(meipass, relative_path)
-    # Use directory where this file is located
+    """Get the path to resources relative to this loader."""
     return join(dirname(abspath(__file__)), relative_path)
 
 

@@ -55,11 +55,6 @@ push:
 @format:
     uv run ruff format .
 
-# Build standalone executable
-@build:
-    uv run build.py
-    echo "✅ Built: dist/ani-tupi"
-
 # Install as global CLI
 @install:
     python3 install-cli.py

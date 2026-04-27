@@ -126,26 +126,3 @@ def parse_episode_range(user_input: str, total_episodes: int) -> list[int]:
             )
 
         return [episode]
-
-
-def validate_episode_range(episodes: list[int], total_episodes: int) -> bool:
-    """Validate that all episodes are within valid range.
-
-    Args:
-        episodes: List of episode numbers to validate
-        total_episodes: Total number of episodes available
-
-    Returns:
-        True if all episodes are valid (1 <= ep <= total_episodes)
-
-    Raises:
-        RangeParseError: If any episode is out of bounds
-    """
-    if not episodes:
-        raise RangeParseError("Lista de episódios está vazia")
-
-    for episode in episodes:
-        if episode < 1 or episode > total_episodes:
-            raise RangeParseError(f"Episódio {episode} fora do intervalo (1-{total_episodes})")
-
-    return True
