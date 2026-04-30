@@ -214,16 +214,16 @@ class PluginSettings(BaseModel):
 
     disabled_plugins: list[str] = Field(
         default_factory=list,
-        description="List of disabled plugin names (e.g., ['animesonlinecc'])",
+        description="List of disabled plugin names (e.g., ['sushianimes'])",
     )
     priority_order: list[str] = Field(
         default_factory=lambda: [
             "sushianimes",
-            "dattebayo",
+            "anitube",
             "animesdigital",
             "animefire",
             "anitube",
-            "animesonlinecc",
+            "sushianimes",
         ],
         description="Priority order for scraper sources (first = highest priority)",
     )

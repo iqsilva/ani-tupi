@@ -179,18 +179,18 @@ class TestSearchRepository:
         """Get anime titles with source indicators."""
         repo = SearchRepository()
         repo.add_anime("Jujutsu Kaisen", "http://url1.com", "animefire", {})
-        repo.add_anime("Jujutsu Kaisen", "http://url2.com", "dattebayo", {})
+        repo.add_anime("Jujutsu Kaisen", "http://url2.com", "anitube", {})
 
         titles = repo.get_anime_titles_with_sources()
         # Should contain one entry with both sources
         assert len(titles) == 1
-        assert "[animefire, dattebayo]" in titles[0] or "[dattebayo, animefire]" in titles[0]
+        assert "[animefire, anitube]" in titles[0] or "[anitube, animefire]" in titles[0]
 
     def test_get_anime_titles_with_sources_matches_compact_filter(self):
         """Compact title variants should survive filter_by_query."""
         repo = SearchRepository()
         repo.add_anime("Himekishi wa Barbaroi no Yome", "http://url1.com", "animefire", {})
-        repo.add_anime("Himegoto", "http://url2.com", "dattebayo", {})
+        repo.add_anime("Himegoto", "http://url2.com", "anitube", {})
 
         titles = repo.get_anime_titles_with_sources(filter_by_query="hime kishi")
 

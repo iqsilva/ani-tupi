@@ -74,15 +74,15 @@ class TestSortByPriority:
         """Test real-world scenario: select from multiple sources."""
         available_sources = [
             ("episode1_dub_link", "animefire"),
-            ("episode1_sub_link", "animesonlinecc"),
+            ("episode1_sub_link", "sushianimes"),
             ("episode1_unknown_link", "unknown_source"),
         ]
-        priority_order = ["animesonlinecc", "animefire", "dattebayo"]
+        priority_order = ["sushianimes", "animefire", "anitube"]
 
         sorted_sources = sort_by_priority(available_sources, priority_order, source_index=1)
 
-        # animesonlinecc (sub) should be first (highest priority)
-        assert sorted_sources[0] == ("episode1_sub_link", "animesonlinecc")
+        # sushianimes (sub) should be first (highest priority)
+        assert sorted_sources[0] == ("episode1_sub_link", "sushianimes")
         assert sorted_sources[1] == ("episode1_dub_link", "animefire")
         assert sorted_sources[2] == ("episode1_unknown_link", "unknown_source")
 

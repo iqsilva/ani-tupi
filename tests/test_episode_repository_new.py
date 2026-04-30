@@ -94,13 +94,13 @@ class TestEpisodeRepository:
         """get_all_episode_sources returns all sources sorted by priority."""
         repo = EpisodeRepository()
         repo.add_episode_list("Anime A", ["Ep 1"], ["http://dub_url"], "animefire")
-        repo.add_episode_list("Anime A", ["Ep 1"], ["http://sub_url"], "animesonlinecc")
+        repo.add_episode_list("Anime A", ["Ep 1"], ["http://sub_url"], "sushianimes")
 
         result = repo.get_all_episode_sources("Anime A", 1)
 
         assert len(result) == 2
-        assert result[0][1] in ["animefire", "animesonlinecc"]
-        assert result[1][1] in ["animefire", "animesonlinecc"]
+        assert result[0][1] in ["animefire", "sushianimes"]
+        assert result[1][1] in ["animefire", "sushianimes"]
         assert result[0][1] != result[1][1]
 
     def test_get_next_available_episode(self):

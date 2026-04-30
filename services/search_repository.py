@@ -65,7 +65,7 @@ class SearchRepository:
         """Get list of currently registered plugin names.
 
         Returns:
-            List of plugin names (e.g., ["animefire", "animesonlinecc"])
+            List of plugin names (e.g., ["animefire", "sushianimes"])
         """
         return sorted(list(self.sources.keys()))
 

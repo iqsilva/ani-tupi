@@ -94,7 +94,7 @@ def _edit_category(
         logger.info(f"ℹ️ {category_label}.{field_name}: {description}")
         if category_key == "plugins" and field_name == "priority_order":
             logger.info(
-                "ℹ️ Dica: informe só os itens que quer no topo (ex: animefire,dattebayo). "
+                "ℹ️ Dica: informe só os itens que quer no topo (ex: animefire,anitube). "
                 "Os não citados mantêm a ordem atual."
             )
         raw = input(

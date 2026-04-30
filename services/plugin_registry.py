@@ -40,7 +40,7 @@ class PluginRegistry:
         """Get sorted list of registered plugin names.
 
         Returns:
-            Sorted list of plugin names (e.g., ["animefire", "animesonlinecc"])
+            Sorted list of plugin names (e.g., ["animefire", "sushianimes"])
         """
         return sorted(list(self._plugins.keys()))
 

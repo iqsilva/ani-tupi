@@ -434,7 +434,7 @@ def save_history(
 
     Format: {"anime_name": [timestamp, episode_idx, anilist_id, source, total_episodes, anime_urls], ...}
     - anilist_id can be None for anime not from AniList
-    - source is the scraper name (e.g., "animefire", "animesonlinecc")
+    - source is the scraper name (e.g., "animefire", "sushianimes")
     - total_episodes is the known total count of episodes (auto-detected if not provided)
     """
     # Auto-detect total_episodes if not provided

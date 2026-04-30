@@ -769,7 +769,7 @@ def test_incremental_search_small_base_results_stops():
 def test_filter_anime_results_with_multiple_sources():
     """Test filtering with multiple sources in brackets."""
     titles = [
-        "Shield Hero [animefire, animesonlinecc]",
+        "Shield Hero [animefire, sushianimes]",
         "Shield Hero 2 [animefire]",
         "Attack on Titan [animefire]",
     ]
@@ -783,7 +783,7 @@ def test_filter_anime_results_with_multiple_sources():
 def test_filter_anime_results_preserves_source_info():
     """Test that filtering preserves the source bracket information."""
     titles = [
-        "Spy Family [animefire, animesonlinecc]",
+        "Spy Family [animefire, sushianimes]",
         "Spy Family Season 2 [animefire]",
     ]
 
@@ -824,12 +824,12 @@ def test_incremental_search_season_2_query_real_world(patch_repository, no_anili
     mock_rep.setup_search_result(
         "tate",
         [
-            "Tate no Yuusha no Nariagari [animefire, animesonlinecc]",
+            "Tate no Yuusha no Nariagari [animefire, sushianimes]",
             "Tate no Yuusha no Nariagari 2 [animesdigital]",
             "Tate no Yuusha no Nariagari Dublado [animefire]",
-            "Tate no Yuusha no Nariagari Season 2 [animefire, animesonlinecc]",
+            "Tate no Yuusha no Nariagari Season 2 [animefire, sushianimes]",
             "Tate no Yuusha no Nariagari Season 3 [animefire]",
-            "Tate no Yuusha no Nariagari Season 4 [animefire, animesonlinecc]",
+            "Tate no Yuusha no Nariagari Season 4 [animefire, sushianimes]",
             "T1",
             "T2",
             "T3",
@@ -854,7 +854,7 @@ def test_incremental_search_season_2_query_real_world(patch_repository, no_anili
         "tate no yuusha no nariagari 2",
         [
             "Tate no Yuusha no Nariagari 2 [animesdigital]",
-            "Tate no Yuusha no Nariagari Season 2 [animefire, animesonlinecc]",
+            "Tate no Yuusha no Nariagari Season 2 [animefire, sushianimes]",
         ],
     )
 
@@ -884,9 +884,9 @@ def test_filter_by_number_finds_all_containing_results():
     because ALL query words must appear in the result title (any order).
     """
     titles = [
-        "Tate no Yuusha no Nariagari [animefire, animesonlinecc]",
+        "Tate no Yuusha no Nariagari [animefire, sushianimes]",
         "Tate no Yuusha no Nariagari 2 [animesdigital]",
-        "Tate no Yuusha no Nariagari Season 2 [animefire, animesonlinecc]",
+        "Tate no Yuusha no Nariagari Season 2 [animefire, sushianimes]",
         "Tate no Yuusha no Nariagari Season 3 [animefire]",
     ]
 

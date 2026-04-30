@@ -43,10 +43,10 @@ class TestPluginRegistry:
         registry.register(plugin1)
         assert registry.get_plugin("animefire") is plugin1
 
-        plugin2 = MockPlugin("animesonlinecc")
+        plugin2 = MockPlugin("sushianimes")
         registry.register(plugin2)
         assert registry.get_plugin("animefire") is plugin1
-        assert registry.get_plugin("animesonlinecc") is plugin2
+        assert registry.get_plugin("sushianimes") is plugin2
 
     def test_get_active_sources_and_all_plugins(self, registry):
         """Should return sorted sources and dict of all plugins (empty and populated)."""

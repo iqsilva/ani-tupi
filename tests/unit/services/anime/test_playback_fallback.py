@@ -108,7 +108,7 @@ class TestPlayEpisodeWithFallback:
         sources = [
             ("https://url1.mp4", "anitube"),
             ("https://url2.mp4", "animefire"),
-            ("https://url3.mp4", "animesonlinecc"),
+            ("https://url3.mp4", "sushianimes"),
         ]
 
         result = play_episode_with_fallback(
@@ -124,7 +124,7 @@ class TestPlayEpisodeWithFallback:
         assert len(result.sources_tried) == 3
         assert result.sources_tried[0] == ("anitube", 2)
         assert result.sources_tried[1] == ("animefire", 1)
-        assert result.sources_tried[2] == ("animesonlinecc", 4)
+        assert result.sources_tried[2] == ("sushianimes", 4)
 
     def test_user_abort_stops_immediately(self):
         """Test that user abort (exit code 3) stops fallback immediately."""
@@ -234,17 +234,17 @@ class TestPlayEpisodeWithFallbackIntegration:
     def test_fallback_with_three_sources_two_fail(self):
         """Test realistic scenario: 3 sources, first 2 fail, 3rd succeeds."""
         player = Mock()
-        # Simulate: anitube fails (403), animefire fails (timeout), animesonlinecc succeeds
+        # Simulate: anitube fails (403), animefire fails (timeout), sushianimes succeeds
         player.play_episode.side_effect = [
             VideoPlaybackResult(exit_code=2, action="quit", data=None),  # anitube fails
             VideoPlaybackResult(exit_code=2, action="quit", data=None),  # animefire fails
-            VideoPlaybackResult(exit_code=0, action="quit", data=None),  # animesonlinecc succeeds
+            VideoPlaybackResult(exit_code=0, action="quit", data=None),  # sushianimes succeeds
         ]
 
         sources = [
             ("https://anitube.com/video", "anitube"),
             ("https://animefire.com/video", "animefire"),
-            ("https://animesonlinecc.com/video", "animesonlinecc"),
+            ("https://sushianimes.com/video", "sushianimes"),
         ]
 
         result = play_episode_with_fallback(
@@ -257,6 +257,6 @@ class TestPlayEpisodeWithFallbackIntegration:
         )
 
         assert result.all_failed is False
-        assert result.source_used == "animesonlinecc"
+        assert result.source_used == "sushianimes"
         assert len(result.sources_tried) == 3
         assert player.play_episode.call_count == 3

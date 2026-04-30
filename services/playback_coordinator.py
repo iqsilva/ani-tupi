@@ -63,7 +63,7 @@ class PlaybackCoordinator:
         domain_mappings = {
             "animefire": "animefire",
             "animesdigital": "animesdigital",
-            "animesonline": "animesonlinecc",
+            "animesonline": "sushianimes",
             "goyabu": "goyabu",
         }
 

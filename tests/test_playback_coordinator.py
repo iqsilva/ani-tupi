@@ -81,14 +81,14 @@ class TestPlaybackCoordinator:
 
         assert source == "animesdigital"
 
-    def test_detect_source_from_url_animesonlinecc(self):
-        """Detect animesonlinecc source from URL."""
+    def test_detect_source_from_url_sushianimes(self):
+        """Detect sushianimes source from URL."""
         coordinator = PlaybackCoordinator({})
         url = "https://www.animesonline.cc/watch/123"
 
         source = coordinator._detect_source_from_url(url)
 
-        assert source == "animesonlinecc"
+        assert source == "sushianimes"
 
     def test_detect_source_from_url_goyabu(self):
         """Detect goyabu source from URL."""

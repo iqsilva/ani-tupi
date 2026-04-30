@@ -44,22 +44,22 @@ def test_field_description_exposes_pydantic_field_docs():
 def test_priority_order_partial_reorder_keeps_unspecified_tail():
     """Specified sources should move to top; unspecified keep relative order."""
     svc = SettingsManagementService()
-    current = ["sushianimes", "dattebayo", "animesdigital", "animefire", "anitube"]
+    current = ["sushianimes", "animesdigital", "animefire", "anitube"]
 
     updated = svc.parse_input_value(
         "plugins",
         "priority_order",
-        "animefire,dattebayo",
+        "animefire,anitube",
         current_value=current,
     )
 
-    assert updated == ["animefire", "dattebayo", "sushianimes", "animesdigital", "anitube"]
+    assert updated == ["animefire", "anitube", "sushianimes", "animesdigital"]
 
 
 def test_priority_order_single_top1_keeps_rest_order():
     """Single top source should only be moved to front."""
     svc = SettingsManagementService()
-    current = ["sushianimes", "dattebayo", "animesdigital", "animefire", "anitube"]
+    current = ["sushianimes", "animesdigital", "animefire", "anitube"]
 
     updated = svc.parse_input_value(
         "plugins",
@@ -68,13 +68,13 @@ def test_priority_order_single_top1_keeps_rest_order():
         current_value=current,
     )
 
-    assert updated == ["anitube", "sushianimes", "dattebayo", "animesdigital", "animefire"]
+    assert updated == ["anitube", "sushianimes", "animesdigital", "animefire"]
 
 
 def test_priority_order_rejects_unknown_source():
     """Unknown source names should be rejected with clear error."""
     svc = SettingsManagementService()
-    current = ["sushianimes", "dattebayo"]
+    current = ["sushianimes", "anitube"]
 
     with pytest.raises(ValueError, match="Unknown source"):
         svc.parse_input_value(
