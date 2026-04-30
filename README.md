@@ -46,8 +46,6 @@ Recomendamos usar [Chocolatey](https://chocolatey.org/install):
 ```powershell
 # Como administrador
 choco install python mpv zathura firefox git
-
-uv run playwright install
 ```
 
 **Nota:** Zathura é primariamente para Linux. No Windows, o sistema detectará automaticamente outros leitores de PDF instalados (Adobe Reader, SumatraPDF, etc).
@@ -253,34 +251,6 @@ uv run main.py -q "naruto"   # Buscar direto
 
 ## 🔧 Para Desenvolvedores
 
-### Estrutura do Projeto
-```
-ani-tupi/
-├── main.py              # Entry point para anime
-├── manga_tupi.py        # Entry point para mangá (refatorado)
-├── manga_service.py     # Service layer MangaDex (NEW)
-├── loader.py            # Sistema de plugins
-├── repository.py        # Repositório de dados
-├── menu.py              # Interface do menu (Rich + InquirerPy)
-├── loading.py           # Loading spinners (Rich)
-├── video_player.py      # Integração com mpv
-├── models.py            # Pydantic data models (anime + manga)
-├── config.py            # Configuração centralizada (Pydantic)
-├── anilist.py           # Cliente AniList GraphQL
-├── anilist_menu.py      # Menu AniList
-├── scraper_cache.py     # Cache de scrapers
-├── plugins/             # Plugins de scraping
-│   ├── animefire.py
-│   └── animesonlinecc.py
-├── install-cli.py       # Instalador CLI global (principal)
-├── monitor-actions.sh   # Monitor GitHub Actions
-├── .github/workflows/   # CI/CD automático
-│   ├── ci.yml           # Validação rápida
-│   ├── build-test.yml   # Testes de build
-│   └── release.yml      # Releases automáticas
-└── pyproject.toml       # Configuração do projeto
-```
-
 ### Comandos Úteis
 
 ```bash
@@ -311,44 +281,6 @@ uv add --dev nome-do-pacote
 - 🚀 Instalação zero-config
 
 ## 🐛 Problemas Conhecidos
-
-### AnimesDigital falha: "Executable doesn't exist at /home/..."
-
-**Causa:** Playwright browser binaries não estão instalados ou faltam dependências do sistema.
-
-**Solução:**
-
-```bash
-# 1. Instale os binários do Playwright
-uv run playwright install
-
-# 2. Instale dependências do sistema para seu OS
-```
-
-**Para Arch Linux:**
-```bash
-sudo pacman -S libxml2 libvpx flite webkit2gtk-4.1 xdg-utils
-```
-
-**Para Ubuntu/Debian:**
-```bash
-sudo apt install libxml2 libvpx libflite1 webkit2gtk-4.1 xdg-utils
-```
-
-**Para Fedora:**
-```bash
-sudo dnf install libxml2 libvpx flite webkit2gtk-4.1 xdg-utils
-```
-
-**Para macOS:**
-```bash
-brew install libxml2 libvpx flite webkit2gtk
-```
-
-Depois de instalar, teste:
-```bash
-uv run python -c "from playwright.sync_api import sync_playwright; print('✓ Playwright funcionando')"
-```
 
 ### "FileNotFoundError" ao salvar histórico
 Corrigido na versão 0.1.0+. Atualize para a versão mais recente.
@@ -446,110 +378,3 @@ Para questões legais específicas em sua jurisdição, consulte um advogado esp
 - Comunidade anime brasileira
 - Desenvolvedores do mpv
 - Projeto ani-cli (inspiração)
-
----
-
-## 📝 Changelog
-
-### v0.3.0 (Fevereiro 2025) - Airing Episodes & Local Library
-
-**🎬 Airing Episodes (Novos Episódios)**
-- ✅ Novo tab "🎬 Novos Episódios" no menu AniList
-- ✅ Lista animes em transmissão com gap de episódios
-- ✅ Ordena por urgência (maior atraso primeiro)
-- ✅ Mostra score e quanto você está atrasado
-- ✅ Integração seamless com playback
-
-**📂 Biblioteca Local (Download & Offline)**
-- ✅ Tab "📂 Biblioteca Local" no menu principal
-- ✅ Baixe episódios para assistir depois
-- ✅ Range flexível: `5`, `1-12`, `5-`, `-12`
-- ✅ Downloads paralelos configuráveis (1-16)
-- ✅ Salva progresso local persistentemente
-- ✅ Sincronização com AniList após playback
-
-**🔍 Busca Incremental & Histórico**
-- ✅ Busca progressiva com refinamento automático
-- ✅ Histórico de buscas com navegação
-- ✅ Melhor precisão para títulos ambíguos
-- ✅ Menu inteligente para múltiplos resultados
-
-**🔧 Melhorias de Robustez**
-- ✅ Validação de fontes por prioridade (AnimesDigital > AnimesFire)
-- ✅ Tratamento de falha em fonte fallback
-- ✅ Homepage incremental search para AnimesDigital
-- ✅ Suporte a episodes descobertos dinamicamente
-
-**🐛 Correções**
-- ✅ Fallback source now validates non-empty chapters
-- ✅ AnimesDigital ?odr=1 parameter requirement documented
-- ✅ Episode order sorting and deduplication
-- ✅ Homepage search matching precision
-
-### v0.2.0 (Dezembro 2025) - Refactor & Performance
-
-**🔄 Trocar Fonte Durante Reprodução**
-- ✅ Opção "🔄 Trocar fonte" no menu pós-episódio
-- ✅ Alterna entre versões dublada/legendada/diferentes scrapers
-- ✅ Útil quando a fonte atual não tem episódios mais recentes
-- ✅ Mostra todas as variações encontradas para o anime base
-- ✅ Disponível em busca normal e fluxo AniList
-
-**🎵 Refatoração Manga CLI**
-- ✅ Mangá refatorado para seguir MVCP (Model-View-Controller-Plugin)
-- ✅ Service layer MangaDex com erro handling e cache
-- ✅ Substituição de `input()` por Rich + InquirerPy menus
-- ✅ Spinners de loading para API calls
-- ✅ Histórico de leitura em JSON (`manga_history.json`)
-- ✅ Resume hint "⮕ Retomar" mostra último capítulo lido
-- ✅ Configuração centralizada com Pydantic (`config.py`)
-- ✅ Pydantic data models para MangaMetadata, ChapterData, etc
-- ✅ Cache de capítulos (24h padrão, configurável)
-- ✅ Múltiplos idiomas (pt-br, en, ja padrão)
-
-**⚡ Performance e Cache**
-- ✅ Cache de episódios: carrega instantaneamente lista de episódios já visitados
-- ✅ Cache de scrapers: resultados de busca salvos para acesso rápido
-- ✅ Correção de crash ao usar cache de episódios
-- ✅ Migração de Textual para Rich + InquirerPy (TUI 65% menor, 10x mais rápido)
-
-**🎉 Melhorias AniList**
-- ✅ Adição automática de anime à lista Watching ao começar a assistir
-- ✅ Menu de conta AniList: veja perfil e estatísticas no terminal
-- ✅ Melhoria na navegação: ESC para voltar, Q para sair
-- ✅ Correção de FileNotFoundError ao executar CLI de fora da pasta do projeto
-
-**🔧 Qualidade de Código**
-- ✅ Aplicação completa de linting Ruff
-- ✅ Melhorias de formatação e mensagens
-- ✅ Adição de OpenSpec para documentação de mudanças
-
-### v0.2.0 (Integração AniList Completa)
-
-**🎉 Integração AniList**
-- ✅ Autenticação OAuth com AniList.co
-- ✅ Navegação por listas (Watching, Planning, Completed, etc)
-- ✅ Visualização de trending anime
-- ✅ Sincronização automática de progresso após assistir episódios
-- ✅ Confirmação "assistiu até o final" antes de atualizar
-- ✅ Mapeamento inteligente: salva título correto do scraper para cada anime
-- ✅ Retoma automaticamente no episódio correto (AniList + histórico local)
-- ✅ Busca flexível: tenta romaji primeiro, depois inglês
-- ✅ Suporte a títulos bilíngues (romaji + inglês)
-
-**🔧 Melhorias de UX**
-- ✅ Menu de opções quando há progresso salvo (continuar ou escolher episódio)
-- ✅ Navegação com ESC para voltar nos menus
-- ✅ Indicadores visuais de progresso (episódio X/Y, rating)
-
-### v0.1.0 (Base)
-- ✅ Sistema de plugins para múltiplos scrapers
-- ✅ Integração com mpv para reprodução
-- ✅ Menu curses em português brasileiro
-- ✅ Histórico local de episódios assistidos
-- ✅ Suporte a modo debug
-- ✅ Instalação via UV tool
-
----
-
-🎬 **Bom anime!**
