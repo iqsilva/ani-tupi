@@ -151,33 +151,19 @@ Tente usar o nome do anime em japonês ou romaji para maior precisão. Por exemp
 
 ---
 
-## ✨ Novos Recursos
+## ✨ Features
 
-### 🎬 Airing Episodes - Descubra Novos Episódios
-Veja automaticamente quais animes da sua lista AniList têm novos episódios no ar!
+### 🎬 Novos Episódios (AniList)
+- Mostra animes com episódio novo e quanto você está atrasado
+- Ordena por urgência e permite abrir para assistir direto
+- Mantém títulos recém-finalizados por 60 dias
 
-- **Tab "🎬 Novos Episódios"** no menu AniList
-- Mostra quanto você está atrasado em cada anime (gap em episódios)
-- Ordena por urgência (animes com maior atraso primeiro)
-- **Grace period de 60 dias**: animes que terminaram de ser transmitidos continuam visíveis por 60 dias, para você não perder o fio da meada
-- Selecione para assistir diretamente
+### 🏠 Biblioteca Local (Offline)
+- Baixe episódios e organize por anime
+- Suporta range de download (`5`, `1-12`, `5-`, `-12`)
+- Paralelismo configurável para acelerar downloads
 
-**Exemplo:**
-```
-(2 atrasado) Frieren S2 - Anime finalizado, você viu 26/28 ⭐91%
-(3 atrasado) Jujutsu Kaisen - Próximo Ep 25 sai em 2d 4h, você viu 22 ⭐82%
-Blue Lock - Próximo Ep 11 sai em 5d, você viu 11 ⭐75%
-```
-
-### 🏠 Biblioteca Local - Assistir Offline
-Baixe episódios para assistir depois, sem internet!
-
-- **Tab "📂 Biblioteca Local"** no menu principal
-- Organize episódios por anime
-- Range flexível: `5`, `1-12`, `5-`, `-12`
-- Configuração de paralelismo de downloads
-
-**Ambiente:**
+**Configuração rápida:**
 ```bash
 export ANI_TUPI__ANIME__DOWNLOAD_DIRECTORY="~/Videos/Anime"
 export ANI_TUPI__ANIME__MAX_PARALLEL_DOWNLOADS=4
