@@ -9,6 +9,7 @@ from commands import anilist_menu as anilist_menu_cmd
 from commands import anilist_auth as anilist_auth_cmd
 from commands import manga as manga_cmd
 from commands import manage_sources as manage_sources_cmd
+from commands import config as config_cmd
 from commands import update as update_cmd
 from utils.logging import get_logger
 
@@ -138,6 +139,7 @@ def cli() -> None:
 
     # Update command
     subparsers.add_parser("update", help="Verificar e atualizar ani-tupi")
+    subparsers.add_parser("config", help="Configurar o ani-tupi interativamente")
 
     # Main anime command arguments (default)
     parser.add_argument(
@@ -198,6 +200,8 @@ def cli() -> None:
 
     if args.command == "update":
         sys.exit(update_cmd(args))
+    if args.command == "config":
+        sys.exit(config_cmd(args))
 
     if args.version:
         show_version_info()

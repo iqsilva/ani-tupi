@@ -13,6 +13,7 @@ Configuration can be overridden via environment variables:
 """
 
 import os
+import json
 from pathlib import Path
 
 from pydantic import BaseModel, Field
@@ -28,6 +29,44 @@ def get_data_path() -> Path:
     if os.name == "nt":
         return Path("C:\\Program Files\\ani-tupi")
     return Path.home() / ".local" / "state" / "ani-tupi"
+
+
+def get_user_config_path() -> Path:
+    """Get OS-specific user configuration directory for ani-tupi."""
+    if os.name == "nt":
+        appdata = os.environ.get("APPDATA")
+        if appdata:
+            return Path(appdata) / "ani-tupi"
+        return Path.home() / "AppData" / "Roaming" / "ani-tupi"
+    return Path.home() / ".config" / "ani-tupi"
+
+
+def get_user_settings_file() -> Path:
+    """Get file path for persisted user settings overrides."""
+    return get_user_config_path() / "settings.json"
+
+
+def load_user_settings_overrides() -> dict:
+    """Load user settings overrides from JSON file."""
+    settings_file = get_user_settings_file()
+    if not settings_file.exists():
+        return {}
+    try:
+        data = json.loads(settings_file.read_text(encoding="utf-8"))
+        if isinstance(data, dict):
+            return data
+    except (OSError, json.JSONDecodeError):
+        pass
+    return {}
+
+
+def save_user_settings_overrides(overrides: dict) -> None:
+    """Persist user settings overrides atomically."""
+    settings_file = get_user_settings_file()
+    settings_file.parent.mkdir(parents=True, exist_ok=True)
+    temp_file = settings_file.with_suffix(".json.tmp")
+    temp_file.write_text(json.dumps(overrides, indent=2, ensure_ascii=False), encoding="utf-8")
+    temp_file.replace(settings_file)
 
 
 class AniListSettings(BaseModel):
@@ -460,6 +499,24 @@ class AppSettings(BaseSettings):
         env_file_encoding="utf-8",
         extra="ignore",  # Ignore unknown env vars
     )
+
+    @classmethod
+    def settings_customise_sources(
+        cls,
+        settings_cls,
+        init_settings,
+        env_settings,
+        dotenv_settings,
+        file_secret_settings,
+    ):
+        """Apply source precedence: init > env/.env > persisted overrides > defaults."""
+        return (
+            init_settings,
+            env_settings,
+            dotenv_settings,
+            load_user_settings_overrides,
+            file_secret_settings,
+        )
 
     anilist: AniListSettings = AniListSettings()  # type: ignore[call-arg]
     cache: CacheSettings = CacheSettings()  # type: ignore[call-arg]

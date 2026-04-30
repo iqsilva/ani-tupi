@@ -62,6 +62,31 @@ ani-tupi --debug
 ani-tupi --help
 ```
 
+## ⚙️ Configurar pela CLI
+
+Agora você pode configurar o `ani-tupi` sem editar `models/config.py`:
+
+```bash
+ani-tupi config
+```
+
+No menu `ani-tupi config`:
+- cada categoria representa uma classe de settings (`AnilistSettings`, `CacheSettings`, etc.)
+- você escolhe a chave com `valor atual + descrição` do que ela controla
+- antes de editar, a CLI mostra a documentação daquela configuração
+- você informa o novo valor e confirma salvamento
+- as alterações são persistidas no usuário em `~/.config/ani-tupi/settings.json`
+
+### Precedência de configuração
+
+O carregamento segue esta ordem:
+
+1. Variáveis de ambiente (`ANI_TUPI__...`)
+2. Configuração salva via `ani-tupi config`
+3. Valores padrão da aplicação
+
+Se uma chave tiver variável de ambiente ativa, o menu mostra aviso de precedência.
+
 **💡 Dica para melhores resultados de busca:**
 Tente usar o nome do anime em japonês ou romaji para maior precisão. Por exemplo:
 - Em vez de "Attack on Titan", tente "Shingeki no Kyojin"

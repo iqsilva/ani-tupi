@@ -9,8 +9,9 @@ Each module handles a specific user interaction flow:
 
 from commands.anime import anime
 from commands.anilist import anilist_auth, anilist_menu
+from commands.config import config
 from commands.manga import manga
 from commands.update import update
 from commands.sources import manage_sources
 
-__all__ = ["anime", "anilist_auth", "anilist_menu", "manga", "manage_sources", "update"]
+__all__ = ["anime", "anilist_auth", "anilist_menu", "config", "manga", "manage_sources", "update"]
