@@ -7,6 +7,51 @@ Assista anime e leia mangá direto do terminal sem anúncios! Interface CLI em p
 ## 📺 Demo no YouTube
 [![Demo](https://img.youtube.com/vi/eug6gKLTD3I/maxresdefault.jpg)](https://youtu.be/eug6gKLTD3I)
 
+## 📋 Requisitos
+
+- **Python 3.12+** (obrigatório)
+- **mpv** (player de vídeo)
+- **Zathura** (leitor de PDF para mangá - recomendado)
+- **Firefox** (opcional, para alguns scrapers)
+- **git** (para clonar o repositório)
+
+### Instalando dependências
+
+#### Linux (Arch)
+```bash
+# Instalar dependências do sistema
+sudo pacman -S python mpv zathura firefox git libxml2 libvpx flite webkit2gtk-4.1
+```
+
+#### Linux (Ubuntu/Debian)
+```bash
+# Instalar dependências do sistema
+sudo apt install python3 mpv zathura firefox git libxml2 libvpx libflite1 webkit2gtk-4.1
+```
+
+#### Linux (Fedora)
+```bash
+# Instalar dependências do sistema
+sudo dnf install python3 mpv zathura firefox git libxml2 libvpx flite webkit2gtk-4.1
+```
+
+#### macOS
+```bash
+# Instalar dependências do sistema
+brew install python@3.12 mpv zathura firefox git
+```
+
+#### Windows
+Recomendamos usar [Chocolatey](https://chocolatey.org/install):
+```powershell
+# Como administrador
+choco install python mpv zathura firefox git
+
+uv run playwright install
+```
+
+**Nota:** Zathura é primariamente para Linux. No Windows, o sistema detectará automaticamente outros leitores de PDF instalados (Adobe Reader, SumatraPDF, etc).
+
 ## 🚀 Instalação Rápida
 
 ### Instalação com Um Comando (Recomendado)
@@ -105,52 +150,6 @@ Tente usar o nome do anime em japonês ou romaji para maior precisão. Por exemp
 | `Shift+A` | Ativar auto-play |
 
 ---
-
-## 📋 Requisitos
-
-- **Python 3.12+** (obrigatório)
-- **mpv** (player de vídeo)
-- **Zathura** (leitor de PDF para mangá - recomendado)
-- **Firefox** (opcional, para alguns scrapers)
-- **git** (para clonar o repositório)
-
-### Instalando dependências
-
-#### Linux (Arch)
-```bash
-# Instalar dependências do sistema
-sudo pacman -S python mpv zathura firefox git libxml2 libvpx flite webkit2gtk-4.1
-```
-
-#### Linux (Ubuntu/Debian)
-```bash
-# Instalar dependências do sistema
-sudo apt install python3 mpv zathura firefox git libxml2 libvpx libflite1 webkit2gtk-4.1
-```
-
-#### Linux (Fedora)
-```bash
-# Instalar dependências do sistema
-sudo dnf install python3 mpv zathura firefox git libxml2 libvpx flite webkit2gtk-4.1
-```
-
-#### macOS
-```bash
-# Instalar dependências do sistema
-brew install python@3.12 mpv zathura firefox git
-```
-
-#### Windows
-Recomendamos usar [Chocolatey](https://chocolatey.org/install):
-```powershell
-# Como administrador
-choco install python mpv zathura firefox git
-
-uv run playwright install
-```
-
-**Nota:** Zathura é primariamente para Linux. No Windows, o sistema detectará automaticamente outros leitores de PDF instalados (Adobe Reader, SumatraPDF, etc).
-
 
 ## ✨ Novos Recursos
 
