@@ -83,11 +83,26 @@ def validate_episode_url(url: str, timeout: float = 5.0) -> bool:
     try:
         with httpx.Client(follow_redirects=True, timeout=timeout) as client:
             response = client.head(url)
+
+            # Some CDNs reject HEAD for media URLs; fallback to tiny ranged GET probe.
+            if response.status_code in (403, 405):
+                logger.info(f"[URL-PATTERN] HEAD {response.status_code}; trying GET range probe")
+                response = client.get(url, headers={"Range": "bytes=0-1"})
+
         logger.info(
             f"[URL-PATTERN] → {response.status_code} {'✅ HIT' if response.is_success else '❌ MISS'}"
         )
         return response.is_success
     except Exception as exc:
-        logger.info(f"[URL-PATTERN] → ERROR: {exc}")
-        logger.debug("validate_episode_url failed for %s: %s", url, exc)
-        return False
+        logger.info(f"[URL-PATTERN] HEAD error: {exc}; trying GET range probe")
+        try:
+            with httpx.Client(follow_redirects=True, timeout=timeout) as client:
+                response = client.get(url, headers={"Range": "bytes=0-1"})
+            logger.info(
+                f"[URL-PATTERN] → {response.status_code} {'✅ HIT' if response.is_success else '❌ MISS'}"
+            )
+            return response.is_success
+        except Exception as get_exc:
+            logger.info(f"[URL-PATTERN] → ERROR: {get_exc}")
+            logger.debug("validate_episode_url failed for %s: %s", url, get_exc)
+            return False

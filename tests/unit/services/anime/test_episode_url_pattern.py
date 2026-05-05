@@ -107,6 +107,7 @@ class TestValidateEpisodeUrl:
             mock_client.__enter__ = MagicMock(return_value=mock_client)
             mock_client.__exit__ = MagicMock(return_value=False)
             mock_client.head.side_effect = _httpx.TimeoutException("timed out")
+            mock_client.get.side_effect = _httpx.TimeoutException("timed out")
             mock_client_cls.return_value = mock_client
 
             assert (
@@ -122,9 +123,57 @@ class TestValidateEpisodeUrl:
             mock_client.__enter__ = MagicMock(return_value=mock_client)
             mock_client.__exit__ = MagicMock(return_value=False)
             mock_client.head.side_effect = _httpx.ConnectError("refused")
+            mock_client.get.side_effect = _httpx.ConnectError("refused")
             mock_client_cls.return_value = mock_client
 
             assert (
                 validate_episode_url("https://cdn.example.net/stream/y/anime/11.mp4/index.m3u8")
                 is False
+            )
+
+    def test_fallback_to_get_range_when_head_blocked(self):
+        mock_head = MagicMock()
+        mock_head.status_code = 405
+        mock_head.is_success = False
+
+        mock_get = MagicMock()
+        mock_get.status_code = 206
+        mock_get.is_success = True
+
+        with patch("httpx.Client") as mock_client_cls:
+            mock_client = MagicMock()
+            mock_client.__enter__ = MagicMock(return_value=mock_client)
+            mock_client.__exit__ = MagicMock(return_value=False)
+            mock_client.head.return_value = mock_head
+            mock_client.get.return_value = mock_get
+            mock_client_cls.return_value = mock_client
+
+            assert (
+                validate_episode_url("https://cdn.example.net/stream/y/anime/11.mp4/index.m3u8")
+                is True
+            )
+
+            mock_client.get.assert_called_once_with(
+                "https://cdn.example.net/stream/y/anime/11.mp4/index.m3u8",
+                headers={"Range": "bytes=0-1"},
+            )
+
+    def test_fallback_to_get_range_when_head_raises(self):
+        import httpx as _httpx
+
+        mock_get = MagicMock()
+        mock_get.status_code = 206
+        mock_get.is_success = True
+
+        with patch("httpx.Client") as mock_client_cls:
+            mock_client = MagicMock()
+            mock_client.__enter__ = MagicMock(return_value=mock_client)
+            mock_client.__exit__ = MagicMock(return_value=False)
+            mock_client.head.side_effect = _httpx.TimeoutException("timed out")
+            mock_client.get.return_value = mock_get
+            mock_client_cls.return_value = mock_client
+
+            assert (
+                validate_episode_url("https://cdn.example.net/stream/y/anime/11.mp4/index.m3u8")
+                is True
             )

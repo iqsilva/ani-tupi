@@ -552,6 +552,11 @@ def anime(args) -> None:
         all_failed = fallback_result.all_failed
 
         exit_code = playback_result.exit_code
+        error_hint = (
+            playback_result.data.get("error_hint")
+            if isinstance(playback_result.data, dict)
+            else None
+        )
         final_episode = (
             playback_result.data.get("episode", episode) if playback_result.data else episode
         )
@@ -568,6 +573,8 @@ def anime(args) -> None:
             logger.info("   💡 Tente trocar de fonte manualmente ou verifique sua conexão.")
         else:
             logger.info(f"⚠️  Erro ao reproduzir (código: {exit_code})")
+            if error_hint:
+                logger.info(f"   ❌ {error_hint}")
 
         logger.info("📊 Reprodução encerrada:")
         logger.info(f"   Exit code: {exit_code}")
@@ -612,15 +619,19 @@ def anime(args) -> None:
             episode_skip_available=ctx.episode_skip_available,
         )
 
-        # Handle post-playback confirmation (includes history, AniList sync, offline queue)
-        confirmed = handle_post_playback_confirmation(
-            anime_title=ctx.anime_title,
-            episode_number=final_episode,
-            num_episodes=ctx.num_episodes,
-            anilist_id=ctx.anilist_id,
-            source=source_used,
-            is_local=False,
-        )
+        # Handle post-playback confirmation only on successful playback.
+        # On errors, skip confirmation to avoid accidental history corruption.
+        if exit_code == 0:
+            confirmed = handle_post_playback_confirmation(
+                anime_title=ctx.anime_title,
+                episode_number=final_episode,
+                num_episodes=ctx.num_episodes,
+                anilist_id=ctx.anilist_id,
+                source=source_used,
+                is_local=False,
+            )
+        else:
+            confirmed = False
 
         # Check for sequels when last episode is watched and confirmed
         if confirmed and ctx.anilist_id and final_episode == ctx.num_episodes:

@@ -9,8 +9,10 @@ import uuid
 import json
 import time
 from pathlib import Path
+from datetime import datetime
 
 from models.models import SkipTimes
+from models.config import get_data_path
 from utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -40,6 +42,69 @@ class VideoPlayer:
             autoplay: Whether to automatically play the next episode when current finishes
         """
         self.autoplay = autoplay
+        self._last_mpv_log_file: str | None = None
+
+    def _get_mpv_logs_dir(self) -> Path:
+        """Return directory for persistent MPV logs."""
+        logs_dir = get_data_path() / "mpv-logs"
+        logs_dir.mkdir(parents=True, exist_ok=True)
+        return logs_dir
+
+    def _rotate_mpv_logs(self, max_files: int = 7, max_total_bytes: int = 20 * 1024 * 1024) -> None:
+        """Rotate MPV logs by file count and total size.
+
+        Keeps newest files and removes older ones first.
+        """
+        try:
+            logs_dir = self._get_mpv_logs_dir()
+            files = sorted(
+                logs_dir.glob("mpv-*.log"),
+                key=lambda p: p.stat().st_mtime,
+                reverse=True,
+            )
+
+            # File-count based cleanup
+            for old_file in files[max_files:]:
+                try:
+                    old_file.unlink()
+                except OSError:
+                    pass
+
+            # Re-list after count cleanup for size-based cleanup
+            files = sorted(
+                logs_dir.glob("mpv-*.log"),
+                key=lambda p: p.stat().st_mtime,
+                reverse=True,
+            )
+
+            total_size = sum(p.stat().st_size for p in files)
+            if total_size <= max_total_bytes:
+                return
+
+            # Remove oldest until under limit
+            for old_file in reversed(files):
+                if total_size <= max_total_bytes:
+                    break
+                try:
+                    size = old_file.stat().st_size
+                    old_file.unlink()
+                    total_size -= size
+                except OSError:
+                    continue
+        except OSError:
+            # Never block playback if log rotation fails
+            return
+
+    def _prepare_mpv_log_file(self) -> str:
+        """Create a new MPV log file path and rotate old logs."""
+        configured_log = os.environ.get("ANI_TUPI_MPV_LOG_FILE", "").strip()
+        if configured_log:
+            return configured_log
+
+        self._rotate_mpv_logs()
+        logs_dir = self._get_mpv_logs_dir()
+        ts = datetime.now().strftime("%Y%m%d-%H%M%S")
+        return str(logs_dir / f"mpv-{ts}-{str(uuid.uuid4())[:8]}.log")
 
     def get_autoplay_state(self) -> bool:
         """Get current auto-play state."""
@@ -456,6 +521,9 @@ shift+t script-message toggle-sub-dub
         Returns:
             MPV subprocess handle
         """
+        debug_mode = os.environ.get("ANI_TUPI_DEBUG_MPV") == "1"
+        self._last_mpv_log_file = None
+
         mpv_args = [
             "mpv",
             f"--input-ipc-server={socket_path}",
@@ -471,6 +539,15 @@ shift+t script-message toggle-sub-dub
             "--ytdl=yes",
             "--ytdl-format=bestvideo[height<=1080]+bestaudio/best",
         ]
+
+        # Keep MPV log enabled by default for debugging playback failures.
+        log_file = self._prepare_mpv_log_file()
+        self._last_mpv_log_file = log_file
+        mpv_args.append(f"--log-file={log_file}")
+
+        if debug_mode:
+            mpv_args.append("--msg-level=all=v")
+            logger.info(f"   🧪 MPV debug log: {log_file}")
 
         if anime_title and episode_number:
             media_title = f"{anime_title} Episode {episode_number}"
@@ -512,7 +589,6 @@ shift+t script-message toggle-sub-dub
         logger.debug(f"[PLAYBACK DEBUG] {' '.join(mpv_args)}")
 
         try:
-            debug_mode = os.environ.get("ANI_TUPI_DEBUG_MPV") == "1"
             if debug_mode:
                 return subprocess.Popen(
                     mpv_args,
@@ -907,14 +983,55 @@ shift+t script-message toggle-sub-dub
 
             exit_code = mpv_process.returncode or 0
             stderr_output = ""
+            debug_mode = os.environ.get("ANI_TUPI_DEBUG_MPV") == "1"
             if hasattr(mpv_process, "stderr") and mpv_process.stderr:
                 try:
                     stderr_output = mpv_process.stderr.read()
                 except (OSError, ValueError):
                     pass
 
+            log_output = ""
+            if self._last_mpv_log_file:
+                try:
+                    with open(self._last_mpv_log_file, encoding="utf-8", errors="ignore") as f:
+                        log_output = f.read()
+                except OSError:
+                    log_output = ""
+
+            # MPV can sometimes exit with code 0 even when file loading failed.
+            # Detect this signature and treat it as playback failure.
+            if exit_code == 0 and self._has_mpv_load_error(stderr_output, log_output):
+                exit_code = 2
+
+            error_hint = self._classify_mpv_error(stderr_output, log_output)
+
+            if debug_mode:
+                logger.info(f"   🧪 MPV debug mode ativo | exit_code={exit_code}")
+                if stderr_output.strip():
+                    stderr_lines = [
+                        line.strip() for line in stderr_output.split("\n") if line.strip()
+                    ]
+                    logger.info("   🧪 MPV stderr (últimas linhas):")
+                    for line in stderr_lines[-10:]:
+                        logger.info(f"      {line[:160]}")
+
+                if self._last_mpv_log_file:
+                    logger.info(f"   🧪 MPV log file salvo em: {self._last_mpv_log_file}")
+                    try:
+                        log_lines = [
+                            line.strip() for line in log_output.split("\n") if line.strip()
+                        ]
+                        if log_lines:
+                            logger.info("   🧪 MPV log (últimas linhas):")
+                            for line in log_lines[-15:]:
+                                logger.info(f"      {line[:160]}")
+                    except OSError as e:
+                        logger.info(f"   ⚠️  Falha ao ler MPV log file: {e}")
+
             if exit_code != 0 or "error" in stderr_output.lower():
                 logger.info(f"⚠️  MPV exited with code {exit_code}")
+                if self._last_mpv_log_file:
+                    logger.info(f"   📝 MPV log: {self._last_mpv_log_file}")
                 if "error" in stderr_output.lower():
                     error_lines = [
                         line for line in stderr_output.split("\n") if "error" in line.lower()
@@ -954,7 +1071,9 @@ shift+t script-message toggle-sub-dub
 
             final_episode = episode_context.get("episode_number", 1)
             return VideoPlaybackResult(
-                exit_code=exit_code, action="quit", data={"episode": final_episode}
+                exit_code=exit_code,
+                action="quit",
+                data={"episode": final_episode, "error_hint": error_hint},
             )
         finally:
             if sock:
@@ -962,6 +1081,36 @@ shift+t script-message toggle-sub-dub
                     sock.close()
                 except OSError:
                     pass
+
+    @staticmethod
+    def _has_mpv_load_error(stderr_output: str, log_output: str) -> bool:
+        """Detect file-loading failures that may still return MPV exit code 0."""
+        haystack = f"{stderr_output}\n{log_output}".lower()
+        error_signatures = [
+            "exiting... (errors when loading file)",
+            "failed to open",
+            "file not found",
+            "403 forbidden",
+            "http error 403",
+            "http error 404",
+            "unable to open url",
+        ]
+        return any(signature in haystack for signature in error_signatures)
+
+    @staticmethod
+    def _classify_mpv_error(stderr_output: str, log_output: str) -> str | None:
+        """Return a user-facing error hint based on MPV logs."""
+        haystack = f"{stderr_output}\n{log_output}".lower()
+
+        if "404" in haystack or "not found" in haystack:
+            return "Episódio indisponível nesta fonte (HTTP 404)."
+        if "403" in haystack or "forbidden" in haystack:
+            return "A fonte bloqueou o acesso ao vídeo (HTTP 403)."
+        if "timed out" in haystack or "timeout" in haystack:
+            return "Timeout ao carregar o vídeo desta fonte."
+        if "errors when loading file" in haystack or "failed to open" in haystack:
+            return "Falha ao carregar vídeo nesta fonte."
+        return None
 
     def _update_skip_lua_with_times(
         self,

@@ -1077,6 +1077,10 @@ def anilist_anime_flow(
         if fallback_result.sources_tried:
             logger.info(f"   Fonte usada: {source_used}")
 
+        error_hint = result.data.get("error_hint") if isinstance(result.data, dict) else None
+        if result.exit_code not in [0, 3] and error_hint:
+            logger.info(f"   ❌ {error_hint}")
+
         # Handle IPC navigation actions
         if result.action == "next":
             # User pressed Shift+N - already saved history and synced AniList in IPC handler
@@ -1204,7 +1208,6 @@ def anilist_anime_flow(
             logger.info(f"⚠️  MPV exit code: {result.exit_code}")
             if result.exit_code == 2:
                 logger.info(" (Possível erro ao reproduzir ou janela fechada)")
-                continue
 
         # For normal quit or other actions, show confirmation menu
         # (History/AniList sync already handled by IPC if action was "next")
@@ -1219,6 +1222,10 @@ def anilist_anime_flow(
                     input()
                 except (EOFError, KeyboardInterrupt):
                     pass
+
+                # Never ask "watched until end" on playback errors.
+                # This avoids accidental history/AniList corruption by misclick.
+                pass
 
             # Ask if watched until the end before saving/updating anything
             confirm_options = ["✅ Sim, assisti até o final", "❌ Não, parei antes."]

@@ -2,7 +2,11 @@
 
 from unittest.mock import MagicMock, patch
 
-from scrapers.plugins.sushianimes import SushiAnimes, _extract_season_number
+from scrapers.plugins.sushianimes import (
+    SushiAnimes,
+    _extract_player_url,
+    _extract_season_number,
+)
 
 
 SEARCH_HTML = """
@@ -62,6 +66,15 @@ EPISODE_PAGE_HTML = """
   <a class="dropdown-toggle btn-service selected" data-embed="24139">
     Opções: <span>CAIMAN</span>
   </a>
+</body></html>
+"""
+
+
+EPISODE_PAGE_HTML_DATA_ID = """
+<html><body>
+  <div class="embed-play">
+    <div class="play-btn" data-id="24139"></div>
+  </div>
 </body></html>
 """
 
@@ -150,3 +163,38 @@ class TestSushiAnimesScraper:
             "https://cdn-s01.pixel-sus-4k-image.com/stream/d/dorohedoro-dublado/01.mp4"
         ]
         event.set.assert_called_once()
+
+        post_headers = mock_post.call_args.kwargs["headers"]
+        assert post_headers["X-Requested-With"] == "XMLHttpRequest"
+        assert post_headers["Referer"].endswith("-1-season-1-episode")
+
+    @patch("scrapers.plugins.sushianimes.requests.post")
+    @patch("scrapers.plugins.sushianimes.requests.get")
+    def test_search_player_src_fallbacks_to_data_id(self, mock_get, mock_post):
+        mock_get.return_value = _response(EPISODE_PAGE_HTML_DATA_ID)
+        mock_post.return_value = _response(EMBED_RESPONSE)
+        container = []
+        event = _event()
+
+        self.scraper.search_player_src(
+            "https://sushianimes.com.br/anime/dorohedoro-dublado-963-1-season-1-episode",
+            container,
+            event,
+        )
+
+        assert container == [
+            "https://cdn-s01.pixel-sus-4k-image.com/stream/d/dorohedoro-dublado/01.mp4"
+        ]
+
+
+class TestPlayerUrlExtraction:
+    def test_extract_player_url_from_player_embed_single_quote(self):
+        embed_html = "var playerEmbed = 'https:\\/\\/cdn.example.com\\/stream\\/x\\/01.mp4';"
+        assert _extract_player_url(embed_html) == "https://cdn.example.com/stream/x/01.mp4"
+
+    def test_extract_player_url_from_plain_stream_url(self):
+        embed_html = '<script>const p="https://cdn.example.com/stream/y/my-anime/07.mp4/index.m3u8";</script>'
+        assert (
+            _extract_player_url(embed_html)
+            == "https://cdn.example.com/stream/y/my-anime/07.mp4/index.m3u8"
+        )

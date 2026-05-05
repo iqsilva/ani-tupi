@@ -1,5 +1,6 @@
 import re
 import urllib.parse
+import html
 
 import requests
 from bs4 import BeautifulSoup
@@ -13,6 +14,53 @@ HEADERS = {
     "User-Agent": "Mozilla/5.0 (X11; Linux x86_64; rv:126.0) Gecko/20100101 Firefox/126.0",
 }
 REQUEST_TIMEOUT = 30
+
+
+def _extract_embed_id(soup: BeautifulSoup) -> str | None:
+    """Extract embed ID from known player controls."""
+    selectors = [
+        ".btn-service.selected[data-embed]",
+        "[data-embed]",
+        ".play-btn[data-id]",
+        "[data-id]",
+    ]
+
+    for selector in selectors:
+        element = soup.select_one(selector)
+        if not element:
+            continue
+
+        embed_id = element.get("data-embed") or element.get("data-id")
+        if embed_id:
+            return str(embed_id).strip()
+
+    return None
+
+
+def _extract_player_url(embed_html: str) -> str | None:
+    """Extract direct player URL from AJAX embed response."""
+    patterns = [
+        r'var\s+playerEmbed\s*=\s*["\']([^"\']+)["\']',
+        r'"file"\s*:\s*"([^"\\]+(?:\\.[^"\\]*)*)"',
+        r'https?:\\/\\/[^"\'\s]+\.(?:m3u8|mp4)(?:[^"\'\s]*)',
+        r'https?://[^"\'\s]+\.(?:m3u8|mp4)(?:[^"\'\s]*)',
+    ]
+
+    for pattern in patterns:
+        match = re.search(pattern, embed_html, flags=re.IGNORECASE)
+        if not match:
+            continue
+
+        player_url = match.group(1) if match.lastindex else match.group(0)
+        player_url = html.unescape(player_url)
+        player_url = player_url.replace("\\/", "/")
+        if player_url.startswith("//"):
+            player_url = f"https:{player_url}"
+
+        if player_url.startswith("http://") or player_url.startswith("https://"):
+            return player_url
+
+    return None
 
 
 def _normalize_url(href: str) -> str:
@@ -135,29 +183,28 @@ class SushiAnimes:
         response.raise_for_status()
         soup = BeautifulSoup(response.text, "html.parser")
 
-        embed_button = soup.select_one(".btn-service.selected[data-embed]")
-        if embed_button is None:
-            embed_button = soup.select_one("[data-embed]")
-        if embed_button is None:
-            return
-
-        embed_id = embed_button.get("data-embed")
+        embed_id = _extract_embed_id(soup)
         if not embed_id:
             return
+
+        ajax_headers = {
+            **HEADERS,
+            "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
+            "X-Requested-With": "XMLHttpRequest",
+            "Referer": url,
+        }
 
         embed_response = requests.post(
             f"{BASE_URL}/ajax/embed",
             data={"id": embed_id},
-            headers=HEADERS,
+            headers=ajax_headers,
             timeout=REQUEST_TIMEOUT,
         )
         embed_response.raise_for_status()
 
-        match = re.search(r'var\s+playerEmbed\s*=\s*"([^"]+)"', embed_response.text)
-        if not match:
+        player_url = _extract_player_url(embed_response.text)
+        if not player_url:
             return
-
-        player_url = match.group(1).replace("\\/", "/")
         store_player_source(container, event, player_url)
 
 

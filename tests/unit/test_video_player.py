@@ -67,3 +67,15 @@ class TestVideoPlayer:
 
         # Verify that the loop was called (the state is used inside it)
         assert mock_loop.called
+
+    def test_detects_mpv_load_error_signature(self):
+        """Should detect load failures even when MPV exits with code 0."""
+        stderr = ""
+        log = "[7.189][i][cplayer] Exiting... (Errors when loading file)"
+        assert VideoPlayer._has_mpv_load_error(stderr, log) is True
+
+    def test_ignores_non_error_log_content(self):
+        """Should not flag normal playback logs as load error."""
+        stderr = ""
+        log = "[1.234][i][cplayer] playback restart complete"
+        assert VideoPlayer._has_mpv_load_error(stderr, log) is False
