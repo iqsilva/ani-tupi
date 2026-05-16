@@ -34,6 +34,18 @@ def test_build_post_playback_options_middle_episode():
     assert "🔄 Trocar fonte" in opts
 
 
+def test_build_post_playback_options_last_episode_prioritizes_back_option():
+    """Last episode should offer a safe back option before previous episode."""
+    anime_cmd = importlib.import_module("commands.anime")
+    ctx = _make_ctx(episode_idx=2, total=3)
+
+    opts = anime_cmd.build_post_playback_options(ctx)
+
+    assert opts[0] == "↩️  Voltar ao menu anterior"
+    assert not any("▶️  Próximo" in opt for opt in opts)
+    assert any("◀️  Anterior" in opt for opt in opts)
+
+
 def test_select_episode_from_menu_returns_none_on_back():
     """Back from episode selection should return None, not raise/exit."""
     anime_cmd = importlib.import_module("commands.anime")
