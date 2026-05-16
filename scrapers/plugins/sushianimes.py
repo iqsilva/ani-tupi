@@ -12,6 +12,14 @@ from services.repository import rep
 BASE_URL = "https://sushianimes.com.br"
 HEADERS = {
     "User-Agent": "Mozilla/5.0 (X11; Linux x86_64; rv:126.0) Gecko/20100101 Firefox/126.0",
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+    "Accept-Language": "pt-BR,pt;q=0.9,en-US;q=0.7,en;q=0.3",
+    "Connection": "keep-alive",
+    "Upgrade-Insecure-Requests": "1",
+    "Sec-Fetch-Dest": "document",
+    "Sec-Fetch-Mode": "navigate",
+    "Sec-Fetch-Site": "none",
+    "Sec-Fetch-User": "?1",
 }
 REQUEST_TIMEOUT = 30
 
@@ -116,96 +124,109 @@ class SushiAnimes:
         return BeautifulSoup(response.text, "html.parser")
 
     def search_anime(self, query: str) -> None:
-        soup = self._search_page(query)
-        anime_items = soup.select("#animes .list-movie")
+        try:
+            soup = self._search_page(query)
+            anime_items = soup.select("#animes .list-movie")
 
-        for item in anime_items:
-            anchor = item.select_one("a.list-title") or item.select_one("a.list-media")
-            if not anchor:
-                continue
+            for item in anime_items:
+                anchor = item.select_one("a.list-title") or item.select_one("a.list-media")
+                if not anchor:
+                    continue
 
-            title = anchor.get_text(strip=True)
-            href = anchor.get("href")
-            if not title or not href:
-                continue
+                title = anchor.get_text(strip=True)
+                href = anchor.get("href")
+                if not title or not href:
+                    continue
 
-            anime_url = _normalize_url(href)
-            anime_page = self._fetch_anime_page(anime_url)
-            season_panes = anime_page.select(".episodes.tab-content .tab-pane[id^='season-']")
+                anime_url = _normalize_url(href)
+                anime_page = self._fetch_anime_page(anime_url)
+                season_panes = anime_page.select(".episodes.tab-content .tab-pane[id^='season-']")
 
-            if len(season_panes) <= 1:
-                rep.add_anime(_build_result_title(title, 1), anime_url, self.name, {"season": 1})
-                continue
+                if len(season_panes) <= 1:
+                    rep.add_anime(
+                        _build_result_title(title, 1), anime_url, self.name, {"season": 1}
+                    )
+                    continue
 
-            for pane in season_panes:
-                season_id = pane.get("id", "season-1")
-                season = _extract_season_number(season_id)
-                season_title = _build_result_title(title, season)
-                rep.add_anime(season_title, anime_url, self.name, {"season": season})
+                for pane in season_panes:
+                    season_id = pane.get("id", "season-1")
+                    season = _extract_season_number(season_id)
+                    season_title = _build_result_title(title, season)
+                    rep.add_anime(season_title, anime_url, self.name, {"season": season})
+        except requests.RequestException:
+            # Gracefully skip blocked or unstable sources and let other scrapers provide results.
+            pass
 
     def search_episodes(self, anime: str, url: str, params: dict | None) -> None:
-        response = requests.get(url, headers=HEADERS, timeout=REQUEST_TIMEOUT)
-        response.raise_for_status()
-        soup = BeautifulSoup(response.text, "html.parser")
+        try:
+            response = requests.get(url, headers=HEADERS, timeout=REQUEST_TIMEOUT)
+            response.raise_for_status()
+            soup = BeautifulSoup(response.text, "html.parser")
 
-        season = None
-        if isinstance(params, dict):
-            season = params.get("season")
-        if not season:
-            season = _extract_season_number(anime)
+            season = None
+            if isinstance(params, dict):
+                season = params.get("season")
+            if not season:
+                season = _extract_season_number(anime)
 
-        season_pane = soup.select_one(f".episodes.tab-content .tab-pane#season-{season}")
-        if season_pane is None:
-            season_pane = soup.select_one(".episodes.tab-content .tab-pane")
-        if season_pane is None:
-            return
+            season_pane = soup.select_one(f".episodes.tab-content .tab-pane#season-{season}")
+            if season_pane is None:
+                season_pane = soup.select_one(".episodes.tab-content .tab-pane")
+            if season_pane is None:
+                return
 
-        titles: list[str] = []
-        urls: list[str] = []
-        for episode in season_pane.select("a[href*='/anime/']"):
-            href = episode.get("href")
-            if not href:
-                continue
+            titles: list[str] = []
+            urls: list[str] = []
+            for episode in season_pane.select("a[href*='/anime/']"):
+                href = episode.get("href")
+                if not href:
+                    continue
 
-            episode_title = episode.get("title", "").strip()
-            name_el = episode.select_one(".name")
-            episode_name = name_el.get_text(" ", strip=True) if name_el else ""
-            full_title = f"{episode_title} {episode_name}".strip()
+                episode_title = episode.get("title", "").strip()
+                name_el = episode.select_one(".name")
+                episode_name = name_el.get_text(" ", strip=True) if name_el else ""
+                full_title = f"{episode_title} {episode_name}".strip()
 
-            titles.append(full_title)
-            urls.append(_normalize_url(href))
+                titles.append(full_title)
+                urls.append(_normalize_url(href))
 
-        if titles and urls:
-            rep.add_episode_list(anime, titles, urls, self.name, season=season)
+            if titles and urls:
+                rep.add_episode_list(anime, titles, urls, self.name, season=season)
+        except requests.RequestException:
+            # Avoid leaking thread tracebacks when the site blocks direct requests.
+            pass
 
     def search_player_src(self, url: str, container: list, event) -> None:
-        response = requests.get(url, headers=HEADERS, timeout=REQUEST_TIMEOUT)
-        response.raise_for_status()
-        soup = BeautifulSoup(response.text, "html.parser")
+        try:
+            response = requests.get(url, headers=HEADERS, timeout=REQUEST_TIMEOUT)
+            response.raise_for_status()
+            soup = BeautifulSoup(response.text, "html.parser")
 
-        embed_id = _extract_embed_id(soup)
-        if not embed_id:
-            return
+            embed_id = _extract_embed_id(soup)
+            if not embed_id:
+                return
 
-        ajax_headers = {
-            **HEADERS,
-            "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
-            "X-Requested-With": "XMLHttpRequest",
-            "Referer": url,
-        }
+            ajax_headers = {
+                **HEADERS,
+                "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
+                "X-Requested-With": "XMLHttpRequest",
+                "Referer": url,
+            }
 
-        embed_response = requests.post(
-            f"{BASE_URL}/ajax/embed",
-            data={"id": embed_id},
-            headers=ajax_headers,
-            timeout=REQUEST_TIMEOUT,
-        )
-        embed_response.raise_for_status()
+            embed_response = requests.post(
+                f"{BASE_URL}/ajax/embed",
+                data={"id": embed_id},
+                headers=ajax_headers,
+                timeout=REQUEST_TIMEOUT,
+            )
+            embed_response.raise_for_status()
 
-        player_url = _extract_player_url(embed_response.text)
-        if not player_url:
-            return
-        store_player_source(container, event, player_url)
+            player_url = _extract_player_url(embed_response.text)
+            if not player_url:
+                return
+            store_player_source(container, event, player_url)
+        except requests.RequestException:
+            pass
 
 
 def load(languages_dict) -> None:
