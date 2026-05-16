@@ -143,7 +143,9 @@ class SushiAnimes:
                 season_panes = anime_page.select(".episodes.tab-content .tab-pane[id^='season-']")
 
                 if len(season_panes) <= 1:
-                    rep.add_anime(_build_result_title(title, 1), anime_url, self.name, {"season": 1})
+                    rep.add_anime(
+                        _build_result_title(title, 1), anime_url, self.name, {"season": 1}
+                    )
                     continue
 
                 for pane in season_panes:

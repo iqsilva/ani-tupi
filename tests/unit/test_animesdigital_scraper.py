@@ -39,9 +39,13 @@ class TestAnimesDigitalFallbackLogging:
         mock_rep.anime_episodes_urls.get.return_value = []
 
         with caplog.at_level(logging.WARNING):
-            self.scraper.search_episodes("Liar Game", "https://animesdigital.org/anime/a/liar-game", None)
+            self.scraper.search_episodes(
+                "Liar Game", "https://animesdigital.org/anime/a/liar-game", None
+            )
 
         assert "No episodes found for 'Liar Game' in series page scraping" not in caplog.text
-        assert "No episodes found for 'Liar Game' even with DynamicFetcher scraping" not in caplog.text
+        assert (
+            "No episodes found for 'Liar Game' even with DynamicFetcher scraping" not in caplog.text
+        )
         mock_scrape_series_page.assert_called_once()
         mock_homepage_search.assert_called_once_with("Liar Game", audio_type="legendado")
