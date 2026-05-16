@@ -37,6 +37,25 @@ HISTORY_PATH = get_data_path()
 logger = get_logger(__name__)
 
 
+def build_anilist_post_playback_options(current_episode_idx: int, num_episodes: int) -> list[str]:
+    """Build post-playback options for AniList playback flow."""
+    opts = []
+    has_next_episode = current_episode_idx < num_episodes - 1
+
+    if has_next_episode:
+        opts.append("▶️  Próximo")
+    else:
+        opts.append("↩️  Voltar ao menu anterior")
+
+    if current_episode_idx > 0:
+        opts.append("◀️  Anterior")
+
+    opts.append("🔁 Replay")
+    opts.append("📋 Escolher outro episódio")
+    opts.append("🔄 Trocar fonte")
+    return opts
+
+
 def _is_anime_released(anime_node) -> bool:
     """Check if an anime has started airing or is finished.
 
@@ -1294,18 +1313,12 @@ def anilist_anime_flow(
                 # User didn't finish - don't save anything, just continue to menu
                 pass
 
-        opts = []
-        if current_episode_idx < num_episodes - 1:
-            opts.append("▶️  Próximo")
-        if current_episode_idx > 0:
-            opts.append("◀️  Anterior")
-        opts.append("🔁 Replay")
-        opts.append("📋 Escolher outro episódio")
-        opts.append("🔄 Trocar fonte")
+        selected_opt = menu_navigate(
+            build_anilist_post_playback_options(current_episode_idx, num_episodes),
+            msg="O que quer fazer agora?",
+        )
 
-        selected_opt = menu_navigate(opts, msg="O que quer fazer agora?")
-
-        if not selected_opt or selected_opt == "🔙 Voltar":
+        if not selected_opt or selected_opt in {"🔙 Voltar", "↩️  Voltar ao menu anterior"}:
             return  # Exit to previous menu
         if selected_opt == "▶️  Próximo":
             current_episode_idx += 1

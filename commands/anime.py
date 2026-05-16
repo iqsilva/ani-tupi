@@ -80,11 +80,16 @@ def format_playback_menu_option(
 def build_post_playback_options(ctx: "PlaybackContext") -> list[str]:
     """Build post-playback action options for current context."""
     opts = []
-    if ctx.episode_idx < ctx.num_episodes - 1:
+    has_next_episode = ctx.episode_idx < ctx.num_episodes - 1
+
+    if has_next_episode:
         next_ep_num = ctx.episode_idx + 2  # 1-indexed
         opts.append(
             format_playback_menu_option("▶️  Próximo", next_ep_num, ctx.episode_skip_available)
         )
+    else:
+        opts.append("↩️  Voltar ao menu anterior")
+
     if ctx.episode_idx > 0:
         prev_ep_num = ctx.episode_idx  # 1-indexed (episode_idx is 0-indexed)
         opts.append(
@@ -646,6 +651,9 @@ def anime(args) -> None:
 
             if not selected_opt:
                 return  # Exit to main menu
+
+            if selected_opt == "↩️  Voltar ao menu anterior":
+                return
 
             if "▶️  Próximo" in selected_opt:  # May have ⏭️ indicator
                 ctx = navigate_episodes(ctx, "next")
