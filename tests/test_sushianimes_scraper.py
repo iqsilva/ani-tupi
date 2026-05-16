@@ -1,8 +1,10 @@
 """Tests for Sushi Animes scraper plugin."""
 
+import requests
 from unittest.mock import MagicMock, patch
 
 from scrapers.plugins.sushianimes import (
+    HEADERS,
     SushiAnimes,
     _extract_player_url,
     _extract_season_number,
@@ -144,6 +146,22 @@ class TestSushiAnimesScraper:
             "2º Episódio RELAÇÕES MARITAIS",
         ]
         assert urls[0].startswith("https://sushianimes.com.br/")
+        assert mock_get.call_args.kwargs["headers"] == HEADERS
+
+    @patch("scrapers.plugins.sushianimes.rep")
+    @patch("scrapers.plugins.sushianimes.requests.get")
+    def test_search_episodes_swallows_http_errors(self, mock_get, mock_rep):
+        response = MagicMock()
+        response.raise_for_status.side_effect = requests.HTTPError("403 Client Error")
+        mock_get.return_value = response
+
+        self.scraper.search_episodes(
+            "Dorohedoro 2 - Dublado",
+            "https://sushianimes.com.br/anime/dorohedoro-dublado-963",
+            {"season": 2},
+        )
+
+        mock_rep.add_episode_list.assert_not_called()
 
     @patch("scrapers.plugins.sushianimes.requests.post")
     @patch("scrapers.plugins.sushianimes.requests.get")

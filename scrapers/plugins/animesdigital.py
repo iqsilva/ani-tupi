@@ -484,7 +484,7 @@ class AnimesDigital:
             logger.debug(f"Series page scraping found {episode_count} episodes for '{anime}'")
 
             if episode_count == 0:
-                logger.warning(f"No episodes found for '{anime}' in series page scraping")
+                logger.debug(f"No episodes found for '{anime}' in series page scraping")
 
             # Step 2: Supplement with homepage search for newly-published episodes
             # Homepage "Últimos Episódios" may have episodes not yet on the series page
@@ -504,7 +504,7 @@ class AnimesDigital:
                 logger.debug(f"No new episodes found on homepage for '{anime}'")
 
         except Exception as e:
-            logger.error(f"AnimesDigital series page scraping failed for '{anime}': {e}")
+            logger.debug(f"AnimesDigital series page scraping failed for '{anime}': {e}")
 
     def _merge_homepage_episodes(
         self,
@@ -697,7 +697,7 @@ class AnimesDigital:
         if episode_titles:
             rep.add_episode_list(anime, episode_titles, episode_urls, AnimesDigital.name)
         else:
-            logger.warning(f"No episodes found for '{anime}' even with DynamicFetcher scraping")
+            logger.debug(f"No episodes found for '{anime}' even with DynamicFetcher scraping")
 
     def search_player_src(self, url: str, container: list, event) -> None:
         """Extract actual video source URLs from AnimesDigital episode page.
@@ -1006,10 +1006,10 @@ class AnimesDigital:
             return matched_episodes
 
         except requests.exceptions.Timeout:
-            logger.warning("AnimesDigital homepage fetch timed out")
+            logger.debug("AnimesDigital homepage fetch timed out")
             return []
         except Exception as e:
-            logger.warning(f"Error searching AnimesDigital homepage: {e}")
+            logger.debug(f"Error searching AnimesDigital homepage: {e}")
             return []
 
 
