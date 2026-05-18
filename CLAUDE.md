@@ -329,6 +329,11 @@ git push
 # → CI runs → Release workflow triggers → v0.3.0 published!
 ```
 
+**Never use `git commit --no-verify`.**
+- Commits must pass local hooks before they are created
+- If a hook fails, fix the root cause and rerun the commit
+- If hooks conflict with unrelated local changes, isolate the relevant changes properly instead of bypassing verification
+
 **Release Workflow**:
 - Triggers automatically after CI passes on main branch
 - Calculates next version from commit history since last release
