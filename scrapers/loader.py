@@ -8,14 +8,13 @@ def get_resource_path(relative_path: str) -> str:
     return join(dirname(abspath(__file__)), relative_path)
 
 
-def load_plugins(languages: dict, plugins: list[str] | None = None) -> None:
-    """Load plugins based on preferences and language filters.
+def load_plugins(plugins: list[str] | None = None) -> None:
+    """Load anime scraper plugins based on configured preferences.
 
     Respects plugin priority order from preferences if configured.
     Plugins are loaded in priority order (highest priority first).
 
     Args:
-        languages: Dict of supported languages (e.g., {"pt-br"})
         plugins: Optional list of specific plugins to load (overrides preferences)
                  If None, loads all plugins except disabled ones
     """
@@ -44,4 +43,4 @@ def load_plugins(languages: dict, plugins: list[str] | None = None) -> None:
             plugins = enabled_plugins
 
     for plugin in plugins:
-        importlib.import_module(f"scrapers.plugins.{plugin}").load(languages)
+        importlib.import_module(f"scrapers.plugins.{plugin}").load()

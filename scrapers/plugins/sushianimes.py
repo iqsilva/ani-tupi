@@ -5,7 +5,7 @@ import html
 import requests
 from bs4 import BeautifulSoup
 
-from scrapers.plugins.utils import load_plugin_if_supported, store_player_source
+from scrapers.plugins.utils import load_plugin, store_player_source
 from services.repository import rep
 
 
@@ -229,5 +229,5 @@ class SushiAnimes:
             pass
 
 
-def load(languages_dict) -> None:
-    load_plugin_if_supported(SushiAnimes, languages_dict, rep.register)
+def load() -> None:
+    load_plugin(SushiAnimes, rep.register)

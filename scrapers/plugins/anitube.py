@@ -3,7 +3,8 @@ import urllib.parse
 import requests
 from bs4 import BeautifulSoup
 
-from scrapers.plugins.utils import load_plugin_if_supported, store_player_source
+from scrapers.core.selenium_driver import SeleniumWebDriver
+from scrapers.plugins.utils import load_plugin, store_player_source
 from services.repository import rep
 
 
@@ -90,5 +91,5 @@ class AniTube:
             raise Exception(f"Could not extract video from AniTube: {e}") from e
 
 
-def load(languages_dict) -> None:
-    load_plugin_if_supported(AniTube, languages_dict, rep.register)
+def load() -> None:
+    load_plugin(AniTube, rep.register)

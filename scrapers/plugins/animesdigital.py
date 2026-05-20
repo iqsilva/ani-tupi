@@ -15,7 +15,8 @@ from typing import TypedDict
 import requests
 from bs4 import BeautifulSoup
 
-from scrapers.plugins.utils import load_plugin_if_supported, store_player_source
+from scrapers.core.selenium_driver import SeleniumWebDriver
+from scrapers.plugins.utils import load_plugin, store_player_source
 from services.repository import rep
 
 logger = logging.getLogger(__name__)
@@ -1003,6 +1004,6 @@ class AnimesDigital:
             return []
 
 
-def load(languages_dict) -> None:
-    """Load plugin if language is supported."""
-    load_plugin_if_supported(AnimesDigital, languages_dict, rep.register)
+def load() -> None:
+    """Load plugin."""
+    load_plugin(AnimesDigital, rep.register)
