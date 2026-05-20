@@ -102,7 +102,9 @@ class TestAnitubeEpisodeOrdering:
                 """
             )
 
-            scraper.search_episodes("Yomi no Tsugai Dublado", "https://www.anitube.zip/video/1054051/", None)
+            scraper.search_episodes(
+                "Yomi no Tsugai Dublado", "https://www.anitube.zip/video/1054051/", None
+            )
 
             mock_rep.add_episode_list.assert_called_once_with(
                 "Yomi no Tsugai Dublado",

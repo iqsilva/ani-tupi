@@ -6,6 +6,7 @@ from bs4 import BeautifulSoup
 from scrapers.plugins.utils import load_plugin_if_supported, store_player_source
 from services.repository import rep
 
+
 class AniTube:
     languages = ["pt-br"]
     name = "anitube"

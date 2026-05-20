@@ -346,13 +346,16 @@ class EpisodeRepository:
 
             # Only create thread if we have a valid source
             if actual_source in self.sources:
+
                 def worker(
                     source_name: str = actual_source,
                     episode_url: str = url,
                     episode_params: dict | None = params,
                 ) -> None:
                     try:
-                        self.sources[source_name].search_episodes(anime, episode_url, episode_params)
+                        self.sources[source_name].search_episodes(
+                            anime, episode_url, episode_params
+                        )
                     except Exception as exc:
                         self.last_search_failures[anime].append((source_name, str(exc)))
                         logger.warning(
