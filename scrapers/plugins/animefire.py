@@ -1,5 +1,5 @@
 from scrapers.core.selenium_driver import SeleniumWebDriver
-from scrapers.plugins.utils import load_plugin_if_supported, store_player_source
+from scrapers.plugins.utils import load_plugin, store_player_source
 from services.repository import rep
 
 
@@ -111,5 +111,5 @@ class AnimeFire:
             raise Exception(f"Could not extract video from AnimeFire: {e}") from e
 
 
-def load(languages_dict) -> None:
-    load_plugin_if_supported(AnimeFire, languages_dict, rep.register)
+def load() -> None:
+    load_plugin(AnimeFire, rep.register)

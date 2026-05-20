@@ -7,7 +7,6 @@ def store_player_source(container: list, event, source: str) -> bool:
     return True
 
 
-def load_plugin_if_supported(plugin_cls, languages_dict, register) -> None:
-    """Register a plugin only when at least one language matches."""
-    if any(language in languages_dict for language in plugin_cls.languages):
-        register(plugin_cls())
+def load_plugin(plugin_cls, register) -> None:
+    """Register an anime plugin."""
+    register(plugin_cls())

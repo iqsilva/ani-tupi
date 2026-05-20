@@ -265,7 +265,7 @@ def anilist_anime_flow(
         romaji_title = anime_info.title.romaji
         mal_id = anime_info.id_mal
 
-    loader.load_plugins({"pt-br"})  # type: ignore
+    loader.load_plugins()
 
     # Clear previous search results to avoid accumulating data from previous calls
     # (Repository is singleton, so it keeps data between calls)
