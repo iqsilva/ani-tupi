@@ -1,19 +1,10 @@
-import re
 import urllib.parse
 
 import requests
+from bs4 import BeautifulSoup
 
-from scrapers.core.selenium_driver import SeleniumWebDriver
 from scrapers.plugins.utils import load_plugin_if_supported, store_player_source
 from services.repository import rep
-
-
-def _extract_episode_number(title: str) -> int | None:
-    match = re.search(r"epis[óo]dio\s*(\d+)", title.lower())
-    if match:
-        return int(match.group(1))
-    return None
-
 
 class AniTube:
     languages = ["pt-br"]
@@ -47,19 +38,13 @@ class AniTube:
         _do_search(f"{query} todos os episodios")
 
     def search_episodes(self, anime: str, url: str, params: dict | None) -> None:
-        anime_base = (
-            anime.lower()
-            .replace("todos os episódios", "")
-            .replace("todos episodios", "")
-            .replace("– todos episódios", "")
-            .replace("- todos episodios", "")
-            .strip()
-        )
         separator = "&" if "?" in url else "?"
         episodes_url = f"{url}{separator}ord=1"
 
-        with SeleniumWebDriver() as driver:
-            page = driver.fetch(episodes_url)
+        headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
+        response = requests.get(episodes_url, headers=headers, timeout=30)
+        response.raise_for_status()
+        page = BeautifulSoup(response.text, "html.parser")
 
         episode_links = page.select("a[title*='Episódio']")
         titles = []
@@ -68,18 +53,8 @@ class AniTube:
             href = a.get("href")
             title = a.get("title")
             if href and title and "anitube" in href:
-                title_lower = title.lower()
-                if anime_base in title_lower:
-                    titles.append(title.strip())
-                    urls.append(href)
-
-        if titles and urls:
-            first_ep_num = _extract_episode_number(titles[0])
-            if first_ep_num is not None and len(titles) > 1:
-                second_ep_num = _extract_episode_number(titles[1])
-                if second_ep_num is not None and first_ep_num > second_ep_num:
-                    titles = list(reversed(titles))
-                    urls = list(reversed(urls))
+                titles.append(title.strip())
+                urls.append(href)
 
         rep.add_episode_list(anime, titles, urls, self.name)
 

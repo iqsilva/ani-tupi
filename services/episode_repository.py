@@ -6,6 +6,9 @@ from threading import Thread
 from models.config import settings
 from models.models import EpisodeData
 from services.priority_utils import sort_by_priority
+from utils.logging import get_logger
+
+logger = get_logger(__name__)
 
 
 class EpisodeRepository:
@@ -34,6 +37,7 @@ class EpisodeRepository:
         self.anime_episodes_titles = defaultdict(list)
         self.anime_episodes_urls = defaultdict(list)
         self.anime_episodes_seasons = defaultdict(list)  # Season info for each episode
+        self.last_search_failures = defaultdict(list)
 
         EpisodeRepository._initialized = True
 
@@ -291,6 +295,8 @@ class EpisodeRepository:
         """
         self.anime_episodes_titles[anime] = []
         self.anime_episodes_urls[anime] = []
+        self.anime_episodes_seasons[anime] = []
+        self.last_search_failures[anime] = []
 
     @classmethod
     def reset_singleton(cls) -> None:
@@ -311,6 +317,7 @@ class EpisodeRepository:
             source_filter: Optional source name to search only that source (e.g., "animefire")
         """
         urls_and_scrapers = anime_to_urls.get(anime, [])
+        self.last_search_failures[anime] = []
 
         # Filter by source if specified
         if source_filter:
@@ -339,9 +346,25 @@ class EpisodeRepository:
 
             # Only create thread if we have a valid source
             if actual_source in self.sources:
+                def worker(
+                    source_name: str = actual_source,
+                    episode_url: str = url,
+                    episode_params: dict | None = params,
+                ) -> None:
+                    try:
+                        self.sources[source_name].search_episodes(anime, episode_url, episode_params)
+                    except Exception as exc:
+                        self.last_search_failures[anime].append((source_name, str(exc)))
+                        logger.warning(
+                            "Failed to load episodes for '%s' from source '%s': %s",
+                            anime,
+                            source_name,
+                            exc,
+                        )
+
                 th = Thread(
-                    target=self.sources[actual_source].search_episodes,
-                    args=(anime, url, params),
+                    target=worker,
+                    name=f"search_episodes:{actual_source}:{anime}",
                 )
                 threads.append(th)
 
@@ -350,6 +373,10 @@ class EpisodeRepository:
 
         for th in threads:
             th.join()
+
+    def get_last_search_failures(self, anime: str) -> list[tuple[str, str]]:
+        """Return scraper failures from the most recent episode search for an anime."""
+        return list(self.last_search_failures.get(anime, []))
 
     def get_available_seasons(self, anime: str) -> list[int]:
         """Get available season numbers for an anime (from longest episode list).

@@ -222,3 +222,62 @@ class TestEpisodeRepository:
 
         repo2 = EpisodeRepository()
         assert repo2.get_episode_list("Naruto") == []
+
+    def test_search_episodes_continues_when_one_source_fails(self, episode_repo):
+        """Should swallow scraper exceptions and keep successful results."""
+
+        class WorkingScraper:
+            def search_episodes(self, anime: str, url: str, params):
+                episode_repo.add_episode_list(anime, ["Episode 1"], ["http://ep1.com"], "working")
+
+        class FailingScraper:
+            def search_episodes(self, anime: str, url: str, params):
+                raise RuntimeError("renderer timeout")
+
+        episode_repo.set_sources({"working": WorkingScraper(), "failing": FailingScraper()})
+
+        episode_repo.search_episodes(
+            "Naruto",
+            {
+                "Naruto": [
+                    ("http://working.example", "working", None),
+                    ("http://failing.example", "failing", None),
+                ]
+            },
+        )
+
+        assert episode_repo.get_episode_list("Naruto") == ["Episode 1"]
+        assert episode_repo.get_last_search_failures("Naruto") == [("failing", "renderer timeout")]
+
+    def test_search_episodes_records_all_failures_without_raising(self, episode_repo):
+        """Should record failures when every scraper errors."""
+
+        class FailingScraper:
+            def __init__(self, message: str):
+                self.message = message
+
+            def search_episodes(self, anime: str, url: str, params):
+                raise RuntimeError(self.message)
+
+        episode_repo.set_sources(
+            {
+                "source1": FailingScraper("timeout"),
+                "source2": FailingScraper("network error"),
+            }
+        )
+
+        episode_repo.search_episodes(
+            "Bleach",
+            {
+                "Bleach": [
+                    ("http://source1.example", "source1", None),
+                    ("http://source2.example", "source2", None),
+                ]
+            },
+        )
+
+        assert episode_repo.get_episode_list("Bleach") == []
+        assert sorted(episode_repo.get_last_search_failures("Bleach")) == [
+            ("source1", "timeout"),
+            ("source2", "network error"),
+        ]

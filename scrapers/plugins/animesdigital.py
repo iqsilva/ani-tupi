@@ -15,7 +15,6 @@ from typing import TypedDict
 import requests
 from bs4 import BeautifulSoup
 
-from scrapers.core.selenium_driver import SeleniumWebDriver
 from scrapers.plugins.utils import load_plugin_if_supported, store_player_source
 from services.repository import rep
 
@@ -623,8 +622,7 @@ class AnimesDigital:
     def _scrape_series_page(self, anime: str, url: str) -> None:
         """Fallback method to scrape anime series page directly.
 
-        Uses DynamicFetcher to render JavaScript and extract episodes.
-        This is slower but works if the API fails.
+        Uses static HTML parsing to extract episodes from the series page.
 
         CRITICAL: The ?odr=1 parameter is REQUIRED. Without it, episodes
         disappear from the AnimesDigital series page and cannot be fetched.
@@ -634,9 +632,6 @@ class AnimesDigital:
             anime: Anime title (needed to add episodes to repository)
             url: Series URL
         """
-        from concurrent.futures import ThreadPoolExecutor
-        import asyncio
-
         # REQUIRED: ?odr=1 parameter MUST be present to show all episodes
         # Without this parameter, the series page will NOT display episodes
         if "?" in url:
@@ -645,20 +640,15 @@ class AnimesDigital:
         else:
             url = url + "?odr=1"
 
-        # Run DynamicFetcher in a thread pool to avoid asyncio loop conflicts
-        try:
-            loop = asyncio.get_running_loop()
-            # We're inside an async context, use executor
-            with ThreadPoolExecutor(max_workers=1) as executor:
-                tree = loop.run_until_complete(
-                    loop.run_in_executor(
-                        executor,
-                        lambda: SeleniumWebDriver().fetch(url),
-                    )
-                )
-        except RuntimeError:
-            # No event loop running, call directly
-            tree = SeleniumWebDriver().fetch(url)
+        browser_headers = {
+            "User-Agent": "Mozilla/5.0 (X11; Linux x86_64; rv:146.0) Gecko/20100101 Firefox/146.0",
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+            "Accept-Language": "pt-BR,pt;q=0.9,en;q=0.8",
+            "Referer": "https://animesdigital.org",
+        }
+        response = requests.get(url, headers=browser_headers, timeout=REQUEST_TIMEOUT)
+        response.raise_for_status()
+        tree = BeautifulSoup(response.text, "html.parser")
 
         # Find all episode containers
         episode_divs = tree.select("div.item_ep")
@@ -685,7 +675,7 @@ class AnimesDigital:
                     if re.search(r"Episódio\s+\d+\.\d+", title):
                         continue  # Skip special episodes
 
-                    # Skip duplicate URLs (in case DynamicFetcher finds duplicates)
+                    # Skip duplicate URLs in case the page repeats entries.
                     if href in seen_urls:
                         continue
 
@@ -697,7 +687,7 @@ class AnimesDigital:
         if episode_titles:
             rep.add_episode_list(anime, episode_titles, episode_urls, AnimesDigital.name)
         else:
-            logger.debug(f"No episodes found for '{anime}' even with DynamicFetcher scraping")
+            logger.debug(f"No episodes found for '{anime}' in series page scraping")
 
     def search_player_src(self, url: str, container: list, event) -> None:
         """Extract actual video source URLs from AnimesDigital episode page.
