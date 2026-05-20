@@ -16,6 +16,48 @@ def _http_error_response() -> MagicMock:
     return response
 
 
+def _html_response(html: str) -> MagicMock:
+    response = MagicMock()
+    response.text = html
+    response.raise_for_status = MagicMock()
+    return response
+
+
+SERIES_PAGE_HTML = """
+<html><body>
+  <div class="itens_ep">
+    <div class="item_ep b_flex">
+      <a href="https://animesdigital.org/video/a/135463/" class="b_flex">
+        <div class="dados b_flex b_align_center b_space_between">
+          <div class="left">
+            <div class="title_anime">Tadaima Ojamasaremasu! Episódio 01</div>
+          </div>
+        </div>
+      </a>
+    </div>
+    <div class="item_ep b_flex">
+      <a href="https://animesdigital.org/video/a/135726/" class="b_flex">
+        <div class="dados b_flex b_align_center b_space_between">
+          <div class="left">
+            <div class="title_anime">Tadaima Ojamasaremasu! Episódio 02</div>
+          </div>
+        </div>
+      </a>
+    </div>
+    <div class="item_ep b_flex">
+      <a href="https://animesdigital.org/video/a/999999/" class="b_flex">
+        <div class="dados b_flex b_align_center b_space_between">
+          <div class="left">
+            <div class="title_anime">Tadaima Ojamasaremasu! Episódio 13.5</div>
+          </div>
+        </div>
+      </a>
+    </div>
+  </div>
+</body></html>
+"""
+
+
 class TestAnimesDigitalFallbackLogging:
     def setup_method(self):
         self.scraper = AnimesDigital()
@@ -49,3 +91,47 @@ class TestAnimesDigitalFallbackLogging:
         )
         mock_scrape_series_page.assert_called_once()
         mock_homepage_search.assert_called_once_with("Liar Game", audio_type="legendado")
+
+    @patch("scrapers.plugins.animesdigital.rep")
+    @patch("scrapers.plugins.animesdigital.requests.get")
+    def test_scrape_series_page_uses_static_html_and_appends_odr(self, mock_get, mock_rep):
+        mock_get.return_value = _html_response(SERIES_PAGE_HTML)
+
+        self.scraper._scrape_series_page(
+            "Tadaima Ojamasaremasu!",
+            "https://animesdigital.org/anime/a/tadaima-ojamasaremasu-todos-episodios",
+        )
+
+        assert mock_get.call_count == 1
+        assert (
+            mock_get.call_args.args[0]
+            == "https://animesdigital.org/anime/a/tadaima-ojamasaremasu-todos-episodios?odr=1"
+        )
+        mock_rep.add_episode_list.assert_called_once_with(
+            "Tadaima Ojamasaremasu!",
+            [
+                "Tadaima Ojamasaremasu! Episódio 01",
+                "Tadaima Ojamasaremasu! Episódio 02",
+            ],
+            [
+                "https://animesdigital.org/video/a/135463/",
+                "https://animesdigital.org/video/a/135726/",
+            ],
+            "animesdigital",
+        )
+
+    @patch("scrapers.plugins.animesdigital.rep")
+    @patch("scrapers.plugins.animesdigital.requests.get")
+    def test_scrape_series_page_preserves_existing_query_string(self, mock_get, mock_rep):
+        mock_get.return_value = _html_response("<html></html>")
+
+        self.scraper._scrape_series_page(
+            "Tadaima Ojamasaremasu!",
+            "https://animesdigital.org/anime/a/tadaima-ojamasaremasu-todos-episodios?foo=bar",
+        )
+
+        assert (
+            mock_get.call_args.args[0]
+            == "https://animesdigital.org/anime/a/tadaima-ojamasaremasu-todos-episodios?foo=bar&odr=1"
+        )
+        mock_rep.add_episode_list.assert_not_called()
