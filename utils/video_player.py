@@ -127,6 +127,7 @@ class VideoPlayer:
         anilist_episodes: int | None = None,
         mal_id: int | None = None,
         skip_times: Optional[SkipTimes] = None,
+        referrer: str | None = None,
     ) -> VideoPlaybackResult:
         """Play a single episode with optional IPC support for episode navigation.
 
@@ -155,7 +156,7 @@ class VideoPlayer:
 
         if not use_ipc:
             # Use legacy blocking playback
-            return self._play_video_legacy(url, debug=False)
+            return self._play_video_legacy(url, debug=False, referrer=referrer)
 
         # Try IPC-based playback with fallback
         input_conf_path = None
@@ -170,6 +171,7 @@ class VideoPlayer:
             "anilist_episodes": anilist_episodes,
             "source": source,
             "url": url,
+            "referrer": referrer,
             "anilist_id": anilist_id,
             "mal_id": mal_id,
             "skip_cache": {},
@@ -191,6 +193,7 @@ class VideoPlayer:
                 skip_times,
                 anime_title=anime_title,
                 episode_number=episode_number,
+                referrer=referrer,
             )
 
             # Start monitoring events
@@ -217,7 +220,7 @@ class VideoPlayer:
                 except subprocess.TimeoutExpired:
                     mpv_process.kill()
 
-            return self._play_video_legacy(url, debug=False)
+            return self._play_video_legacy(url, debug=False, referrer=referrer)
 
         finally:
             # Clean up temporary files
@@ -230,7 +233,9 @@ class VideoPlayer:
             if socket_path:
                 self._cleanup_ipc_socket(socket_path)
 
-    def _play_video_legacy(self, url: str, debug: bool = False) -> VideoPlaybackResult:
+    def _play_video_legacy(
+        self, url: str, debug: bool = False, referrer: str | None = None
+    ) -> VideoPlaybackResult:
         """Play video using legacy python-mpv blocking mode (fallback)."""
         logger.debug("_play_video_legacy called")
         logger.debug(f"Full URL: {url}")
@@ -240,14 +245,20 @@ class VideoPlayer:
 
         try:
             logger.debug("Calling play_video_raw...")
-            exit_code = self.play_video_raw(url, debug=False)
+            exit_code = self.play_video_raw(url, debug=False, referrer=referrer)
             logger.debug(f"play_video_raw returned exit_code={exit_code}")
             return VideoPlaybackResult(exit_code=exit_code, action="quit", data=None)
         except Exception as e:
             logger.info(f"⚠️  Playback error: {e}")
             return VideoPlaybackResult(exit_code=2, action="quit", data=None)
 
-    def play_video_raw(self, url: str, debug=False, ytdl_format: str | None = None) -> int:
+    def play_video_raw(
+        self,
+        url: str,
+        debug: bool = False,
+        ytdl_format: str | None = None,
+        referrer: str | None = None,
+    ) -> int:
         """Play video using python-mpv and return exit code."""
         logger.debug("play_video_raw: Starting")
         logger.debug(f"Full URL: {url}")
@@ -281,6 +292,7 @@ class VideoPlayer:
                 input_vo_keyboard=True,  # Handle keyboard input on video output
                 input_conf=input_conf_path,  # Use custom ani-tupi keybindings
                 osc=True,  # On-screen controller for mouse interaction
+                referrer=referrer,
             )
 
             # Start playback (blocking)
@@ -506,6 +518,7 @@ shift+t script-message toggle-sub-dub
         skip_times: Optional[SkipTimes] = None,
         anime_title: str | None = None,
         episode_number: int | None = None,
+        referrer: str | None = None,
     ) -> subprocess.Popen:
         """Launch MPV process with IPC socket support.
 
@@ -552,6 +565,9 @@ shift+t script-message toggle-sub-dub
         if anime_title and episode_number:
             media_title = f"{anime_title} Episode {episode_number}"
             mpv_args.append(f"--force-media-title={media_title}")
+
+        if referrer:
+            mpv_args.append(f"--referrer={referrer}")
 
         # Add skip.lua script if skip times are available
         if skip_times:
@@ -1239,6 +1255,7 @@ def play_episode(
     debug: bool = False,
     anilist_id: int | None = None,
     anilist_episodes: int | None = None,
+    referrer: str | None = None,
 ) -> VideoPlaybackResult:
     """Play a single episode with optional IPC support."""
     return _default_player.play_episode(
@@ -1251,4 +1268,5 @@ def play_episode(
         debug=debug,
         anilist_id=anilist_id,
         anilist_episodes=anilist_episodes,
+        referrer=referrer,
     )

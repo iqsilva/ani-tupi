@@ -35,7 +35,7 @@ class PlaybackFallbackResult(NamedTuple):
 
 def play_episode_with_fallback(
     player: VideoPlayer,
-    sources: list[tuple[str, str]],
+    sources: list[tuple[str, str] | tuple[str, str, str | None]],
     anime_title: str,
     episode_number: int,
     total_episodes: int,
@@ -53,7 +53,7 @@ def play_episode_with_fallback(
 
     Args:
         player: VideoPlayer instance with session state (autoplay, etc.)
-        sources: List of (url, source_name) sorted by priority
+    sources: List of (url, source_name) or (url, source_name, referrer) tuples sorted by priority
         anime_title: Anime title for display and IPC context
         episode_number: Current episode number (1-indexed)
         total_episodes: Total episodes in scraper
@@ -77,7 +77,9 @@ def play_episode_with_fallback(
 
     sources_tried: list[tuple[str, int]] = []
 
-    for url, source in sources:
+    for source_entry in sources:
+        url, source = source_entry[0], source_entry[1]
+        referrer = source_entry[2] if len(source_entry) > 2 else None
         # Show progress if multiple sources
         if len(sources) > 1:
             attempt_num = len(sources_tried) + 1
@@ -94,6 +96,7 @@ def play_episode_with_fallback(
             anilist_id=anilist_id,
             anilist_episodes=anilist_episodes,
             skip_times=skip_times,
+            referrer=referrer,
         )
 
         sources_tried.append((source, result.exit_code))
