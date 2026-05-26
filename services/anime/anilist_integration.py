@@ -1059,7 +1059,7 @@ def anilist_anime_flow(
                 # Call search_player_src to extract the real video URL
                 video_url = rep.search_player_from_page(page_url, source_name)
                 if video_url:
-                    video_sources.append((video_url, source_name))
+                    video_sources.append((video_url, source_name, page_url))
                 else:
                     logger.info(
                         f"   ⚠️  [{source_name}] Não retornou URL de vídeo (page_url={page_url[:80]})"

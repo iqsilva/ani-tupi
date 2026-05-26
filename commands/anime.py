@@ -410,7 +410,7 @@ def anime(args) -> None:
 
             if url_result.success and url_result.player_url:
                 # Found direct URL - use it as single source
-                sources = [(url_result.player_url, url_result.source or "unknown")]
+                sources = [(url_result.player_url, url_result.source or "unknown", None)]
                 logger.info(
                     f"[DEBUG] Using direct URL from get_episode_url_and_source: {url_result.player_url[:80]}..."
                 )
@@ -435,7 +435,7 @@ def anime(args) -> None:
                             logger.info(
                                 f"[DEBUG] SUCCESS: Got video URL from {source_name}: {video_url[:80]}..."
                             )
-                            sources.append((video_url, source_name))
+                            sources.append((video_url, source_name, page_url))
                         else:
                             logger.info(
                                 f"[DEBUG] FAILED: search_player_from_page returned None for {source_name}"
@@ -446,7 +446,9 @@ def anime(args) -> None:
                         continue
 
                 # Filter out empty URLs
-                sources = [(url, source) for url, source in sources if url and source]
+                sources = [
+                    (url, source, referrer) for url, source, referrer in sources if url and source
+                ]
                 logger.info(f"[DEBUG] Final sources count: {len(sources)}")
 
         if not sources:
