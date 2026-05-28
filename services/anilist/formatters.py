@@ -28,7 +28,7 @@ def format_title(title_obj: AniListTitle | dict) -> str:
         native = title_obj.native
 
     # If both romaji and english exist and are different
-    if romaji and english and romaji != english:
+    if romaji and english and romaji.lower() != english.lower():
         return f"{romaji} / {english}"
     # If only romaji
     if romaji:
