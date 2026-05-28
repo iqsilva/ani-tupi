@@ -18,3 +18,9 @@ def test_format_title_accepts_dict_input_case_insensitive():
     title = {"romaji": "One Piece", "english": "one piece", "native": None}
 
     assert format_title(title) == "One Piece"
+
+
+def test_format_title_normalizes_punctuation_before_comparing():
+    title = AniListTitle(romaji="Anime A: Force", english="ANIME A - FORCE")
+
+    assert format_title(title) == "Anime A: Force"
