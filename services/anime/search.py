@@ -92,6 +92,80 @@ def _filter_anime_results(titles: list[str], query: str) -> list[str]:
     return filtered
 
 
+def _rank_anime_results_by_reference(titles: list[str], reference_title: str) -> list[str]:
+    """Rank title strings using the canonical AniList reference title."""
+    from fuzzywuzzy import fuzz
+    from services.search_repository import SearchRepository
+
+    reference_title = reference_title.split(" / ")[0]
+    reference_normalized = SearchRepository._normalize_for_filter(reference_title)
+    reference_compact = SearchRepository._normalize_for_similarity(reference_title)
+    reference_words = SearchRepository._normalize_words_for_similarity(reference_title)
+
+    def contains_word_sequence(haystack: list[str], needle: list[str]) -> bool:
+        if not needle:
+            return True
+        it = iter(haystack)
+        return all(any(word == candidate for candidate in it) for word in needle)
+
+    scored_titles = []
+    for title in titles:
+        base_title = title.split(" [")[0] if " [" in title else title
+        normalized_title = SearchRepository._normalize_for_filter(base_title)
+        compact_title = SearchRepository._normalize_for_similarity(base_title)
+        title_words = SearchRepository._normalize_words_for_similarity(base_title)
+
+        score = max(
+            fuzz.ratio(reference_normalized, normalized_title),
+            fuzz.partial_ratio(reference_normalized, normalized_title),
+            fuzz.token_sort_ratio(reference_normalized, normalized_title),
+            fuzz.ratio(reference_compact, compact_title),
+        )
+
+        if reference_words and title_words[: len(reference_words)] == reference_words:
+            score = min(100, score + 40)
+        elif reference_normalized in normalized_title:
+            score = min(100, score + 20)
+        elif reference_compact in compact_title:
+            score = min(100, score + 10)
+
+        if contains_word_sequence(title_words, reference_words):
+            score = min(100, score + 25)
+        else:
+            score = max(0, score - 25)
+
+        # Prefer more specific titles over short prefix-only matches.
+        if len(title_words) < len(reference_words):
+            if title_words == reference_words[: len(title_words)]:
+                score = 0
+            else:
+                score = max(0, score - 50)
+        elif len(title_words) > len(reference_words):
+            score = min(100, score + min(30, (len(title_words) - len(reference_words)) * 5))
+
+        scored_titles.append((title, score, len(title_words), base_title))
+
+    scored_titles.sort(key=lambda item: (-item[1], item[2], item[3]))
+    return [item[0] for item in scored_titles]
+
+
+def _get_ranked_titles_with_sources(
+    *, filter_by_query: str | None, original_query: str | None, anilist_results
+) -> list[str]:
+    """Call repository ranking with backwards-compatible fallback."""
+    try:
+        return rep.get_anime_titles_with_sources(
+            filter_by_query=filter_by_query,
+            original_query=original_query,
+            anilist_results=anilist_results,
+        )
+    except TypeError:
+        return rep.get_anime_titles_with_sources(
+            filter_by_query=filter_by_query,
+            original_query=original_query,
+        )
+
+
 @dataclass
 class SearchResultSet:
     """Represents a single search result set from an incremental search iteration.
@@ -329,6 +403,8 @@ def incremental_search_anime(
     current_word_count = start_word_count
     current_results: list[str] = []
     base_results: list[str] = []  # Store base search results for filtering
+    anilist_reference_title: str | None = None
+    anilist_results = None
 
     # Progressive filtering: add words until results ≤ 20
     # After the initial base search, we filter results instead of re-searching scrapers
@@ -357,13 +433,21 @@ def incremental_search_anime(
                     anilist_results = auto_discover_anilist_id(used_query)
                     if anilist_results:
                         ranking_query = anilist_results[0].title
+                        anilist_reference_title = ranking_query
                 except Exception:
                     pass
 
                 # Get anime titles with sources, ranked by AniList if available
-                titles_with_sources = rep.get_anime_titles_with_sources(
-                    filter_by_query=used_query, original_query=ranking_query
+                titles_with_sources = _get_ranked_titles_with_sources(
+                    filter_by_query=used_query,
+                    original_query=ranking_query,
+                    anilist_results=anilist_results,
                 )
+
+                if anilist_reference_title:
+                    titles_with_sources = _rank_anime_results_by_reference(
+                        titles_with_sources, anilist_reference_title
+                    )
 
                 # Store base results for filtering in subsequent iterations
                 # These results are from the base N-word search and will be filtered, not re-searched
@@ -456,13 +540,21 @@ def incremental_search_anime(
                         anilist_results = auto_discover_anilist_id(used_query)
                         if anilist_results:
                             ranking_query = anilist_results[0].title
+                            anilist_reference_title = ranking_query
                     except Exception:
                         pass
 
                     # Get anime titles with sources, ranked by AniList if available
-                    titles_with_sources = rep.get_anime_titles_with_sources(
-                        filter_by_query=used_query, original_query=ranking_query
+                    titles_with_sources = _get_ranked_titles_with_sources(
+                        filter_by_query=used_query,
+                        original_query=ranking_query,
+                        anilist_results=anilist_results,
                     )
+
+                    if anilist_reference_title:
+                        titles_with_sources = _rank_anime_results_by_reference(
+                            titles_with_sources, anilist_reference_title
+                        )
 
                     if not titles_with_sources:
                         _debug_incremental_search(
@@ -503,6 +595,10 @@ def incremental_search_anime(
 
                 elif filtered:
                     # Filtered results found and enough (> 3) - use them
+                    if anilist_reference_title:
+                        filtered = _rank_anime_results_by_reference(
+                            filtered, anilist_reference_title
+                        )
                     current_results = filtered
                     _debug_incremental_search(
                         f"using_filtered_results count={len(current_results)} for='{partial_query}'"
@@ -627,6 +723,7 @@ def _select_from_manual_search_results(query: str, args) -> ManualSearchSelectio
         selected_anime_with_source = menu_navigate(
             titles_with_button,
             msg=f"Escolha o Anime.{show_continue_msg}",
+            enable_search=False,
         )
 
         if not selected_anime_with_source:

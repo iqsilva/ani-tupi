@@ -3,6 +3,7 @@
 from unittest.mock import Mock, patch
 from services.search_repository import SearchRepository
 from models.models import AnimeMetadata
+from models.models import AniListSearchResult
 
 
 class MockPlugin:
@@ -195,6 +196,152 @@ class TestSearchRepository:
         titles = repo.get_anime_titles_with_sources(filter_by_query="hime kishi")
 
         assert titles == ["Himekishi wa Barbaroi no Yome [animefire]"]
+
+    def test_get_anime_titles_with_sources_ranks_closest_match_first(self):
+        """The closest title match should be listed first."""
+        repo = SearchRepository()
+
+        repo.add_anime("gorilla no kami", "http://url0.com", "animesdigital", {})
+        repo.add_anime(
+            "class de 2 banme ni kawaii onnanoko to tomodachi ni natta",
+            "http://url1.com",
+            "animefire",
+            {},
+        )
+        repo.add_anime("classroom of the elite", "http://url2.com", "anitube", {})
+        repo.add_anime("classroom crisis", "http://url3.com", "sushianimes", {})
+
+        titles = repo.get_anime_titles_with_sources(
+            original_query="Class de 2-banme ni Kawaii Onnanoko to Tomodachi ni Natta"
+        )
+
+        assert titles[0].startswith("class de 2 banme ni kawaii onnanoko to tomodachi ni natta")
+
+    def test_get_anime_titles_with_sources_prefers_query_prefix_over_reordered_terms(self):
+        """Prefix matches should outrank same-term reorderings."""
+        repo = SearchRepository()
+
+        repo.add_anime("gorilla no kami", "http://url1.com", "animesdigital", {})
+        repo.add_anime("kami no shizuku", "http://url2.com", "animefire", {})
+
+        titles = repo.get_anime_titles_with_sources(original_query="kami no")
+
+        assert titles[0].startswith("kami no shizuku")
+
+    def test_get_anime_titles_with_sources_uses_canonical_anilist_title(self):
+        """Translated AniList titles should still rank by the canonical anime name."""
+        repo = SearchRepository()
+
+        repo.add_anime("gorilla no kami", "http://url1.com", "animesdigital", {})
+        repo.add_anime("kami no shizuku", "http://url2.com", "animefire", {})
+
+        titles = repo.get_anime_titles_with_sources(
+            original_query="Kami no Shizuku / The Drops of God"
+        )
+
+        assert titles[0].startswith("kami no shizuku")
+
+    def test_get_anime_titles_with_sources_prefers_anilist_reference_when_provided(self):
+        """AniList reference should drive ranking when available."""
+        repo = SearchRepository()
+
+        repo.add_anime("gorilla no kami", "http://url1.com", "animesdigital", {})
+        repo.add_anime("kami no shizuku", "http://url2.com", "animefire", {})
+
+        titles = repo.get_anime_titles_with_sources(
+            original_query="kami no",
+            anilist_results=[
+                AniListSearchResult(
+                    anilist_id=1, score=100, title="Kami no Shizuku / The Drops of God"
+                )
+            ],
+        )
+
+        assert titles[0].startswith("kami no shizuku")
+
+    def test_get_anime_titles_with_sources_ignores_dublado_as_match(self):
+        """Language markers should not outrank the canonical title."""
+        repo = SearchRepository()
+
+        repo.add_anime("dr stone science future part 3", "http://url1.com", "animefire", {})
+        repo.add_anime(
+            "dr stone science future part 3 dublado", "http://url2.com", "animesdigital", {}
+        )
+
+        titles = repo.get_anime_titles_with_sources(
+            original_query="Dr. STONE: SCIENCE FUTURE Part 3",
+            anilist_results=[
+                AniListSearchResult(
+                    anilist_id=2,
+                    score=100,
+                    title="Dr. STONE: SCIENCE FUTURE Part 3 / Dr. STONE SCIENCE FUTURE Cour 3",
+                )
+            ],
+        )
+
+        assert titles[0].startswith("dr stone science future part 3 [animefire]")
+
+    def test_get_anime_titles_with_sources_prefers_longer_specific_title(self):
+        """Short prefix-only titles should not outrank specific long matches."""
+        repo = SearchRepository()
+
+        repo.add_anime("dr stone", "http://url1.com", "sushianimes", {})
+        repo.add_anime("dr stone science future part 3", "http://url2.com", "animefire", {})
+
+        titles = repo.get_anime_titles_with_sources(
+            original_query="Dr. STONE: SCIENCE FUTURE Part 3",
+            anilist_results=[
+                AniListSearchResult(
+                    anilist_id=2,
+                    score=100,
+                    title="Dr. STONE: SCIENCE FUTURE Part 3 / Dr. STONE SCIENCE FUTURE Cour 3",
+                )
+            ],
+        )
+
+        assert titles[0].startswith("dr stone science future part 3")
+
+    def test_get_anime_titles_with_sources_prefers_numeric_suffix_match(self):
+        """A title with the matching numeric suffix should rank first."""
+        repo = SearchRepository()
+
+        repo.add_anime("kami no shizuku", "http://url1.com", "animefire", {})
+        repo.add_anime("kami no shizuku 2", "http://url2.com", "animesdigital", {})
+
+        titles = repo.get_anime_titles_with_sources(
+            original_query="Kami no Shizuku 2 / The Drops of God 2"
+        )
+
+        assert titles[0].startswith("kami no shizuku 2")
+
+    def test_get_anime_titles_with_sources_prefers_numeric_suffix_over_base_title(self):
+        """The numbered variant should outrank the base title when the query includes 2."""
+        repo = SearchRepository()
+
+        repo.add_anime("kami no shizuku", "http://url1.com", "animefire", {})
+        repo.add_anime("kami no shizuku 2", "http://url2.com", "animesdigital", {})
+
+        titles = repo.get_anime_titles_with_sources(
+            original_query="Kami no Shizuku 2",
+            anilist_results=[
+                AniListSearchResult(
+                    anilist_id=1, score=100, title="Kami no Shizuku 2 / The Drops of God 2"
+                )
+            ],
+        )
+
+        assert titles[0].startswith("kami no shizuku 2")
+
+    def test_get_anime_titles_with_sources_uses_stable_tie_breaking(self):
+        """Equal scores should sort deterministically."""
+        repo = SearchRepository()
+
+        repo.add_anime("Anime One", "http://url1.com", "animefire", {})
+        repo.add_anime("Anime Two", "http://url2.com", "anitube", {})
+
+        titles = repo.get_anime_titles_with_sources(original_query="Anime")
+
+        assert titles == sorted(titles)
 
     def test_normalize_for_filter(self):
         """Normalize text for filtering."""

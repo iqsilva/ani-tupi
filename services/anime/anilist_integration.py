@@ -26,6 +26,7 @@ from services.anime.mappings import (
     save_language_preference,
 )
 from services.anime.search import incremental_search_anime
+from services.anime.search import _rank_anime_results_by_reference
 from services.anime.title_normalization import normalize_title_for_dedup
 from services.anime.aniskip_service import AniSkipService
 from services.anime.playback_fallback import play_episode_with_fallback
@@ -386,6 +387,11 @@ def anilist_anime_flow(
                 romaji_title=romaji_title,
             )
 
+            if titles_with_sources and romaji_title:
+                titles_with_sources = _rank_anime_results_by_reference(
+                    titles_with_sources, romaji_title
+                )
+
             # Extract the query that was actually used for the final results
             if search_state:
                 current_result_set = search_state.get_current()
@@ -429,6 +435,11 @@ def anilist_anime_flow(
                     english_title=english_title,
                     romaji_title=romaji_title,
                 )
+
+                if titles_with_sources and romaji_title:
+                    titles_with_sources = _rank_anime_results_by_reference(
+                        titles_with_sources, romaji_title
+                    )
 
                 # Extract the query that was actually used for the final results
                 if search_state:
