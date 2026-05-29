@@ -1,6 +1,7 @@
 """Search repository for anime search and deduplication across sources."""
 
 import time
+import re
 from typing import Optional
 from collections import defaultdict
 from os import cpu_count
@@ -104,7 +105,153 @@ class SearchRepository:
             )
             results.append(anime)
 
-        return SearchResults(query=query, results=tuple(results), metadata={})
+        ranked_results = self._rank_search_results(results, query)
+        return SearchResults(query=query, results=tuple(ranked_results), metadata={})
+
+    @staticmethod
+    def _normalize_for_similarity(text: str) -> str:
+        """Normalize text for similarity ranking."""
+        text = SearchRepository._normalize_for_filter(text)
+        text = text.replace(" dublado ", " ").replace(" dublado", "").replace("dublado ", "")
+        return get_compact_normalized_title_key(text)
+
+    @staticmethod
+    def _normalize_words_for_similarity(text: str) -> list[str]:
+        normalized = SearchRepository._normalize_for_filter(text)
+        normalized = (
+            normalized.replace(" dublado ", " ").replace(" dublado", "").replace("dublado ", "")
+        )
+        return normalized.split()
+
+    @staticmethod
+    def _contains_word_sequence(haystack: list[str], needle: list[str]) -> bool:
+        if not needle:
+            return True
+        it = iter(haystack)
+        return all(any(word == candidate for candidate in it) for word in needle)
+
+    @staticmethod
+    def _extract_numeric_tokens(text: str) -> list[str]:
+        return re.findall(r"\d+", text)
+
+    @staticmethod
+    def _rank_search_results(
+        results: list[AnimeSearchResult], query: str
+    ) -> list[AnimeSearchResult]:
+        """Rank search results by similarity to the full query.
+
+        Keeps grouped sources intact and preserves deterministic tie-breaking.
+        """
+        from fuzzywuzzy import fuzz
+
+        normalized_query = SearchRepository._normalize_for_filter(query)
+        compact_query = SearchRepository._normalize_for_similarity(query)
+        query_words = SearchRepository._normalize_words_for_similarity(query)
+
+        scored_results = []
+        for result in results:
+            if hasattr(result, "title"):
+                title = result.title
+            else:
+                title = result[1]
+
+            normalized_title = SearchRepository._normalize_for_filter(title)
+            compact_title = SearchRepository._normalize_for_similarity(title)
+            title_words = SearchRepository._normalize_words_for_similarity(title)
+
+            score = max(
+                fuzz.ratio(normalized_query, normalized_title),
+                fuzz.partial_ratio(normalized_query, normalized_title),
+                fuzz.token_sort_ratio(normalized_query, normalized_title),
+                fuzz.ratio(compact_query, compact_title),
+            )
+
+            if query_words and title_words[: len(query_words)] == query_words:
+                score = min(100, score + 45)
+            elif query_words and all(word in title_words for word in query_words):
+                score = min(100, score + 25)
+            elif normalized_query in normalized_title:
+                score = min(100, score + 15)
+            elif compact_query in compact_title:
+                score = min(100, score + 10)
+
+            if len(title_words) < len(query_words):
+                if title_words == query_words[: len(title_words)]:
+                    score = 0
+                else:
+                    score = max(0, score - 50)
+            elif len(title_words) > len(query_words):
+                score = min(100, score + min(30, (len(title_words) - len(query_words)) * 5))
+
+            scored_results.append((result, score, len(title_words), title))
+
+        scored_results.sort(key=lambda item: (-item[1], item[2], item[3]))
+        return [item[0] for item in scored_results]
+
+    @staticmethod
+    def _rank_search_results_with_reference(
+        results: list[AnimeSearchResult | tuple[str, str]], reference_title: str
+    ) -> list[AnimeSearchResult | tuple[str, str]]:
+        """Rank results using a canonical reference title when available."""
+        from fuzzywuzzy import fuzz
+
+        reference_title = reference_title.split(" / ")[0]
+        reference_normalized = SearchRepository._normalize_for_filter(reference_title)
+        reference_compact = SearchRepository._normalize_for_similarity(reference_title)
+        reference_words = SearchRepository._normalize_words_for_similarity(reference_title)
+        reference_numbers = SearchRepository._extract_numeric_tokens(reference_title)
+
+        scored_results = []
+        for result in results:
+            if hasattr(result, "title"):
+                title = result.title
+            else:
+                title = result[1]
+
+            normalized_title = SearchRepository._normalize_for_filter(title)
+            compact_title = SearchRepository._normalize_for_similarity(title)
+            title_words = SearchRepository._normalize_words_for_similarity(title)
+            title_numbers = SearchRepository._extract_numeric_tokens(title)
+
+            score = max(
+                fuzz.ratio(reference_normalized, normalized_title),
+                fuzz.partial_ratio(reference_normalized, normalized_title),
+                fuzz.token_sort_ratio(reference_normalized, normalized_title),
+                fuzz.ratio(reference_compact, compact_title),
+            )
+
+            if reference_words and title_words[: len(reference_words)] == reference_words:
+                score = min(100, score + 40)
+            elif reference_normalized in normalized_title:
+                score = min(100, score + 20)
+            elif reference_compact in compact_title:
+                score = min(100, score + 10)
+
+            if SearchRepository._contains_word_sequence(title_words, reference_words):
+                score = min(100, score + 25)
+            else:
+                score = max(0, score - 25)
+
+            if reference_numbers:
+                if all(number in title_numbers for number in reference_numbers):
+                    score = min(100, score + 25)
+                elif any(number in title_numbers for number in reference_numbers):
+                    score = min(100, score + 10)
+                else:
+                    score = max(0, score - 15)
+
+            if len(title_words) < len(reference_words):
+                if title_words == reference_words[: len(title_words)]:
+                    score = 0
+                else:
+                    score = max(0, score - 50)
+            elif len(title_words) > len(reference_words):
+                score = min(100, score + min(30, (len(title_words) - len(reference_words)) * 5))
+
+            scored_results.append((result, score, len(title_words), title))
+
+        scored_results.sort(key=lambda item: (-item[1], item[2], item[3]))
+        return [item[0] for item in scored_results]
 
     @staticmethod
     def _normalize_for_filter(text: str) -> str:
@@ -519,8 +666,6 @@ class SearchRepository:
         Returns:
             List of anime titles with source indicators, ranked by relevance
         """
-        from fuzzywuzzy import fuzz
-
         titles = list(self.anime_to_urls.keys())
 
         if filter_by_query:
@@ -540,42 +685,19 @@ class SearchRepository:
             result.append((f"{title} [{sources_str}]", title))
 
         # Rank by relevance if original_query provided
-        if original_query:
-            import re
-
-            # Extract numeric tokens from query (e.g., "0" from "jujutsu kaisen 0")
-            query_numbers = set(re.findall(r"\d+", original_query))
-
-            # Calculate fuzzy matching score for each title against the original query
-            scored_results = []
-            for result_with_source, original_title in result:
-                # Use token_sort_ratio for base matching
-                base_score = fuzz.token_sort_ratio(original_query.lower(), original_title.lower())
-
-                # Boost scoring if title contains the same numbers as query
-                # Example: query="jujutsu kaisen 0" should prioritize titles with "0"
-                if query_numbers:
-                    title_numbers = set(re.findall(r"\d+", original_title))
-                    if query_numbers.issubset(title_numbers):
-                        # Strong boost: title has all the numbers from query
-                        # This fixes "Jujutsu Kaisen 0 Movie" ranking below "Jujutsu Kaisen 2"
-                        score = min(100, base_score + 15)
-                    elif not query_numbers.intersection(title_numbers):
-                        # Penalty: query has specific numbers but title doesn't have any of them
-                        # This ensures "Jujutsu Kaisen 2" ranks below "Jujutsu Kaisen 0" variants
-                        score = max(0, base_score - 20)
-                    else:
-                        # Partial match: title has some but not all numbers from query
-                        score = base_score - 5
-                else:
-                    # No numbers in query, use base score
-                    score = base_score
-
-                scored_results.append((result_with_source, score, original_title))
-
-            # Sort by score (descending), then by title length (shorter = more specific), then alphabetically
-            scored_results.sort(key=lambda x: (-x[1], len(x[2]), x[0]))
-            result = [item[0] for item in scored_results]
+        if anilist_results:
+            result = [
+                item[0]
+                for item in self._rank_search_results_with_reference(
+                    result, anilist_results[0].title
+                )
+            ]
+        elif original_query and " / " in original_query:
+            result = [
+                item[0] for item in self._rank_search_results_with_reference(result, original_query)
+            ]
+        elif original_query:
+            result = [item[0] for item in self._rank_search_results(result, original_query)]
         else:
             # Default: sort alphabetically by title
             result = [item[0] for item in sorted(result, key=lambda x: x[1])]
