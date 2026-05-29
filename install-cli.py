@@ -83,7 +83,7 @@ def install_uv() -> bool:
 def install_as_cli() -> bool:
     """Instala ani-tupi como ferramenta CLI global."""
     # Instala usando uv tool install --reinstall (força rebuild mesmo se já instalado)
-    if not run_command(["uv", "tool", "install", "--reinstall", "."]):
+    if not run_command(["uv", "tool", "install", "--reinstall", "--force", "."]):
         return False
 
     # Adiciona ao GITHUB_PATH se estiver no GitHub Actions
