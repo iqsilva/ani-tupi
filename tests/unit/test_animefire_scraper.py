@@ -52,9 +52,11 @@ class TestAnimeFireScraper:
         driver = mock_driver.return_value.__enter__.return_value
         driver.fetch.return_value = MagicMock(
             select_one=lambda *_: MagicMock(
-                get=lambda k: "https://animefire.io/video/mao/9?tempsubs=0&1780178669"
-                if k == "data-video-src"
-                else None
+                get=lambda k: (
+                    "https://animefire.io/video/mao/9?tempsubs=0&1780178669"
+                    if k == "data-video-src"
+                    else None
+                )
             )
         )
         mock_get.return_value = _Response(VIDEO_JSON)
