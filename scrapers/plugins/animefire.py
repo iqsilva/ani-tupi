@@ -1,3 +1,8 @@
+import json
+from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
+
+import requests
+
 from scrapers.core.selenium_driver import SeleniumWebDriver
 from scrapers.plugins.utils import load_plugin, store_player_source
 from services.repository import rep
@@ -6,6 +11,21 @@ from services.repository import rep
 class AnimeFire:
     languages = ["pt-br"]
     name = "animefire"
+
+    @staticmethod
+    def _strip_ip_param(url: str | None) -> str | None:
+        if not url:
+            return None
+
+        parts = urlsplit(url)
+        query = [
+            (key, value)
+            for key, value in parse_qsl(parts.query, keep_blank_values=True)
+            if key != "ip"
+        ]
+        return urlunsplit(
+            (parts.scheme, parts.netloc, parts.path, urlencode(query), parts.fragment)
+        )
 
     def search_anime(self, query: str) -> None:
         url = "https://animefire.plus/pesquisar/" + "-".join(query.split())
@@ -56,9 +76,10 @@ class AnimeFire:
                 api_url = video.get("data-video-src")
                 if api_url:
                     try:
-                        # Fetch the API endpoint to get video URLs
-                        with SeleniumWebDriver() as driver:
-                            video_data = driver.fetch_json(api_url)
+                        # Fetch the API endpoint directly; AnimeFire returns JSON here.
+                        response = requests.get(api_url, timeout=20)
+                        response.raise_for_status()
+                        video_data = json.loads(response.text)
 
                         if isinstance(video_data, dict) and "data" in video_data:
                             videos = video_data["data"]
@@ -76,6 +97,8 @@ class AnimeFire:
                                 # If no quality match, take the last one (usually highest quality)
                                 if not best_video and videos:
                                     best_video = videos[-1].get("src")
+
+                                best_video = self._strip_ip_param(best_video)
 
                                 if best_video:
                                     if store_player_source(container, event, best_video):
