@@ -2,6 +2,7 @@
 
 import importlib
 from unittest.mock import patch
+from types import SimpleNamespace
 
 
 def _make_ctx(episode_idx: int = 1, total: int = 3):
@@ -72,3 +73,40 @@ def test_select_episode_from_menu_returns_updated_context():
 
     assert selected_ctx == "new_ctx"
     mock_nav.assert_called_once_with(ctx, "choose", 2)
+
+
+def test_build_episode_sources_keeps_fast_path_and_fallback_sources():
+    """Fast-path URL should not suppress repository fallback sources."""
+    anime_cmd = importlib.import_module("commands.anime")
+    url_result = SimpleNamespace(
+        success=True,
+        player_url="https://cdn.example.com/ep8.m3u8",
+        source="animefire",
+    )
+
+    with patch.object(
+        anime_cmd.rep,
+        "get_all_episode_sources",
+        return_value=[
+            ("https://animefire.example/ep8", "animefire"),
+            ("https://animesdigital.example/ep8", "animesdigital"),
+            ("https://anitube.example/ep8", "anitube"),
+        ],
+    ):
+        with patch.object(
+            anime_cmd.rep,
+            "search_player_from_page",
+            side_effect=["https://animesdigital.cdn/ep8.m3u8", "https://anitube.cdn/ep8.m3u8"],
+        ) as mock_extract:
+            sources = anime_cmd.build_episode_sources("Kami no Shizuku", 8, url_result)
+
+    assert sources == [
+        ("https://cdn.example.com/ep8.m3u8", "animefire", None),
+        (
+            "https://animesdigital.cdn/ep8.m3u8",
+            "animesdigital",
+            "https://animesdigital.example/ep8",
+        ),
+        ("https://anitube.cdn/ep8.m3u8", "anitube", "https://anitube.example/ep8"),
+    ]
+    assert mock_extract.call_count == 2
