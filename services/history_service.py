@@ -58,7 +58,7 @@ def load_history() -> tuple[str, int, int | None, str | None] | None:
         selected = menu_navigate(list(titles.keys()), msg="Continue assistindo.")
 
         if not selected:
-            exit()  # User cancelled continue watching
+            return None  # User cancelled continue watching
 
         anime = selected[: -titles[selected]]
         original_anime_name = anime  # Save original name from history for later reference
@@ -229,7 +229,7 @@ def load_history() -> tuple[str, int, int | None, str | None] | None:
                     msg="Múltiplas fontes com episódios. Escolha uma:",
                 )
                 if not selected:
-                    exit()  # User cancelled
+                    return load_history()
 
                 # Extract original anime_with_source (without episode count)
                 selected_idx = valid_source_list.index(selected)
@@ -385,13 +385,13 @@ def load_history() -> tuple[str, int, int | None, str | None] | None:
         choice = menu_navigate(options, msg=f"{anime} - De onde quer continuar?")
 
         if not choice:
-            exit()  # User cancelled
+            return load_history()
 
         if choice == "📋 Escolher outro episódio":
             # Let user choose from full episode list
             selected_episode = menu_navigate(episode_list, msg="Escolha o episódio.")
             if not selected_episode:
-                exit()
+                return load_history()
             episode_idx = episode_list.index(selected_episode)
         elif choice == "🔄 Começar do zero":
             # Confirm before resetting
@@ -404,14 +404,14 @@ def load_history() -> tuple[str, int, int | None, str | None] | None:
                 episode_idx = 0
                 logger.info("✅ Histórico resetado! Começando do episódio 1...")
             else:
-                exit()  # User cancelled
+                return load_history()
         else:
             episode_idx = option_to_idx[choice]
             # Check if episode is unavailable (marked as None)
             if episode_idx is None:
                 logger.info(f"\n⏳ Episódio {last_ep_num + 1} ainda não disponível nos scrapers.")
                 input("\nPressione Enter para voltar...")
-                exit()
+                return load_history()
 
         return anime, episode_idx, anilist_id, anilist_title
     except FileNotFoundError:

@@ -374,7 +374,7 @@ def anime(args) -> None:
             # Prepare playback context from history
             ctx = prepare_playback_from_history(skip_enabled=skip_enabled)
             if ctx is None:
-                raise Exception("Problema ao conseguir informacoes do anime.")
+                return
 
             # Handle -e flag override for continue watching
             if hasattr(args, "episode") and args.episode is not None:

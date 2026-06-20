@@ -6,6 +6,7 @@ cache integration, and scraper discovery.
 
 import os
 import time
+from concurrent.futures import ProcessPoolExecutor
 from dataclasses import dataclass, field
 
 from models.config import settings
@@ -40,6 +41,25 @@ class ManualSearchSelection:
     @property
     def found(self) -> bool:
         return self.selected_anime is not None
+
+
+@dataclass(frozen=True)
+class ContextualSearchResults:
+    """Results for contextual scraper-first search with similarity ranking."""
+
+    state: "IncrementalSearchState"
+    titles_with_sources: list[str]
+    used_query: str | None
+
+
+@dataclass(frozen=True)
+class DualSearchResults:
+    """Paired search results for user query and resolved official title."""
+
+    user_query: str
+    user_results: ContextualSearchResults
+    official_query: str
+    official_results: ContextualSearchResults
 
 
 def _filter_anime_results(titles: list[str], query: str) -> list[str]:
@@ -147,6 +167,34 @@ def _rank_anime_results_by_reference(titles: list[str], reference_title: str) ->
 
     scored_titles.sort(key=lambda item: (-item[1], item[2], item[3]))
     return [item[0] for item in scored_titles]
+
+
+def _best_similarity_score_for_reference(titles: list[str], reference_title: str) -> int:
+    """Return the best similarity score between results and a reference title."""
+    from fuzzywuzzy import fuzz
+    from services.search_repository import SearchRepository
+
+    if not titles or not reference_title:
+        return 0
+
+    reference_normalized = SearchRepository._normalize_for_filter(reference_title)
+    reference_compact = SearchRepository._normalize_for_similarity(reference_title)
+    best_score = 0
+
+    for title in titles:
+        base_title = title.split(" [")[0] if " [" in title else title
+        normalized_title = SearchRepository._normalize_for_filter(base_title)
+        compact_title = SearchRepository._normalize_for_similarity(base_title)
+
+        score = max(
+            fuzz.ratio(reference_normalized, normalized_title),
+            fuzz.partial_ratio(reference_normalized, normalized_title),
+            fuzz.token_sort_ratio(reference_normalized, normalized_title),
+            fuzz.ratio(reference_compact, compact_title),
+        )
+        best_score = max(best_score, score)
+
+    return best_score
 
 
 def _get_ranked_titles_with_sources(
@@ -398,8 +446,12 @@ def incremental_search_anime(
     words = normalized_query.split()
     _debug_incremental_search(f"query='{query}' normalized='{normalized_query}' words={words}")
 
-    # Determine starting word count (start with 1 word, add more if results > 20)
+    # Determine starting word count.
+    # Very short first tokens like "no", "to", "re" are too ambiguous on their own,
+    # so start with the first two words when possible.
     start_word_count = 1
+    if len(words) >= 2 and len(words[0]) < 4:
+        start_word_count = 2
     current_word_count = start_word_count
     current_results: list[str] = []
     base_results: list[str] = []  # Store base search results for filtering
@@ -672,9 +724,103 @@ def incremental_search_anime(
     return state, current_results
 
 
-def _select_from_manual_search_results(query: str, args) -> ManualSearchSelection:
+def contextual_incremental_search(
+    query: str,
+    reference_title: str | None = None,
+    english_title: str | None = None,
+    romaji_title: str | None = None,
+) -> ContextualSearchResults:
+    """Run incremental scraper search and rank the final results by similarity.
+
+    This is the scraper-first search path used by AniList-aware flows:
+    start with the first normalized word, gather base results from scrapers once,
+    then narrow locally and rank the final list against a reference title.
+    """
+    search_state, titles_with_sources = incremental_search_anime(
+        query,
+        english_title=english_title,
+        romaji_title=romaji_title,
+    )
+
+    ranking_title = reference_title or romaji_title or english_title or query
+    if titles_with_sources and ranking_title:
+        titles_with_sources = _rank_anime_results_by_reference(titles_with_sources, ranking_title)
+
+    used_query = None
+    current_result_set = search_state.get_current()
+    if current_result_set:
+        used_query = current_result_set.query
+
+    return ContextualSearchResults(
+        state=search_state,
+        titles_with_sources=titles_with_sources,
+        used_query=used_query,
+    )
+
+
+def _parallel_contextual_search_worker(query: str, reference_title: str) -> dict:
+    """Run a contextual search in an isolated process and return serializable data."""
+    from scrapers import loader
+
+    loader.load_plugins()
+    result = contextual_incremental_search(query, reference_title=reference_title)
+    return {
+        "used_query": result.used_query,
+        "titles_with_sources": result.titles_with_sources,
+    }
+
+
+def _search_results_from_serialized(query: str, payload: dict) -> ContextualSearchResults:
+    """Rebuild minimal contextual results from a serialized worker payload."""
+    used_query = payload.get("used_query") or query
+    state = IncrementalSearchState()
+    if payload.get("titles_with_sources"):
+        word_count = max(1, len(used_query.split()))
+        state.add_result(
+            word_count=word_count,
+            query=used_query,
+            results=list(payload["titles_with_sources"]),
+            used_query=used_query,
+        )
+    return ContextualSearchResults(
+        state=state,
+        titles_with_sources=list(payload.get("titles_with_sources", [])),
+        used_query=used_query,
+    )
+
+
+def run_dual_contextual_search(user_query: str, official_query: str) -> DualSearchResults:
+    """Run user query and official-title query in parallel and return both result sets."""
+    with ProcessPoolExecutor(max_workers=2) as executor:
+        user_future = executor.submit(
+            _parallel_contextual_search_worker,
+            user_query,
+            user_query,
+        )
+        official_future = executor.submit(
+            _parallel_contextual_search_worker,
+            official_query,
+            official_query,
+        )
+        user_payload = user_future.result()
+        official_payload = official_future.result()
+
+    return DualSearchResults(
+        user_query=user_query,
+        user_results=_search_results_from_serialized(user_query, user_payload),
+        official_query=official_query,
+        official_results=_search_results_from_serialized(official_query, official_payload),
+    )
+
+
+def _select_from_manual_search_results(
+    search_results: ContextualSearchResults,
+    query: str,
+    args,
+) -> ManualSearchSelection:
     """Run the manual incremental search UI for one query."""
-    search_state, current_titles = incremental_search_anime(query)
+    search_state = search_results.state
+    current_titles = search_results.titles_with_sources
     while True:
         current_result = search_state.get_current()
         used_query = current_result.used_query if current_result else query
@@ -752,6 +898,74 @@ def _select_from_manual_search_results(query: str, args) -> ManualSearchSelectio
         )
 
 
+def _select_from_dual_search_results(
+    dual_results: DualSearchResults,
+) -> ManualSearchSelection:
+    """Show both user-query and official-title results in one menu."""
+    options: list[str] = []
+    seen_titles: set[str] = set()
+
+    def add_group(label: str, results: ContextualSearchResults) -> None:
+        if not results.titles_with_sources:
+            return
+        options.append(f"─ {label}")
+        for title in results.titles_with_sources:
+            if title in seen_titles:
+                continue
+            seen_titles.add(title)
+            options.append(title)
+
+    add_group(f"Sua busca: {dual_results.user_query}", dual_results.user_results)
+    add_group(f"Nome oficial/romaji: {dual_results.official_query}", dual_results.official_results)
+
+    if not seen_titles:
+        return ManualSearchSelection(selected_anime=None, source=None, was_cancelled=False)
+
+    selected_anime_with_source = menu_navigate(
+        options,
+        msg="Escolha o Anime.",
+        enable_search=False,
+    )
+    if not selected_anime_with_source:
+        return ManualSearchSelection(selected_anime=None, source=None, was_cancelled=True)
+
+    selected_anime = selected_anime_with_source.split(" [")[0]
+    source = None
+    if " [" in selected_anime_with_source and selected_anime_with_source.endswith("]"):
+        source = selected_anime_with_source.split(" [")[1].rstrip("]")
+
+    return ManualSearchSelection(
+        selected_anime=selected_anime,
+        source=source,
+        was_cancelled=False,
+        search_query_used=dual_results.official_results.used_query
+        or dual_results.user_results.used_query,
+    )
+
+
+def _should_retry_with_resolved_title(
+    search_results: ContextualSearchResults,
+    resolution: AnimeTitleResolution | None,
+    candidate_query: str,
+) -> bool:
+    """Decide whether original-query results are too weak and should use resolved title."""
+    if not resolution:
+        return False
+
+    resolved_title = resolution.resolved_title.strip()
+    if not resolved_title or resolved_title.casefold() == candidate_query.strip().casefold():
+        return False
+
+    if not search_results.titles_with_sources:
+        return True
+
+    best_score = _best_similarity_score_for_reference(
+        search_results.titles_with_sources,
+        resolved_title,
+    )
+    return best_score < 65
+
+
 def _resolve_search_query(query: str) -> AnimeTitleResolution | None:
     """Resolve a failed manual query into a more canonical title."""
     if not settings.search.enable_title_resolution:
@@ -813,18 +1027,27 @@ def search_anime_flow(args):
     query = input("\n🔍 Pesquise anime: ") if not args.query else args.query
 
     source = None
-
     resolution = _resolve_search_query(query)
-    search_candidates = _build_search_query_candidates(query, resolution)
     if resolution:
-        logger.info(
-            f"🔎 Tentando novamente com título resolvido via {resolution.provider}: "
-            f"{resolution.resolved_title}"
-        )
+        official_title = resolution.resolved_title.strip()
+        if official_title and official_title.casefold() != query.strip().casefold():
+            logger.info(f"💡 Nome oficial/romaji encontrado: {official_title}")
 
     selected_anime = None
+    source = None
+    fallback_resolution = resolution
 
-    for candidate_query in search_candidates:
+    if resolution:
+        official_title = resolution.resolved_title.strip()
+        dual_results = run_dual_contextual_search(query, official_title)
+        selection = _select_from_dual_search_results(dual_results)
+        if selection.was_cancelled:
+            return None, None, None
+        if selection.found:
+            selected_anime = selection.selected_anime
+            source = selection.source
+
+    for candidate_query in [] if selected_anime else [query]:
         # Cache-first: Check if query is in cache before searching scrapers
         cache_data = get_cache(candidate_query)
 
@@ -839,7 +1062,14 @@ def search_anime_flow(args):
             selected_anime = candidate_query
             break
 
-        search_result = _select_from_manual_search_results(candidate_query, args)
+        search_result = _select_from_manual_search_results(
+            contextual_incremental_search(
+                candidate_query,
+                reference_title=resolution.resolved_title if resolution else candidate_query,
+            ),
+            candidate_query,
+            args,
+        )
         if search_result.was_cancelled:
             return None, None, None
 
@@ -847,6 +1077,51 @@ def search_anime_flow(args):
             selected_anime = search_result.selected_anime
             source = search_result.source
             break
+
+    if not selected_anime:
+        search_candidates = _build_search_query_candidates(query, fallback_resolution)
+
+        # Skip only the original query because it was already tried above.
+        fallback_candidates = [
+            candidate_query
+            for candidate_query in search_candidates
+            if candidate_query.strip().casefold() != query.strip().casefold()
+        ]
+
+        for candidate_query in fallback_candidates:
+            if fallback_resolution:
+                logger.info(
+                    f"🔎 Tentando novamente com título resolvido via {fallback_resolution.provider}: "
+                    f"{candidate_query}"
+                )
+
+            cache_data = get_cache(candidate_query)
+
+            if cache_data:
+                logger.info(f"Usando cache ({cache_data.episode_count} eps disponíveis)")
+                rep.load_from_cache(candidate_query, cache_data)
+                rep.search_anime(candidate_query, verbose=False)
+                selected_anime = candidate_query
+                break
+
+            contextual_results = contextual_incremental_search(
+                candidate_query,
+                reference_title=fallback_resolution.resolved_title
+                if fallback_resolution
+                else candidate_query,
+            )
+            search_result = _select_from_manual_search_results(
+                contextual_results,
+                candidate_query,
+                args,
+            )
+            if search_result.was_cancelled:
+                return None, None, None
+
+            if search_result.found:
+                selected_anime = search_result.selected_anime
+                source = search_result.source
+                break
 
     if not selected_anime:
         logger.error(

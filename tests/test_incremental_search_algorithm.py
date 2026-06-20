@@ -191,16 +191,30 @@ def test_incremental_search_uses_all_words_if_needed(patch_repository, no_anilis
     assert state.get_current() is not None
 
 
-def test_incremental_search_starts_with_1_word(patch_repository, no_anilist):
-    """Test that search starts with first word."""
+def test_incremental_search_starts_with_1_word_when_first_word_is_long_enough(
+    patch_repository, no_anilist
+):
+    """Search should start with one word when the first token has 4+ letters."""
     mock_rep = patch_repository
 
-    mock_rep.setup_search_result("spy", ["A1"])
+    mock_rep.setup_search_result("shingeki", ["A1"])
 
-    state, results = incremental_search_anime("spy family tv special 2024")
+    state, results = incremental_search_anime("shingeki no kyojin")
 
-    # First search should be 1 word
-    assert mock_rep.search_calls[0] == "spy"
+    assert mock_rep.search_calls[0] == "shingeki"
+
+
+def test_incremental_search_starts_with_2_words_when_first_word_is_short(
+    patch_repository, no_anilist
+):
+    """Search should start with two words when the first token has fewer than 4 letters."""
+    mock_rep = patch_repository
+
+    mock_rep.setup_search_result("no game", ["No Game No Life [animefire]"])
+
+    state, results = incremental_search_anime("no game no life")
+
+    assert mock_rep.search_calls[0] == "no game"
 
 
 def test_incremental_search_starts_with_fewer_if_query_short(patch_repository, no_anilist):
@@ -217,15 +231,14 @@ def test_incremental_search_starts_with_fewer_if_query_short(patch_repository, n
 
 
 def test_incremental_search_two_word_query(patch_repository, no_anilist):
-    """Test incremental search with 2-word query."""
+    """Two-word queries with a short first token should start with both words."""
     mock_rep = patch_repository
 
-    mock_rep.setup_search_result("spy", ["A1"])
+    mock_rep.setup_search_result("no game", ["A1"])
 
-    state, results = incremental_search_anime("spy family")
+    state, results = incremental_search_anime("no game")
 
-    # Should start with 1 word
-    assert mock_rep.search_calls[0] == "spy"
+    assert mock_rep.search_calls[0] == "no game"
 
 
 def test_incremental_search_state_navigation(patch_repository, no_anilist):
@@ -256,7 +269,7 @@ def test_incremental_search_state_navigation(patch_repository, no_anilist):
     # State should track iterations: at least base search
     # May have additional filtered iteration if result > 5 and filtering narrows it
     assert len(state.search_history) >= 1
-    assert state.search_history[0].word_count == 1
+    assert state.search_history[0].word_count == 2
     assert state.get_current() is not None
 
 
@@ -491,14 +504,14 @@ def test_incremental_search_maintains_query_metadata(patch_repository, no_anilis
     """Test that query metadata is stored for each iteration."""
     mock_rep = patch_repository
 
-    mock_rep.setup_search_result("spy", ["A1"])
+    mock_rep.setup_search_result("spy family", ["A1"])
 
     state, results = incremental_search_anime("spy family tv special")
 
     current = state.get_current()
     assert current is not None
-    assert current.query == "spy"
-    assert current.word_count == 1
+    assert current.query == "spy family"
+    assert current.word_count == 2
 
 
 # ============================================================================

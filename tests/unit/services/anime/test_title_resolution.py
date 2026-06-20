@@ -7,7 +7,13 @@ from contextlib import nullcontext
 from unittest.mock import Mock, patch
 
 from models.models import AniListAnime, AniListTitle, AnimeTitleResolution, ScraperCacheData
-from services.anime.search import IncrementalSearchState, search_anime_flow
+from services.anime.search import (
+    ContextualSearchResults,
+    DualSearchResults,
+    IncrementalSearchState,
+    ManualSearchSelection,
+    search_anime_flow,
+)
 from services.anime.title_resolution import AniListTitleResolver, AnimeTitleResolver
 
 
@@ -148,12 +154,12 @@ def test_anime_title_resolver_ignores_weak_match():
     ),
 )
 @patch("services.anime.search.get_cache")
-def test_search_anime_flow_cache_hit_uses_jikan_resolution(
+def test_search_anime_flow_cache_hit_prefers_original_query_before_jikan_resolution(
     mock_get_cache,
     mock_resolve_query,
     mock_loading,
 ):
-    """Cache hits should still consult Jikan and use the resolved title."""
+    """Cache hits should use the original query first without forcing Jikan title replacement."""
     mock_get_cache.return_value = ScraperCacheData(
         episode_urls=["https://example.com/ep1"],
         episode_count=1,
@@ -164,12 +170,38 @@ def test_search_anime_flow_cache_hit_uses_jikan_resolution(
     mock_rep.get_available_seasons.return_value = [1]
     mock_rep.get_episode_list.return_value = ["Episode 1"]
 
-    with patch("services.anime.search.rep", mock_rep):
+    with (
+        patch("services.anime.search.rep", mock_rep),
+        patch(
+            "services.anime.search.run_dual_contextual_search",
+            return_value=DualSearchResults(
+                user_query="Dandadan",
+                user_results=ContextualSearchResults(
+                    state=make_state(["Dandadan [animefire]"], query="dandadan", word_count=1),
+                    titles_with_sources=["Dandadan [animefire]"],
+                    used_query="dandadan",
+                ),
+                official_query="Dandadan Kanzenban",
+                official_results=ContextualSearchResults(
+                    state=make_state([], query="dandadan", word_count=1),
+                    titles_with_sources=[],
+                    used_query="dandadan",
+                ),
+            ),
+        ),
+        patch(
+            "services.anime.search._select_from_dual_search_results",
+            return_value=ManualSearchSelection(
+                selected_anime="Dandadan",
+                source="animefire",
+                was_cancelled=False,
+            ),
+        ),
+    ):
         result = search_anime_flow(build_args("Dandadan"))
 
-    assert result == ("Dandadan Kanzenban", 0, None)
-    mock_rep.load_from_cache.assert_called_once()
-    mock_rep.search_anime.assert_called_once_with("Dandadan Kanzenban", verbose=False)
+    assert result == ("Dandadan", 0, "animefire")
+    mock_rep.search_episodes.assert_called_once_with("Dandadan")
     mock_resolve_query.assert_called_once_with("Dandadan")
 
 
@@ -186,19 +218,43 @@ def test_search_anime_flow_cache_hit_uses_jikan_resolution(
     ),
 )
 @patch("services.anime.search.get_cache", return_value=None)
-@patch("services.anime.search.incremental_search_anime")
+@patch(
+    "services.anime.search.run_dual_contextual_search",
+    return_value=DualSearchResults(
+        user_query="my hero",
+        user_results=ContextualSearchResults(
+            state=make_state(
+                ["My Hero Academia: Vigilantes [animefire]"], query="my hero", word_count=2
+            ),
+            titles_with_sources=["My Hero Academia: Vigilantes [animefire]"],
+            used_query="my hero",
+        ),
+        official_query="Boku no Hero Academia",
+        official_results=ContextualSearchResults(
+            state=make_state(["Boku no Hero Academia [animefire]"], query="boku no", word_count=2),
+            titles_with_sources=["Boku no Hero Academia [animefire]"],
+            used_query="boku no",
+        ),
+    ),
+)
+@patch(
+    "services.anime.search._select_from_dual_search_results",
+    return_value=ManualSearchSelection(
+        selected_anime="Boku no Hero Academia",
+        source="animefire",
+        was_cancelled=False,
+        search_query_used="boku no",
+    ),
+)
 def test_search_anime_flow_retries_with_resolved_title(
-    mock_incremental_search,
+    mock_dual_select,
+    mock_run_dual,
     mock_get_cache,
     mock_resolve_query,
     mock_menu,
     mock_loading,
 ):
-    """Manual search should retry with the resolved title after direct search fails."""
-    mock_incremental_search.return_value = (
-        make_state(["Boku no Hero Academia [animefire]"], query="boku", word_count=1),
-        ["Boku no Hero Academia [animefire]"],
-    )
+    """Manual search should present user and official-title results together when resolution exists."""
 
     mock_rep = Mock()
     mock_rep.get_available_seasons.return_value = [1]
@@ -208,8 +264,68 @@ def test_search_anime_flow_retries_with_resolved_title(
         result = search_anime_flow(build_args("my hero"))
 
     assert result == ("Boku no Hero Academia", 0, "animefire")
-    assert mock_incremental_search.call_args.args == ("Boku no Hero Academia",)
     mock_resolve_query.assert_called_once_with("my hero")
+    mock_run_dual.assert_called_once_with("my hero", "Boku no Hero Academia")
+
+
+@patch("services.anime.search.loading", side_effect=lambda *args, **kwargs: nullcontext())
+@patch(
+    "services.anime.search._resolve_search_query",
+    return_value=AnimeTitleResolution(
+        original_query="angel next door",
+        resolved_title="Otonari no Tenshi-sama",
+        provider="jikan",
+        confidence=90,
+        aliases=("Otonari no Tenshi-sama", "The Angel Next Door Spoils Me Rotten"),
+    ),
+)
+@patch("services.anime.search.get_cache", return_value=None)
+@patch(
+    "services.anime.search.run_dual_contextual_search",
+    return_value=DualSearchResults(
+        user_query="angel next door",
+        user_results=ContextualSearchResults(
+            state=make_state(["Angel Beats! [animefire]"], query="angel", word_count=1),
+            titles_with_sources=["Angel Beats! [animefire]"],
+            used_query="angel",
+        ),
+        official_query="Otonari no Tenshi-sama",
+        official_results=ContextualSearchResults(
+            state=make_state(
+                ["Otonari no Tenshi-sama [animefire]"], query="otonari no", word_count=2
+            ),
+            titles_with_sources=["Otonari no Tenshi-sama [animefire]"],
+            used_query="otonari no",
+        ),
+    ),
+)
+@patch(
+    "services.anime.search._select_from_dual_search_results",
+    return_value=ManualSearchSelection(
+        selected_anime="Otonari no Tenshi-sama",
+        source="animefire",
+        was_cancelled=False,
+        search_query_used="otonari no",
+    ),
+)
+def test_search_anime_flow_retries_with_resolved_title_when_original_results_are_weak(
+    mock_dual_select,
+    mock_run_dual,
+    mock_get_cache,
+    mock_resolve_query,
+    mock_loading,
+):
+    """Resolved title should be searched alongside the user query and shown in the same chooser."""
+    mock_rep = Mock()
+    mock_rep.get_available_seasons.return_value = [1]
+    mock_rep.get_episode_list.return_value = ["Episode 1"]
+    mock_rep.search_episodes.return_value = None
+
+    with patch("services.anime.search.rep", mock_rep):
+        result = search_anime_flow(build_args("angel next door"))
+
+    assert result == ("Otonari no Tenshi-sama", 0, "animefire")
+    mock_run_dual.assert_called_once_with("angel next door", "Otonari no Tenshi-sama")
 
 
 @patch("services.anime.search.loading", side_effect=lambda *args, **kwargs: nullcontext())
@@ -228,24 +344,47 @@ def test_search_anime_flow_retries_with_resolved_title(
     ),
 )
 @patch("services.anime.search.get_cache", return_value=None)
-@patch("services.anime.search.incremental_search_anime")
+@patch(
+    "services.anime.search.run_dual_contextual_search",
+    return_value=DualSearchResults(
+        user_query="angel next door",
+        user_results=ContextualSearchResults(
+            state=make_state(
+                ["Angel Next Door [animefire]"], query="angel next door", word_count=3
+            ),
+            titles_with_sources=["Angel Next Door [animefire]"],
+            used_query="angel next door",
+        ),
+        official_query="Otonari no Tenshi-sama",
+        official_results=ContextualSearchResults(
+            state=make_state(
+                ["Otonari no Tenshi-sama Season 2 [animefire]"],
+                query="otonari no",
+                word_count=2,
+            ),
+            titles_with_sources=["Otonari no Tenshi-sama Season 2 [animefire]"],
+            used_query="otonari no",
+        ),
+    ),
+)
+@patch(
+    "services.anime.search._select_from_dual_search_results",
+    return_value=ManualSearchSelection(
+        selected_anime="Otonari no Tenshi-sama Season 2",
+        source="animefire",
+        was_cancelled=False,
+        search_query_used="otonari no",
+    ),
+)
 def test_search_anime_flow_retries_with_resolved_title_when_season_missing(
-    mock_incremental_search,
+    mock_dual_select,
+    mock_run_dual,
     mock_get_cache,
     mock_resolve_query,
     mock_menu,
     mock_loading,
 ):
-    """Manual search should use the resolved title before season filtering."""
-    mock_incremental_search.return_value = (
-        make_state(
-            ["Otonari no Tenshi-sama Season 2 [animefire]"],
-            query="otonari",
-            word_count=1,
-        ),
-        ["Otonari no Tenshi-sama Season 2 [animefire]"],
-    )
-
+    """Season filtering should not force Jikan resolution if scraper-first search already found a match."""
     mock_rep = Mock()
     mock_rep.get_available_seasons.return_value = [1, 2]
     mock_rep.get_episode_list.return_value = [f"Episode {i}" for i in range(1, 13)]
@@ -256,7 +395,7 @@ def test_search_anime_flow_retries_with_resolved_title_when_season_missing(
 
     assert result == ("Otonari no Tenshi-sama Season 2", 3, "animefire")
     assert mock_resolve_query.call_count == 1
-    assert mock_incremental_search.call_args.args == ("Otonari no Tenshi-sama",)
+    mock_run_dual.assert_called_once_with("angel next door", "Otonari no Tenshi-sama")
 
 
 @patch("services.anime.search.loading", side_effect=lambda *args, **kwargs: nullcontext())
@@ -282,23 +421,47 @@ def test_search_anime_flow_retries_with_resolved_title_when_season_missing(
         timestamp=0,
     ),
 )
-@patch("services.anime.search.incremental_search_anime")
-def test_search_anime_flow_cache_path_retries_with_resolved_title_when_season_missing(
-    mock_incremental_search,
+@patch(
+    "services.anime.search.run_dual_contextual_search",
+    return_value=DualSearchResults(
+        user_query="angel next door",
+        user_results=ContextualSearchResults(
+            state=make_state(
+                ["Angel Next Door [animefire]"], query="angel next door", word_count=3
+            ),
+            titles_with_sources=["Angel Next Door [animefire]"],
+            used_query="angel next door",
+        ),
+        official_query="Otonari no Tenshi-sama",
+        official_results=ContextualSearchResults(
+            state=make_state(
+                ["Otonari no Tenshi-sama Season 2 [animefire]"],
+                query="otonari no",
+                word_count=2,
+            ),
+            titles_with_sources=["Otonari no Tenshi-sama Season 2 [animefire]"],
+            used_query="otonari no",
+        ),
+    ),
+)
+@patch(
+    "services.anime.search._select_from_dual_search_results",
+    return_value=ManualSearchSelection(
+        selected_anime="Otonari no Tenshi-sama Season 2",
+        source="animefire",
+        was_cancelled=False,
+        search_query_used="otonari no",
+    ),
+)
+def test_search_anime_flow_cache_path_prefers_original_query_when_cached(
+    mock_dual_select,
+    mock_run_dual,
     mock_get_cache,
     mock_resolve_query,
     mock_menu,
     mock_loading,
 ):
-    """Cached anime should still use the resolved title before season filtering."""
-    mock_incremental_search.return_value = (
-        make_state(
-            ["Otonari no Tenshi-sama Season 2 [animefire]"],
-            query="otonari",
-            word_count=1,
-        ),
-        ["Otonari no Tenshi-sama Season 2 [animefire]"],
-    )
+    """Dual search should still allow selecting the official-title result when caches exist."""
 
     mock_rep = Mock()
     mock_rep.get_available_seasons.return_value = [1, 2]
@@ -308,9 +471,9 @@ def test_search_anime_flow_cache_path_retries_with_resolved_title_when_season_mi
     with patch("services.anime.search.rep", mock_rep):
         result = search_anime_flow(build_args("angel next door", episode=4, season=2))
 
-    assert result == ("Otonari no Tenshi-sama", 3, None)
+    assert result == ("Otonari no Tenshi-sama Season 2", 3, "animefire")
     assert mock_resolve_query.call_count == 1
-    mock_incremental_search.assert_not_called()
+    mock_run_dual.assert_called_once_with("angel next door", "Otonari no Tenshi-sama")
 
 
 @patch("services.anime.search.loading", side_effect=lambda *args, **kwargs: nullcontext())

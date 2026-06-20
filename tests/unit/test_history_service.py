@@ -28,6 +28,25 @@ def _make_menu_responder(choices: list[str], calls: list[tuple[list[str], str]])
 
 
 class TestHistoryService:
+    def test_load_history_returns_none_when_user_goes_back(self, temp_dir, repository, monkeypatch):
+        from services import history_service
+
+        history_store = JSONStore(temp_dir / "history.json")
+        monkeypatch.setattr(history_service, "_history_store", history_store)
+        monkeypatch.setattr(history_service, "rep", repository)
+        monkeypatch.setattr(
+            history_service,
+            "menu_navigate",
+            _make_menu_responder([None], []),
+        )
+
+        history_store.set(
+            "Goblin Slayer",
+            [1234567890, 1, None, "animefire", 13, {"animefire": "https://example.com/animefire"}],
+        )
+
+        assert history_service.load_history() is None
+
     def test_save_history_persists_all_source_urls(self, temp_dir, repository, monkeypatch):
         from services import history_service
 

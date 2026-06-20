@@ -44,22 +44,24 @@ def main_menu_flow(args) -> None:
     # Clean up any zombie browser processes from previous runs
     cleanup_zombie_browsers()
 
-    choice = show_main_menu()
+    while True:
+        choice = show_main_menu()
 
-    if choice == "🔍 Buscar Anime":
-        anime_cmd(args)
-    elif choice == "▶️  Continuar Assistindo":
-        # Set continue_watching flag and let anime handler take it
-        args.continue_watching = True
-        anime_cmd(args)
-    elif choice == "📂 Biblioteca Local":
-        handle_local_library(args)
-    elif choice == "📺 AniList":
-        anilist_menu_cmd(args)
-    elif choice == "📚 Mangá":
-        manga_cmd(args)
-    elif choice == "⚙️  Gerenciar Fontes":
-        manage_sources_cmd(args)
+        if choice == "🔍 Buscar Anime":
+            anime_cmd(args)
+        elif choice == "▶️  Continuar Assistindo":
+            # Set continue_watching flag only for this invocation.
+            args.continue_watching = True
+            anime_cmd(args)
+            args.continue_watching = False
+        elif choice == "📂 Biblioteca Local":
+            handle_local_library(args)
+        elif choice == "📺 AniList":
+            anilist_menu_cmd(args)
+        elif choice == "📚 Mangá":
+            manga_cmd(args)
+        elif choice == "⚙️  Gerenciar Fontes":
+            manage_sources_cmd(args)
 
 
 def cleanup_zombie_browsers() -> None:
