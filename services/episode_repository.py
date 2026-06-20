@@ -1,7 +1,8 @@
 """Episode repository for managing episode data and caching."""
 
 from collections import defaultdict
-from threading import Thread
+from threading import Lock, Thread
+import time
 
 from models.config import settings
 from models.models import EpisodeData
@@ -9,6 +10,9 @@ from services.priority_utils import sort_by_priority
 from utils.logging import get_logger
 
 logger = get_logger(__name__)
+
+EARLY_RETURN_POLL_INTERVAL_SECONDS = 0.05
+EARLY_RETURN_GRACE_PERIOD_SECONDS = 0.75
 
 
 class EpisodeRepository:
@@ -38,6 +42,7 @@ class EpisodeRepository:
         self.anime_episodes_urls = defaultdict(list)
         self.anime_episodes_seasons = defaultdict(list)  # Season info for each episode
         self.last_search_failures = defaultdict(list)
+        self._failure_lock = Lock()
 
         EpisodeRepository._initialized = True
 
@@ -357,7 +362,8 @@ class EpisodeRepository:
                             anime, episode_url, episode_params
                         )
                     except Exception as exc:
-                        self.last_search_failures[anime].append((source_name, str(exc)))
+                        with self._failure_lock:
+                            self.last_search_failures[anime].append((source_name, str(exc)))
                         logger.warning(
                             "Failed to load episodes for '%s' from source '%s': %s",
                             anime,
@@ -368,14 +374,33 @@ class EpisodeRepository:
                 th = Thread(
                     target=worker,
                     name=f"search_episodes:{actual_source}:{anime}",
+                    daemon=True,
                 )
                 threads.append(th)
 
         for th in threads:
             th.start()
 
-        for th in threads:
-            th.join()
+        if not threads:
+            return
+
+        first_results_at: float | None = None
+
+        while True:
+            alive_threads = [th for th in threads if th.is_alive()]
+            if not alive_threads:
+                break
+
+            has_results = bool(self.get_episode_list(anime))
+            if has_results and first_results_at is None:
+                first_results_at = time.perf_counter()
+
+            if first_results_at is not None:
+                elapsed_since_first_results = time.perf_counter() - first_results_at
+                if elapsed_since_first_results >= EARLY_RETURN_GRACE_PERIOD_SECONDS:
+                    return
+
+            time.sleep(EARLY_RETURN_POLL_INTERVAL_SECONDS)
 
     def get_last_search_failures(self, anime: str) -> list[tuple[str, str]]:
         """Return scraper failures from the most recent episode search for an anime."""

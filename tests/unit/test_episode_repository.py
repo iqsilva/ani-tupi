@@ -1,5 +1,8 @@
 """Tests for EpisodeRepository class."""
 
+import time
+from threading import Event
+
 import pytest
 from services.episode_repository import EpisodeRepository
 
@@ -281,3 +284,36 @@ class TestEpisodeRepository:
             ("source1", "timeout"),
             ("source2", "network error"),
         ]
+
+    def test_search_episodes_returns_early_when_slow_source_lags(self, episode_repo):
+        """Should not block on slow sources after useful episode data is available."""
+
+        slow_finished = Event()
+
+        class FastScraper:
+            def search_episodes(self, anime: str, url: str, params):
+                episode_repo.add_episode_list(anime, ["Episode 1"], ["http://fast-ep1.com"], "fast")
+
+        class SlowScraper:
+            def search_episodes(self, anime: str, url: str, params):
+                time.sleep(1.2)
+                episode_repo.add_episode_list(anime, ["Episode 1"], ["http://slow-ep1.com"], "slow")
+                slow_finished.set()
+
+        episode_repo.set_sources({"fast": FastScraper(), "slow": SlowScraper()})
+
+        start = time.perf_counter()
+        episode_repo.search_episodes(
+            "One Piece",
+            {
+                "One Piece": [
+                    ("http://fast.example", "fast", None),
+                    ("http://slow.example", "slow", None),
+                ]
+            },
+        )
+        elapsed = time.perf_counter() - start
+
+        assert episode_repo.get_episode_list("One Piece") == ["Episode 1"]
+        assert elapsed < 1.1
+        slow_finished.wait(2)
