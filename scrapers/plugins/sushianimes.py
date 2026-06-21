@@ -21,7 +21,9 @@ HEADERS = {
     "Sec-Fetch-Site": "none",
     "Sec-Fetch-User": "?1",
 }
-REQUEST_TIMEOUT = 30
+# Keep this lower than the generic provider timeout so a stalled source
+# does not block fallback for too long.
+REQUEST_TIMEOUT = 10
 
 
 def _extract_embed_id(soup: BeautifulSoup) -> str | None:
