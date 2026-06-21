@@ -53,15 +53,11 @@ class EpisodeData(BaseModel):
         episode_titles: List of episode titles
         episode_urls: List of episode URLs (must be http/https)
         source: Plugin source name
-        episode_skip_available: List of booleans indicating which episodes have skip times
-            (True = has skip times, False = no skip times). Length must equal num episodes.
-            Optional: defaults to empty list (skip times not fetched yet).
         season: Season number (1-indexed). Optional: defaults to 1.
 
     Validation:
         - episode_titles and episode_urls must have same length
         - All episode URLs must be valid http(s) URLs
-        - episode_skip_available (if provided) must match episode count
         - season must be positive integer
     """
 
@@ -69,10 +65,6 @@ class EpisodeData(BaseModel):
     episode_titles: list[str] = Field(..., description="Episode titles")
     episode_urls: list[str] = Field(..., description="Episode URLs (must be http/https)")
     source: str = Field(..., min_length=1, description="Plugin source name")
-    episode_skip_available: list[bool] = Field(
-        default_factory=list,
-        description="Which episodes have skip times (True/False per episode)",
-    )
     season: int = Field(default=1, ge=1, description="Season number (1-indexed)")
 
     @field_validator("episode_urls", mode="before")
@@ -91,14 +83,6 @@ class EpisodeData(BaseModel):
             raise ValueError(
                 f"Mismatched episodes: {len(self.episode_titles)} titles "
                 f"vs {len(self.episode_urls)} URLs"
-            )
-        # Validate skip list length if provided
-        if self.episode_skip_available and len(self.episode_skip_available) != len(
-            self.episode_titles
-        ):
-            raise ValueError(
-                f"Skip list length {len(self.episode_skip_available)} "
-                f"doesn't match episodes {len(self.episode_titles)}"
             )
         return self
 
@@ -347,7 +331,6 @@ class AniListAnime(BaseModel):
 
     Attributes:
         id: AniList anime ID
-        id_mal: MyAnimeList ID (for AniSkip integration)
         title: Title object with multiple languages
         episodes: Total episodes (None if unknown)
         averageScore: Average score (0-100)
@@ -361,7 +344,6 @@ class AniListAnime(BaseModel):
     model_config = {"populate_by_name": True}
 
     id: int = Field(..., description="AniList anime ID")
-    id_mal: int | None = Field(None, alias="idMal", description="MyAnimeList ID")
     title: AniListTitle = Field(..., description="Title object")
     episodes: int | None = Field(None, description="Total episodes")
     averageScore: int | None = Field(None, ge=0, le=100, description="Average score")
@@ -404,22 +386,6 @@ class AnimeTitleResolution(BaseModel, frozen=True):
         default_factory=tuple,
         description="Useful aliases returned by the provider",
     )
-
-
-class SkipTimes(BaseModel):
-    """Skip times for anime intro (OP) and outro (ED) from AniSkip API.
-
-    Attributes:
-        op_start: Opening start time in seconds (None if not available)
-        op_end: Opening end time in seconds (None if not available)
-        ed_start: Ending start time in seconds (None if not available)
-        ed_end: Ending end time in seconds (None if not available)
-    """
-
-    op_start: float | None = Field(None, description="Opening start time (seconds)")
-    op_end: float | None = Field(None, description="Opening end time (seconds)")
-    ed_start: float | None = Field(None, description="Ending start time (seconds)")
-    ed_end: float | None = Field(None, description="Ending end time (seconds)")
 
 
 class AniListManga(BaseModel):

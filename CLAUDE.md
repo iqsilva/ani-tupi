@@ -51,9 +51,6 @@ ani-tupi -q "anime name" -e 5
 ### Advanced Options
 
 ```bash
-# Skip intros/outros automatically (AniSkip)
-ani-tupi -q "anime name" -e 5 -s
-
 # Select specific season (for anime with multiple seasons)
 ani-tupi -q "anime name" -S 2
 
@@ -366,13 +363,13 @@ The release bot commits the version bump and CHANGELOG directly to remote, so th
 
 ### The Rule
 - **Start with real code**: Every test should exercise actual functions and services
-- **Only mock externals**: HTTP calls, database connections, external APIs (AniList, AniSkip)
+- **Only mock externals**: HTTP calls, database connections, external APIs (AniList)
 - **Use temp directories instead of mocking**: Never mock file operations—use `temp_dir` fixture
 - **Never mock internal services**: If you're mocking a service layer or plugin, you're not testing integration
 
 ### Test Approach
 - **Integration tests** with real services, plugins, and storage (NEVER mock these)
-- **Mock external APIs only**: AniList GraphQL, AniSkip, external video providers, HTTP requests
+- **Mock external APIs only**: AniList GraphQL, external video providers, HTTP requests
 - **Mock destructive operations**: Never delete real files—use temporary directories with auto-cleanup
 - **Real plugin loading**: Load actual scrapers from `scrapers/plugins/` directory
 - **Real storage**: Use temporary directories for cache/downloads (auto-cleanup via pytest fixtures)

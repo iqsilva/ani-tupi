@@ -7,7 +7,6 @@ or all sources are exhausted.
 
 from typing import NamedTuple
 from utils.video_player import VideoPlayer, VideoPlaybackResult
-from models.models import SkipTimes
 from utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -43,7 +42,6 @@ def play_episode_with_fallback(
     debug: bool = False,
     anilist_id: int | None = None,
     anilist_episodes: int | None = None,
-    skip_times: SkipTimes | None = None,
 ) -> PlaybackFallbackResult:
     """Play episode trying each source in order until one succeeds.
 
@@ -61,7 +59,6 @@ def play_episode_with_fallback(
         debug: Skip actual playback (testing mode)
         anilist_id: AniList ID for progress sync
         anilist_episodes: Total episodes from AniList
-        skip_times: Pre-fetched skip times for intro/outro
 
     Returns:
         PlaybackFallbackResult with outcome details
@@ -95,7 +92,6 @@ def play_episode_with_fallback(
             debug=debug,
             anilist_id=anilist_id,
             anilist_episodes=anilist_episodes,
-            skip_times=skip_times,
             referrer=referrer,
         )
 

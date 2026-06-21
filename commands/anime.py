@@ -24,7 +24,6 @@ from services.anime.playback_service import (
 )
 from utils.logging import get_logger
 from services.anime.download_service import AnimeDownloadService
-from services.anime.aniskip_service import AniSkipService
 from services.anime.playback_fallback import play_episode_with_fallback
 from ui.components import loading, menu_navigate
 from utils.video_player import VideoPlayer
@@ -87,73 +86,20 @@ def build_episode_sources(
     return [(url, source, referrer) for url, source, referrer in sources if url and source]
 
 
-def format_episode_list_with_skip(
-    episode_list: tuple[str, ...], episode_skip_available: dict[int, bool]
-) -> list[str]:
-    """Format episode list with skip time indicators.
-
-    Appends " ⏭️ (skip)" to episodes that have skip times available.
-
-    Args:
-        episode_list: Tuple of episode strings (e.g., ("Ep. 1", "Ep. 2", ...))
-        episode_skip_available: Dict mapping episode number (1-indexed) to bool
-
-    Returns:
-        List of formatted episode strings with skip indicators
-    """
-    formatted = []
-    for idx, episode in enumerate(episode_list):
-        ep_num = idx + 1  # Episode numbers are 1-indexed
-        if episode_skip_available.get(ep_num, False):
-            formatted.append(f"{episode} ⏭️ (skip)")
-        else:
-            formatted.append(episode)
-    return formatted
-
-
-def format_playback_menu_option(
-    label: str, episode_number: int, episode_skip_available: dict[int, bool]
-) -> str:
-    """Format playback menu option with skip time indicator if applicable.
-
-    Appends " ⏭️" to menu option if the referenced episode has skip times.
-
-    Args:
-        label: Menu label (e.g., "▶️  Próximo", "◀️  Anterior")
-        episode_number: Episode number (1-indexed) to check for skip times
-        episode_skip_available: Dict mapping episode number to bool
-
-    Returns:
-        Formatted menu option string
-    """
-    if episode_skip_available.get(episode_number, False):
-        return f"{label} ⏭️"
-    return label
-
-
 def build_post_playback_options(ctx: "PlaybackContext") -> list[str]:
     """Build post-playback action options for current context."""
     opts = []
     has_next_episode = ctx.episode_idx < ctx.num_episodes - 1
 
     if has_next_episode:
-        next_ep_num = ctx.episode_idx + 2  # 1-indexed
-        opts.append(
-            format_playback_menu_option("▶️  Próximo", next_ep_num, ctx.episode_skip_available)
-        )
+        opts.append("▶️  Próximo")
     else:
         opts.append("↩️  Voltar ao menu anterior")
 
     if ctx.episode_idx > 0:
-        prev_ep_num = ctx.episode_idx  # 1-indexed (episode_idx is 0-indexed)
-        opts.append(
-            format_playback_menu_option("◀️  Anterior", prev_ep_num, ctx.episode_skip_available)
-        )
+        opts.append("◀️  Anterior")
 
-    current_ep_num = ctx.episode_idx + 1  # 1-indexed
-    opts.append(
-        format_playback_menu_option("🔁 Replay", current_ep_num, ctx.episode_skip_available)
-    )
+    opts.append("🔁 Replay")
     opts.append("📋 Escolher outro episódio")
     opts.append("📥 Baixar para assistir depois")
     opts.append("🔄 Trocar fonte")
@@ -167,12 +113,12 @@ def select_episode_from_menu(ctx: "PlaybackContext") -> "PlaybackContext | None"
         Updated PlaybackContext when episode is selected.
         None when user chooses to go back from episode selection.
     """
-    formatted_episodes = format_episode_list_with_skip(ctx.episode_list, ctx.episode_skip_available)
-    selected_episode = menu_navigate(formatted_episodes, msg="Escolha o episódio.")
+    episode_options = list(ctx.episode_list)
+    selected_episode = menu_navigate(episode_options, msg="Escolha o episódio.")
     if not selected_episode:
         return None
 
-    episode_idx = formatted_episodes.index(selected_episode)
+    episode_idx = episode_options.index(selected_episode)
     return navigate_episodes(ctx, "choose", episode_idx)
 
 
@@ -358,13 +304,6 @@ def anime(args) -> None:
     - AniList progress sync
     - Source switching
     """
-    # Determine skip enabled from args or config
-    from models.config import settings
-
-    skip_enabled = (
-        args.skip if hasattr(args, "skip") and args.skip else settings.anime_download.skip_intros
-    )
-
     # Variables for AniList integration and source tracking
     source = None
 
@@ -372,7 +311,7 @@ def anime(args) -> None:
     if args.query or args.continue_watching:
         if args.continue_watching:
             # Prepare playback context from history
-            ctx = prepare_playback_from_history(skip_enabled=skip_enabled)
+            ctx = prepare_playback_from_history()
             if ctx is None:
                 return
 
@@ -394,7 +333,6 @@ def anime(args) -> None:
                     ctx.anime_title,
                     args.episode - 1,
                     ctx.source,
-                    skip_enabled=skip_enabled,
                 )
                 if ctx is None:
                     return
@@ -406,9 +344,7 @@ def anime(args) -> None:
                 return
 
             # Prepare playback context from search results
-            ctx = prepare_playback_from_search(
-                selected_anime, episode_idx, source, skip_enabled=skip_enabled
-            )
+            ctx = prepare_playback_from_search(selected_anime, episode_idx, source)
             if ctx is None:
                 return
     else:
@@ -435,9 +371,7 @@ def anime(args) -> None:
             episode_idx = args.episode - 1
 
         # Prepare playback context from search results
-        ctx = prepare_playback_from_search(
-            selected_anime, episode_idx, source, skip_enabled=skip_enabled
-        )
+        ctx = prepare_playback_from_search(selected_anime, episode_idx, source)
         if ctx is None:
             return
 
@@ -482,7 +416,6 @@ def anime(args) -> None:
                 anilist_id=ctx.anilist_id,
                 anilist_title=ctx.anilist_title,
                 total_episodes=ctx.total_episodes_anilist,
-                mal_id=ctx.mal_id,
                 found=True,
                 authenticated=True,
             )
@@ -496,62 +429,6 @@ def anime(args) -> None:
             logger.info(f"   Fonte: {initial_source}")
         logger.info(f"   URL: {sources[0][0][:80]}{'...' if len(sources[0][0]) > 80 else ''}\n")
 
-        # Fetch skip times if enabled
-        skip_times = None
-        if ctx.skip_enabled:
-            logger.info("⏩ Auto-skip ATIVADO - buscando tempos de intro/outro...")
-            aniskip = AniSkipService()
-            mal_id = ctx.mal_id
-
-            # If no MAL ID from AniList, try searching by title
-            if not mal_id and ctx.anilist_title:
-                # Extract clean title (before " / " if bilingual format)
-                search_title = ctx.anilist_title.split(" / ")[0].strip()
-                logger.info(
-                    f"   🔍 MAL ID não encontrado em AniList, procurando por '{search_title}'..."
-                )
-                mal_id = aniskip.search_mal_id(search_title)
-                if mal_id:
-                    logger.info(f"   ✅ MAL ID encontrado: {mal_id}")
-                else:
-                    logger.info(f"   ❌ MAL ID não encontrado para '{search_title}'")
-            elif mal_id:
-                logger.info(f"   ✅ Usando MAL ID do AniList: {mal_id}")
-
-            if mal_id:
-                try:
-                    logger.info(f"   🎬 Buscando skip times para episódio {episode}...")
-                    skip_times = aniskip.get_skip_times(mal_id, episode)
-                    if skip_times:
-                        op_duration = (
-                            (skip_times.op_end - skip_times.op_start)
-                            if skip_times.op_start is not None and skip_times.op_end is not None
-                            else 0
-                        )
-                        ed_duration = (
-                            (skip_times.ed_end - skip_times.ed_start)
-                            if skip_times.ed_start is not None and skip_times.ed_end is not None
-                            else 0
-                        )
-
-                        log_parts = []
-                        if skip_times.op_start is not None:
-                            log_parts.append(
-                                f"OP: {skip_times.op_start:.1f}s-{skip_times.op_end:.1f}s ({op_duration:.1f}s)"
-                            )
-                        if skip_times.ed_start is not None:
-                            log_parts.append(
-                                f"ED: {skip_times.ed_start:.1f}s-{skip_times.ed_end:.1f}s ({ed_duration:.1f}s)"
-                            )
-
-                        logger.info(f"   ✅ Encontrados: {' | '.join(log_parts)}")
-                    else:
-                        logger.info("   ℹ️  Sem skip times disponível para este episódio")
-                except Exception as e:
-                    logger.info(f"   ⚠️  Erro ao buscar skip times: {e}")
-            else:
-                logger.info("   ℹ️  MAL ID não disponível, skip desativado para este episódio")
-
         # Use fallback logic to try each source in priority order
         fallback_result = play_episode_with_fallback(
             player=player,
@@ -563,7 +440,6 @@ def anime(args) -> None:
             debug=args.debug,
             anilist_id=ctx.anilist_id,
             anilist_episodes=ctx.total_episodes_anilist,
-            skip_times=skip_times,
         )
 
         playback_result = fallback_result.playback_result
@@ -633,9 +509,6 @@ def anime(args) -> None:
             total_episodes_anilist=ctx.total_episodes_anilist,
             num_episodes=ctx.num_episodes,
             episode_list=ctx.episode_list,
-            skip_enabled=ctx.skip_enabled,
-            mal_id=ctx.mal_id,
-            episode_skip_available=ctx.episode_skip_available,
         )
 
         # Handle post-playback confirmation only on successful playback.

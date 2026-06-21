@@ -169,12 +169,6 @@ def cli() -> None:
     parser.add_argument("--continue-watching", "-c", action="store_true", dest="continue_watching")
     parser.add_argument("--manga", "-m", action="store_true")
     parser.add_argument(
-        "--skip",
-        "-s",
-        action="store_true",
-        help="Pular automaticamente intros (OP) e outros (ED) usando AniSkip API",
-    )
-    parser.add_argument(
         "--list-sources",
         action="store_true",
         help="Listar todas as fontes de anime disponíveis",

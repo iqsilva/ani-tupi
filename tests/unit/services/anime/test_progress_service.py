@@ -120,7 +120,6 @@ class TestGetEpisodeProgressInfo:
             anilist_id=12345,
             anilist_title="Dandadan",
             total_episodes=24,
-            mal_id=57334,
             found=True,
             authenticated=True,
         )
@@ -137,7 +136,6 @@ class TestGetEpisodeProgressInfo:
             anilist_id=12345,
             anilist_title="Dandadan",
             total_episodes=25,  # Different from scraper
-            mal_id=57334,
             found=True,
             authenticated=True,
         )
@@ -166,7 +164,6 @@ class TestGetEpisodeProgressInfo:
             anilist_id=12345,
             anilist_title="Dandadan",
             total_episodes=24,
-            mal_id=57334,
             found=True,
             authenticated=True,
         )
@@ -207,7 +204,6 @@ class TestGetEpisodeProgressInfo:
             anilist_id=None,
             anilist_title=None,
             total_episodes=None,
-            mal_id=None,
             found=False,
             authenticated=True,
         )
@@ -235,7 +231,6 @@ class TestGetEpisodeProgressInfo:
             anilist_id=None,
             anilist_title=None,
             total_episodes=None,
-            mal_id=None,
             found=False,
             authenticated=False,
         )
@@ -263,7 +258,6 @@ class TestGetEpisodeProgressInfo:
             anilist_id=21,
             anilist_title="One Piece",
             total_episodes=None,  # Unknown for ongoing series
-            mal_id=13,
             found=True,
             authenticated=True,
         )
@@ -291,7 +285,6 @@ class TestGetEpisodeProgressInfo:
             anilist_id=12345,
             anilist_title="Some Anime",
             total_episodes=None,  # Partial result - no episodes
-            mal_id=67890,
             found=True,
             authenticated=True,
         )

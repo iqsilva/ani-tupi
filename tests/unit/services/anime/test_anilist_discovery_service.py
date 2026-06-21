@@ -23,7 +23,6 @@ class TestAniListDiscoveryResult:
             anilist_id=None,
             anilist_title=None,
             total_episodes=None,
-            mal_id=None,
             found=False,
             authenticated=False,
         )
@@ -40,7 +39,6 @@ class TestAniListDiscoveryResult:
             anilist_id=12345,
             anilist_title="Dandadan",
             total_episodes=12,
-            mal_id=54321,
             found=True,
             authenticated=True,
         )
@@ -48,7 +46,6 @@ class TestAniListDiscoveryResult:
         assert result.anilist_id == 12345
         assert result.anilist_title == "Dandadan"
         assert result.total_episodes == 12
-        assert result.mal_id == 54321
         assert result.found is True
         assert result.authenticated is True
 
@@ -60,7 +57,6 @@ class TestAniListDiscoveryResult:
             anilist_id=None,
             anilist_title=None,
             total_episodes=None,
-            mal_id=None,
             found=False,
             authenticated=True,
         )

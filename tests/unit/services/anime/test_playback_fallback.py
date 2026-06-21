@@ -1,13 +1,13 @@
 """Tests for automatic source fallback during episode playback."""
 
 from unittest.mock import Mock
+
 from services.anime.playback_fallback import (
-    play_episode_with_fallback,
-    PlaybackFallbackResult,
     MPV_USER_ABORT_CODE,
+    PlaybackFallbackResult,
+    play_episode_with_fallback,
 )
 from utils.video_player import VideoPlaybackResult
-from models.models import SkipTimes
 
 
 class TestPlaybackFallbackResult:
@@ -78,7 +78,6 @@ class TestPlayEpisodeWithFallback:
         assert result.source_used == "anitube"
         assert len(result.sources_tried) == 1
         assert result.sources_tried[0] == ("anitube", 0)
-        # play_episode should only be called once
         assert player.play_episode.call_count == 1
 
     def test_first_source_fails_second_succeeds(self):
@@ -99,7 +98,6 @@ class TestPlayEpisodeWithFallback:
         assert len(result.sources_tried) == 2
         assert result.sources_tried[0] == ("anitube", 2)
         assert result.sources_tried[1] == ("animefire", 0)
-        # play_episode should be called twice
         assert player.play_episode.call_count == 2
 
     def test_all_sources_fail(self):
@@ -139,11 +137,9 @@ class TestPlayEpisodeWithFallback:
             total_episodes=12,
         )
 
-        # Should NOT fallback, just return the result
         assert result.all_failed is False
         assert result.source_used == "anitube"
         assert len(result.sources_tried) == 1
-        # play_episode should only be called once (no fallback)
         assert player.play_episode.call_count == 1
 
     def test_action_next_without_fallback(self):
@@ -163,7 +159,6 @@ class TestPlayEpisodeWithFallback:
 
         assert result.all_failed is False
         assert result.source_used == "anitube"
-        # Should only try first source
         assert player.play_episode.call_count == 1
 
     def test_single_source_no_retry_message(self):
@@ -181,31 +176,9 @@ class TestPlayEpisodeWithFallback:
 
         assert result.all_failed is False
         assert result.source_used == "anitube"
-        # player.play_episode should be called with correct arguments
         call_args = player.play_episode.call_args
         assert call_args[1]["url"] == "https://url1.mp4"
         assert call_args[1]["source"] == "anitube"
-
-    def test_skip_times_passed_to_player(self):
-        """Test that skip times are properly passed to player.play_episode."""
-        player = self.create_mock_player([0])
-        sources = [("https://url1.mp4", "anitube")]
-        skip_times = SkipTimes(
-            id="123", episode=1, intro_start=10, intro_end=30, outro_start=1410, outro_end=1430
-        )
-
-        play_episode_with_fallback(
-            player=player,
-            sources=sources,
-            anime_title="Test Anime",
-            episode_number=1,
-            total_episodes=12,
-            skip_times=skip_times,
-        )
-
-        # Verify skip_times were passed
-        call_args = player.play_episode.call_args
-        assert call_args[1]["skip_times"] == skip_times
 
     def test_anilist_params_passed_to_player(self):
         """Test that AniList parameters are properly passed."""
@@ -234,11 +207,10 @@ class TestPlayEpisodeWithFallbackIntegration:
     def test_fallback_with_three_sources_two_fail(self):
         """Test realistic scenario: 3 sources, first 2 fail, 3rd succeeds."""
         player = Mock()
-        # Simulate: anitube fails (403), animefire fails (timeout), sushianimes succeeds
         player.play_episode.side_effect = [
-            VideoPlaybackResult(exit_code=2, action="quit", data=None),  # anitube fails
-            VideoPlaybackResult(exit_code=2, action="quit", data=None),  # animefire fails
-            VideoPlaybackResult(exit_code=0, action="quit", data=None),  # sushianimes succeeds
+            VideoPlaybackResult(exit_code=2, action="quit", data=None),
+            VideoPlaybackResult(exit_code=2, action="quit", data=None),
+            VideoPlaybackResult(exit_code=0, action="quit", data=None),
         ]
 
         sources = [
