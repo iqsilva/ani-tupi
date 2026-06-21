@@ -17,7 +17,6 @@ def _make_ctx(episode_idx: int = 1, total: int = 3):
         total_episodes_anilist=None,
         num_episodes=total,
         episode_list=tuple(f"Episódio {i}" for i in range(1, total + 1)),
-        episode_skip_available={2: True},
     )
 
 
@@ -62,10 +61,7 @@ def test_select_episode_from_menu_returns_updated_context():
     """Selecting an episode should navigate to chosen index."""
     anime_cmd = importlib.import_module("commands.anime")
     ctx = _make_ctx(episode_idx=0, total=3)
-    formatted_list = anime_cmd.format_episode_list_with_skip(
-        ctx.episode_list, ctx.episode_skip_available
-    )
-    target = formatted_list[2]
+    target = ctx.episode_list[2]
 
     with patch.object(anime_cmd, "menu_navigate", return_value=target):
         with patch.object(anime_cmd, "navigate_episodes", return_value="new_ctx") as mock_nav:
