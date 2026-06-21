@@ -2,7 +2,6 @@
 
 import asyncio
 from threading import Event
-from concurrent.futures import ThreadPoolExecutor
 from collections import defaultdict
 
 from models.config import settings
@@ -122,7 +121,6 @@ class PlaybackCoordinator:
         async def search_all_sources():
             nonlocal sources_with_urls, cache_key, dc, cache_key_full
             container = []
-            loop = asyncio.get_running_loop()
 
             # Show which sources are being tried
             sources_list = [source for _, source in sources_with_urls]
@@ -144,65 +142,65 @@ class PlaybackCoordinator:
                 key=lambda s: priority_map.get(s, len(priority_order)),
             )
 
-            with ThreadPoolExecutor(max_workers=1) as executor:
-                # Try sources in configured priority order (SEQUENTIALLY to respect priority)
-                for source_name in sorted_sources:
+            # Try sources in configured priority order (SEQUENTIALLY to respect priority)
+            for source_name in sorted_sources:
+                if container:
+                    # Already found a video, stop searching
+                    break
+
+                source_urls = sources_urls[source_name]
+                is_priority = priority_map.get(source_name, len(priority_order)) < len(
+                    priority_order
+                )
+
+                # For each source, try each URL in sequence
+                for url, source in source_urls:
                     if container:
                         # Already found a video, stop searching
                         break
 
-                    source_urls = sources_urls[source_name]
-                    is_priority = priority_map.get(source_name, len(priority_order)) < len(
-                        priority_order
-                    )
+                    try:
+                        # Run each attempt in its own thread so a stalled source
+                        # does not block later fallback attempts.
+                        event = Event()
+                        result_container = []
 
-                    # For each source, try each URL in sequence
-                    for url, source in source_urls:
+                        def run_plugin():
+                            success = safe_plugin_call(
+                                self.sources[source].search_player_src,
+                                url,
+                                result_container,
+                                event,
+                            )
+                            if success:
+                                video_url = result_container[0]
+                                # Truncate very long URLs in display
+                                display_url = (
+                                    video_url[:80] + "..." if len(video_url) > 80 else video_url
+                                )
+                                logger.info(f"   ✅ Vídeo encontrado em: {source}")
+                                logger.info(f"      URL: {display_url}")
+                                container.extend(result_container)
+                            else:
+                                logger.info(f"   ❌ {source} falhou ao extrair vídeo")
+                            return success
+
+                        # Wait with timeout (longer for priority sources)
+                        timeout = 15 if is_priority else 10
+                        task = asyncio.to_thread(run_plugin)
+                        await asyncio.wait_for(task, timeout=timeout)
+
+                        # If we got here and container has content, we found a video
                         if container:
-                            # Already found a video, stop searching
                             break
 
-                        try:
-                            # Submit task for this URL and wait for result
-                            event = Event()
-                            result_container = []
-
-                            def run_plugin():
-                                success = safe_plugin_call(
-                                    self.sources[source].search_player_src,
-                                    url,
-                                    result_container,
-                                    event,
-                                )
-                                if success:
-                                    video_url = result_container[0]
-                                    # Truncate very long URLs in display
-                                    display_url = (
-                                        video_url[:80] + "..." if len(video_url) > 80 else video_url
-                                    )
-                                    logger.info(f"   ✅ Vídeo encontrado em: {source}")
-                                    logger.info(f"      URL: {display_url}")
-                                    container.extend(result_container)
-                                else:
-                                    logger.info(f"   ❌ {source} falhou ao extrair vídeo")
-                                return success
-
-                            # Wait with timeout (longer for priority sources)
-                            timeout = 15 if is_priority else 10
-                            task = loop.run_in_executor(executor, run_plugin)
-                            await asyncio.wait_for(task, timeout=timeout)
-
-                            # If we got here and container has content, we found a video
-                            if container:
-                                break
-
-                        except asyncio.TimeoutError:
-                            # This source timed out, try next
-                            logger.info(f"   ⏱️  {source} timeout (> {timeout}s)")
-                            continue
-                        except Exception:
-                            # This source failed, try next
-                            continue
+                    except asyncio.TimeoutError:
+                        # This source timed out, try next
+                        logger.info(f"   ⏱️  {source} timeout (> {timeout}s)")
+                        continue
+                    except Exception:
+                        # This source failed, try next
+                        continue
 
                 # Get video URL if found, otherwise return None
                 video_url = container[0] if container else None
