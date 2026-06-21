@@ -330,10 +330,6 @@ class AnimeDownloadSettings(BaseModel):
         True,
         description="Skip already-downloaded episodes in batch operations",
     )
-    skip_intros: bool = Field(
-        True,
-        description="Enable automatic skipping of anime intros (OP) and outros (ED) via AniSkip API",
-    )
 
 
 class OfflineSyncConfig(BaseModel):

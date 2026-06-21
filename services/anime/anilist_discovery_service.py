@@ -30,7 +30,6 @@ class AniListDiscoveryResult:
         anilist_id: The AniList ID if found, None otherwise
         anilist_title: The formatted AniList title if found, None otherwise
         total_episodes: Total episodes from AniList if found, None otherwise
-        mal_id: MyAnimeList ID if found (for AniSkip), None otherwise
         found: Whether a match was found
         authenticated: Whether AniList was authenticated
     """
@@ -38,7 +37,6 @@ class AniListDiscoveryResult:
     anilist_id: int | None
     anilist_title: str | None
     total_episodes: int | None
-    mal_id: int | None
     found: bool
     authenticated: bool
 
@@ -67,7 +65,6 @@ def discover_anilist_info(anime_title: str) -> AniListDiscoveryResult:
             anilist_id=None,
             anilist_title=None,
             total_episodes=None,
-            mal_id=None,
             found=False,
             authenticated=False,
         )
@@ -81,7 +78,6 @@ def discover_anilist_info(anime_title: str) -> AniListDiscoveryResult:
             anilist_id=None,
             anilist_title=None,
             total_episodes=None,
-            mal_id=None,
             found=False,
             authenticated=True,
         )
@@ -95,7 +91,6 @@ def discover_anilist_info(anime_title: str) -> AniListDiscoveryResult:
             anilist_id=None,
             anilist_title=None,
             total_episodes=None,
-            mal_id=None,
             found=False,
             authenticated=True,
         )
@@ -106,7 +101,6 @@ def discover_anilist_info(anime_title: str) -> AniListDiscoveryResult:
             anilist_id=None,
             anilist_title=None,
             total_episodes=None,
-            mal_id=None,
             found=False,
             authenticated=True,
         )
@@ -125,7 +119,6 @@ def discover_anilist_info(anime_title: str) -> AniListDiscoveryResult:
             anilist_id=anilist_id,
             anilist_title=None,
             total_episodes=None,
-            mal_id=None,
             found=True,
             authenticated=True,
         )
@@ -136,7 +129,6 @@ def discover_anilist_info(anime_title: str) -> AniListDiscoveryResult:
             anilist_id=anilist_id,
             anilist_title=None,
             total_episodes=None,
-            mal_id=None,
             found=True,
             authenticated=True,
         )
@@ -148,7 +140,6 @@ def discover_anilist_info(anime_title: str) -> AniListDiscoveryResult:
         anilist_id=anilist_id,
         anilist_title=formatted_title,
         total_episodes=metadata.episodes,
-        mal_id=metadata.id_mal,
         found=True,
         authenticated=True,
     )

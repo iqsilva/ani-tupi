@@ -7,7 +7,7 @@ sequel detection, and synchronization with AniList API.
 import json
 from typing import Optional
 
-from models.config import get_data_path, settings
+from models.config import get_data_path
 from services.anilist_service import anilist_client
 from services.repository import rep
 from ui.components import loading, menu_navigate
@@ -28,7 +28,6 @@ from services.anime.mappings import (
 from services.anime.search import incremental_search_anime
 from services.anime.search import _rank_anime_results_by_reference
 from services.anime.title_normalization import normalize_title_for_dedup
-from services.anime.aniskip_service import AniSkipService
 from services.anime.playback_fallback import play_episode_with_fallback
 from utils.video_player import _format_episode_progress
 
@@ -247,11 +246,6 @@ def anilist_anime_flow(
         total_episodes: Total number of episodes from AniList (None if unknown)
 
     """
-    # Determine skip enabled from args or config
-    skip_enabled = (
-        args.skip if hasattr(args, "skip") and args.skip else settings.anime_download.skip_intros
-    )
-
     # Use display_title if provided, otherwise fall back to anime_title
     if not display_title:
         display_title = anime_title
@@ -260,11 +254,9 @@ def anilist_anime_flow(
     anime_info = anilist_client.get_anime_by_id(anilist_id)
     english_title = None
     romaji_title = None
-    mal_id = None
     if anime_info:
         english_title = anime_info.title.english
         romaji_title = anime_info.title.romaji
-        mal_id = anime_info.id_mal
 
     loader.load_plugins()
 
@@ -711,35 +703,6 @@ def anilist_anime_flow(
     # Use maximum of AniList and local progress (never go backwards)
     max_progress = max(anilist_progress, local_progress)
 
-    # Fetch skip times if MAL ID is available
-    # OPTIMIZATION: Only fetch próximo/atual/anterior initially (faster)
-    # Full list fetched only when user selects "Escolher outro episódio"
-    episode_skip_available: dict[int, bool] = {}
-    aniskip_service: AniSkipService | None = None
-
-    if mal_id and scraper_episode_count and len(episode_list) > 0:
-        try:
-            aniskip_service = AniSkipService()
-            # Only check próximo, atual, anterior for initial menu (very fast)
-            episodes_to_check = []
-            if max_progress < len(episode_list):
-                episodes_to_check.append(max_progress + 1)  # Próximo
-            if max_progress > 0:
-                episodes_to_check.append(max_progress)  # Atual
-            if max_progress > 1:
-                episodes_to_check.append(max_progress - 1)  # Anterior
-
-            if episodes_to_check:
-                with loading("Carregando informações de skip times..."):
-                    episode_skip_available = aniskip_service.get_skip_available_batch(
-                        mal_id, len(episode_list), episodes_to_check=episodes_to_check
-                    )
-        except Exception as e:
-            import logging
-
-            logging.debug(f"Failed to fetch skip times for MAL ID {mal_id}: {e}")
-            # Continue without skip times - it's non-critical
-
     # If user has progress (from AniList or local), offer to continue from there
     if max_progress > 0 and max_progress <= len(episode_list):
         # Offer -1/0/+1 options (previous, current, next)
@@ -760,10 +723,7 @@ def anilist_anime_flow(
         next_ep = None
         if max_progress < len(episode_list):
             # Next episode exists in the list (available in scrapers)
-            next_ep_label = f"⏭️  Episódio {max_progress + 1} (próximo)"
-            if episode_skip_available.get(max_progress + 1, False):
-                next_ep_label += " ⏭️"
-            next_ep = next_ep_label
+            next_ep = f"⏭️  Episódio {max_progress + 1} (próximo)"
             options.append(next_ep)
             option_to_idx[next_ep] = max_progress
         elif total_episodes and max_progress < total_episodes:
@@ -773,19 +733,13 @@ def anilist_anime_flow(
             option_to_idx[next_ep] = None  # Mark as unavailable
 
         # Current episode (max progress)
-        current_ep_label = f"▶️  Episódio {max_progress} ({progress_source})"
-        if episode_skip_available.get(max_progress, False):
-            current_ep_label += " ⏭️"
-        current_ep = current_ep_label
+        current_ep = f"▶️  Episódio {max_progress} ({progress_source})"
         options.append(current_ep)
         option_to_idx[current_ep] = max_progress - 1
 
         # Previous episode (-1)
         if max_progress > 1:
-            prev_ep_label = f"◀️  Episódio {max_progress - 1} (anterior)"
-            if episode_skip_available.get(max_progress - 1, False):
-                prev_ep_label += " ⏭️"
-            prev_ep = prev_ep_label
+            prev_ep = f"◀️  Episódio {max_progress - 1} (anterior)"
             options.append(prev_ep)
             option_to_idx[prev_ep] = max_progress - 2
         # If neither condition is true, anime is complete (don't show next episode)
@@ -1032,36 +986,6 @@ def anilist_anime_flow(
         else:
             logger.info(f"   Fonte: {source_names[0]}")
 
-        # Fetch skip times if enabled and MAL ID available
-        skip_times = None
-        if skip_enabled:
-            aniskip = AniSkipService()
-
-            # If no MAL ID from AniList, try searching by title
-            if not mal_id:
-                # Extract clean title (before " / " if bilingual format)
-                search_title = anime_title.split(" / ")[0].strip()
-                logger.info(f"🔍 Buscando MAL ID para '{search_title}'...")
-                mal_id = aniskip.search_mal_id(search_title)
-                if mal_id:
-                    logger.info(f"✅ MAL ID encontrado: {mal_id}")
-
-            if mal_id:
-                try:
-                    skip_times = aniskip.get_skip_times(mal_id, episode)
-                    if skip_times:
-                        logger.info(
-                            "⏩ Skip times carregados (intro/outro serão pulados automaticamente)"
-                        )
-                    else:
-                        logger.info(
-                            f"ℹ️  Sem skip times disponíveis (MAL ID: {mal_id}, Ep: {episode})"
-                        )
-                except Exception as e:
-                    logger.info(f"⚠️  Falha ao carregar skip times: {e}")
-            else:
-                logger.info("ℹ️  MAL ID não encontrado (skip desabilitado para este anime)")
-
         # Extract actual video URLs from episode pages before playback
         # all_sources contains (page_url, source_name) pairs
         video_sources = []
@@ -1095,7 +1019,6 @@ def anilist_anime_flow(
             debug=args.debug,
             anilist_id=anilist_id,
             anilist_episodes=total_episodes,
-            skip_times=skip_times,
         )
 
         result = fallback_result.playback_result

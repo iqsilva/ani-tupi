@@ -46,10 +46,6 @@ class PlaybackContext:
         total_episodes_anilist: Total episodes from AniList
         num_episodes: Total episodes from scraper
         episode_list: List of episode strings for menu display
-        skip_enabled: Whether to enable intro/outro skipping
-        mal_id: MyAnimeList ID for AniSkip integration (if available)
-        episode_skip_available: Dict mapping episode number (1-indexed) to bool
-            indicating whether skip times are available (empty if not fetched)
     """
 
     anime_title: str
@@ -60,15 +56,6 @@ class PlaybackContext:
     total_episodes_anilist: int | None
     num_episodes: int
     episode_list: tuple[str, ...]
-    skip_enabled: bool = False
-    mal_id: int | None = None
-    episode_skip_available: dict[int, bool] = None  # type: ignore
-
-    def __post_init__(self) -> None:
-        """Ensure episode_skip_available is never None."""
-        if self.episode_skip_available is None:
-            # Use object.__setattr__ because this is a frozen dataclass
-            object.__setattr__(self, "episode_skip_available", {})
 
 
 @dataclass(frozen=True)
@@ -97,7 +84,6 @@ def prepare_playback_from_search(
     selected_anime: str,
     episode_idx: int,
     source: str | None,
-    skip_enabled: bool = False,
 ) -> PlaybackContext | None:
     """Prepare playback context after anime search.
 
@@ -120,15 +106,12 @@ def prepare_playback_from_search(
     anilist_id: int | None = None
     anilist_title: str | None = None
     total_episodes_anilist: int | None = None
-    mal_id: int | None = None
-
     try:
         anilist_result = discover_anilist_info(selected_anime)
         if anilist_result.found:
             anilist_id = anilist_result.anilist_id
             anilist_title = anilist_result.anilist_title
             total_episodes_anilist = anilist_result.total_episodes
-            mal_id = anilist_result.mal_id
     except Exception as e:
         logger.warning("Failed to discover AniList info for '%s': %s", selected_anime, e)
         # Continue without AniList info
@@ -137,13 +120,6 @@ def prepare_playback_from_search(
     episode_list_raw = rep.get_episode_list(selected_anime)
     episode_list = tuple(episode_list_raw) if episode_list_raw else ()
     num_episodes = len(episode_list)
-
-    # Don't fetch skip times upfront - load them on-demand when playing
-    # This avoids loading skip times for all episodes when user only plays 1-2
-    episode_skip_available: dict[int, bool] = {}
-
-    # Note: Skip times will be fetched dynamically in video_player.py
-    # when the episode is about to be played, only for needed episodes
 
     return PlaybackContext(
         anime_title=selected_anime,
@@ -154,13 +130,10 @@ def prepare_playback_from_search(
         total_episodes_anilist=total_episodes_anilist,
         num_episodes=num_episodes,
         episode_list=episode_list,
-        skip_enabled=skip_enabled,
-        mal_id=mal_id,
-        episode_skip_available=episode_skip_available,
     )
 
 
-def prepare_playback_from_history(skip_enabled: bool = False) -> PlaybackContext | None:
+def prepare_playback_from_history() -> PlaybackContext | None:
     """Prepare playback context from continue watching history.
 
     This function:
@@ -185,15 +158,12 @@ def prepare_playback_from_history(skip_enabled: bool = False) -> PlaybackContext
     anilist_id: int | None = anilist_id_from_history
     anilist_title: str | None = anilist_title_from_history
     total_episodes_anilist: int | None = None
-    mal_id: int | None = None
-
     try:
         anilist_result = discover_anilist_info(anime_title)
         if anilist_result.found:
             anilist_id = anilist_result.anilist_id
             anilist_title = anilist_result.anilist_title
             total_episodes_anilist = anilist_result.total_episodes
-            mal_id = anilist_result.mal_id
     except Exception as e:
         logger.warning("Failed to discover AniList info for '%s': %s", anime_title, e)
         # Continue with info from history
@@ -202,13 +172,6 @@ def prepare_playback_from_history(skip_enabled: bool = False) -> PlaybackContext
     episode_list_raw = rep.get_episode_list(anime_title)
     episode_list = tuple(episode_list_raw) if episode_list_raw else ()
     num_episodes = len(episode_list)
-
-    # Don't fetch skip times upfront - load them on-demand when playing
-    # This avoids loading skip times for all episodes when user only plays 1-2
-    episode_skip_available: dict[int, bool] = {}
-
-    # Note: Skip times will be fetched dynamically in video_player.py
-    # when the episode is about to be played, only for needed episodes
 
     return PlaybackContext(
         anime_title=anime_title,
@@ -219,9 +182,6 @@ def prepare_playback_from_history(skip_enabled: bool = False) -> PlaybackContext
         total_episodes_anilist=total_episodes_anilist,
         num_episodes=num_episodes,
         episode_list=episode_list,
-        skip_enabled=skip_enabled,
-        mal_id=mal_id,
-        episode_skip_available=episode_skip_available,
     )
 
 
@@ -597,7 +557,4 @@ def navigate_episodes(
         total_episodes_anilist=ctx.total_episodes_anilist,
         num_episodes=ctx.num_episodes,
         episode_list=ctx.episode_list,
-        skip_enabled=ctx.skip_enabled,
-        mal_id=ctx.mal_id,
-        episode_skip_available=ctx.episode_skip_available,
     )
