@@ -222,8 +222,6 @@ class PluginSettings(BaseModel):
             "anitube",
             "animesdigital",
             "animefire",
-            "anitube",
-            "sushianimes",
         ],
         description="Priority order for scraper sources (first = highest priority)",
     )
