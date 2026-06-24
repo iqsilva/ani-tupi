@@ -134,6 +134,54 @@ ani-tupi --debug
 ani-tupi --help
 ```
 
+### Mais exemplos de uso da CLI
+
+```bash
+# Buscar um anime e abrir o seletor de episódios
+ani-tupi -q "one piece"
+
+# Buscar e ir direto para um episódio específico
+ani-tupi -q "one piece" -e 1100
+
+# Escolher uma temporada específica
+ani-tupi -q "jujutsu kaisen" -S 2
+
+# Ir direto para episódio de uma temporada específica
+ani-tupi -q "jujutsu kaisen" -S 2 -e 5
+
+# Continuar de onde parou
+ani-tupi -c
+
+# Continuar o último anime, mas trocar para outro episódio
+ani-tupi -c -e 12
+
+# Continuar o último anime, mas trocar de temporada
+ani-tupi -c -S 2
+
+# Sortear um anime da sua lista do AniList e reproduzir
+ani-tupi --random
+ani-tupi -r
+
+# Listar fontes de anime disponíveis
+ani-tupi --list-sources
+
+# Limpar todo o cache
+ani-tupi --clear-cache
+
+# Limpar cache de um anime específico
+ani-tupi --clear-cache "dandadan"
+
+# Abrir o fluxo de mangá pelo comando principal
+ani-tupi --manga
+ani-tupi -m
+
+# Ver versão local e comparar com a release remota
+ani-tupi --version
+
+# Verificar atualização pela CLI
+ani-tupi update
+```
+
 ## ⚙️ Configurar pela CLI
 
 Agora você pode configurar o `ani-tupi` sem editar `models/config.py`:
