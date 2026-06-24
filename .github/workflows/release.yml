@@ -97,6 +97,40 @@ jobs:
             uv run semantic-release version --push
           fi
 
+      - name: Build Python package
+        run: uv build
+
+      - name: Publish to TestPyPI
+        env:
+          UV_PUBLISH_TOKEN: ${{ secrets.TESTPYPI_API_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [[ -z "${UV_PUBLISH_TOKEN}" ]]; then
+            echo "TESTPYPI_API_TOKEN not configured; skipping TestPyPI upload"
+            exit 0
+          fi
+          uv publish \
+            --publish-url https://test.pypi.org/legacy/ \
+            --check-url https://test.pypi.org/simple/
+
+      - name: Publish to PyPI
+        env:
+          UV_PUBLISH_TOKEN: ${{ secrets.PYPI_API_TOKEN }}
+          PYPI_PUBLISH_ENABLED: ${{ vars.PYPI_PUBLISH_ENABLED }}
+        run: |
+          set -euo pipefail
+          if [[ "${PYPI_PUBLISH_ENABLED}" != "true" ]]; then
+            echo "PYPI_PUBLISH_ENABLED is not true; skipping production PyPI upload"
+            exit 0
+          fi
+          if [[ -z "${UV_PUBLISH_TOKEN}" ]]; then
+            echo "PYPI_API_TOKEN not configured; skipping production PyPI upload"
+            exit 0
+          fi
+          uv publish \
+            --publish-url https://upload.pypi.org/legacy/ \
+            --check-url https://pypi.org/simple/
+
       - name: Publish GitHub Release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -52,9 +52,30 @@ choco install python mpv zathura firefox git
 
 ## 🚀 Instalação Rápida
 
-### Instalação com Um Comando (Recomendado)
+### Via PyPI (Recomendado)
 
-A forma mais fácil de instalar - execute apenas um comando:
+Instale o pacote Python com **uv** ou **pip**. Você ainda precisa das [dependências de sistema](#-requisitos) (`mpv`, leitor de PDF, etc.) — elas não vêm com o pacote PyPI.
+
+```bash
+# Recomendado: instala ani-tupi e manga-tupi como ferramentas globais
+uv tool install ani-tupi
+
+# Alternativa com pip (dentro de um venv)
+pip install ani-tupi
+```
+
+Atualizar para a versão mais recente:
+
+```bash
+uv tool install --upgrade ani-tupi
+# ou: pip install --upgrade ani-tupi
+```
+
+> **Rollout TestPyPI:** enquanto a publicação oficial no PyPI é validada, mantenedores podem testar com `Publish TestPyPI` (GitHub Actions) e instalar via índice de teste. Após a validação, `uv tool install ani-tupi` passará a resolver do PyPI oficial.
+
+### Instalação com Um Comando (Alternativa)
+
+Script completo com clone do repositório — útil se você prefere o bootstrap automático ou está contribuindo com o código:
 
 ```bash
 curl -sSL https://raw.githubusercontent.com/levyvix/ani-tupi/master/install.sh | bash
@@ -254,7 +275,10 @@ uv run main.py -q "naruto"   # Buscar direto
 ### Comandos Úteis
 
 ```bash
-# Instalar/Reinstalar CLI global
+# Instalar/Reinstalar CLI global (PyPI)
+uv tool install --upgrade ani-tupi
+
+# Instalar a partir do checkout local (desenvolvimento)
 python3 install-cli.py
 # ou: uv tool install --force .
 
@@ -270,6 +294,27 @@ uv add nome-do-pacote
 # Adicionar dependência de desenvolvimento
 uv add --dev nome-do-pacote
 ```
+
+### Publicação PyPI (mantenedores)
+
+Secrets necessários no repositório GitHub:
+
+| Secret | Uso |
+|--------|-----|
+| `TESTPYPI_API_TOKEN` | Upload para [TestPyPI](https://test.pypi.org) |
+| `PYPI_API_TOKEN` | Upload para PyPI oficial (após validação) |
+
+Variável de repositório:
+
+| Variável | Valor | Efeito |
+|----------|-------|--------|
+| `PYPI_PUBLISH_ENABLED` | `true` | Habilita upload para PyPI no workflow de release |
+
+Fluxo recomendado:
+
+1. Criar token em [test.pypi.org](https://test.pypi.org/manage/account/token/) e salvar como `TESTPYPI_API_TOKEN`
+2. Disparar **Actions → Publish TestPyPI** (`workflow_dispatch`) e confirmar instalação
+3. Após validação, configurar `PYPI_API_TOKEN` e definir `PYPI_PUBLISH_ENABLED=true`
 
 ### Por que UV?
 

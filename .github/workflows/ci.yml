@@ -114,6 +114,35 @@ jobs:
       run: |
         uv run python main.py --help
 
+  package-build:
+    name: Package Build Smoke Test
+    runs-on: ubuntu-latest
+    needs: lint-and-test
+
+    steps:
+    - name: Checkout código
+      uses: actions/checkout@v4
+
+    - name: Configurar Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: "3.12"
+
+    - name: Instalar UV
+      run: pip install uv
+
+    - name: Build sdist and wheel
+      run: uv build
+
+    - name: Smoke test wheel install
+      run: |
+        set -euo pipefail
+        python -m venv /tmp/pkg-test-venv
+        /tmp/pkg-test-venv/bin/pip install --quiet dist/*.whl
+        test -x /tmp/pkg-test-venv/bin/manga-tupi
+        timeout 30 /tmp/pkg-test-venv/bin/ani-tupi --help
+        /tmp/pkg-test-venv/bin/python -c "import manga_tupi; import main"
+
   smoke-test:
     name: Smoke Test (ani-tupi -q naruto)
     runs-on: ubuntu-latest

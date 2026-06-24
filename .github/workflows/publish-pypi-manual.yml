@@ -1,0 +1,44 @@
+name: Publish PyPI (manual)
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    name: Build and publish to PyPI
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          version: latest
+          enable-cache: true
+
+      - name: Build package
+        run: uv build
+
+      - name: Publish to PyPI
+        env:
+          UV_PUBLISH_TOKEN: ${{ secrets.PYPI_API_TOKEN }}
+        run: |
+          set -euo pipefail
+          uv publish \
+            --publish-url https://upload.pypi.org/legacy/ \
+            --check-url https://pypi.org/simple/
+
+      - name: Smoke test install from PyPI
+        run: |
+          set -euo pipefail
+          VERSION="$(grep '^version = ' pyproject.toml | head -1 | sed 's/version = "\(.*\)"/\1/')"
+          rm -rf /tmp/pypi-install
+          uv tool install --force --python 3.12 "ani-tupi==${VERSION}"
+          timeout 30 ani-tupi --help
+          test -x "$(command -v manga-tupi)"
+          python -c "import manga_tupi"
