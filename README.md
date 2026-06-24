@@ -2,6 +2,9 @@
 
 Assista anime e leia mangá direto do terminal sem anúncios! Interface CLI em português brasileiro com integração AniList.
 
+[![PyPI](https://img.shields.io/pypi/v/ani-tupi)](https://pypi.org/project/ani-tupi/)
+[![Python](https://img.shields.io/pypi/pyversions/ani-tupi)](https://pypi.org/project/ani-tupi/)
+
 > Estava cansado de anúncios, o ani-cli não tinha conteúdo em português brasileiro e não havia leitor de mangá decente no terminal, então criei esta ferramenta.
 
 ## 📺 Demo no YouTube
@@ -13,7 +16,7 @@ Assista anime e leia mangá direto do terminal sem anúncios! Interface CLI em p
 - **mpv** (player de vídeo)
 - **Zathura** (leitor de PDF para mangá - recomendado)
 - **Firefox** (opcional, para alguns scrapers)
-- **git** (para clonar o repositório)
+- **git** (opcional — só necessário para clonar o repositório ou usar `install.sh`)
 
 ### Instalando dependências
 
@@ -52,15 +55,20 @@ choco install python mpv zathura firefox git
 
 ## 🚀 Instalação Rápida
 
-### Via PyPI (Recomendado)
+### Via [PyPI](https://pypi.org/project/ani-tupi/) (Recomendado)
 
-Instale o pacote Python com **uv** ou **pip**. Você ainda precisa das [dependências de sistema](#-requisitos) (`mpv`, leitor de PDF, etc.) — elas não vêm com o pacote PyPI.
+Instale o pacote Python com **uv** ou **pip** a partir do [PyPI](https://pypi.org/project/ani-tupi/). Você ainda precisa das [dependências de sistema](#-requisitos) (`mpv`, leitor de PDF, etc.) — elas não vêm com o pacote PyPI.
 
 ```bash
 # Recomendado: instala ani-tupi e manga-tupi como ferramentas globais
 uv tool install ani-tupi
 
-# Alternativa com pip (dentro de um venv)
+# Alternativa: uv em um venv
+uv venv
+source .venv/bin/activate   # Windows: .venv\Scripts\activate
+uv pip install ani-tupi
+
+# Alternativa: pip (dentro de um venv)
 pip install ani-tupi
 ```
 
@@ -68,10 +76,10 @@ Atualizar para a versão mais recente:
 
 ```bash
 uv tool install --upgrade ani-tupi
+# ou, dentro do venv:
+uv pip install --upgrade ani-tupi
 # ou: pip install --upgrade ani-tupi
 ```
-
-> **Rollout TestPyPI:** enquanto a publicação oficial no PyPI é validada, mantenedores podem testar com `Publish TestPyPI` (GitHub Actions) e instalar via índice de teste. Após a validação, `uv tool install ani-tupi` passará a resolver do PyPI oficial.
 
 ### Instalação com Um Comando (Alternativa)
 

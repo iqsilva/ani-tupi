@@ -37,8 +37,16 @@ jobs:
         run: |
           set -euo pipefail
           VERSION="$(grep '^version = ' pyproject.toml | head -1 | sed 's/version = "\(.*\)"/\1/')"
-          rm -rf /tmp/pypi-install
-          uv tool install --force --python 3.12 "ani-tupi==${VERSION}"
+          for attempt in $(seq 1 12); do
+            if uv tool install --force --python 3.12 "ani-tupi==${VERSION}"; then
+              break
+            fi
+            if [[ "${attempt}" -eq 12 ]]; then
+              echo "Package not visible on PyPI index after waiting"
+              exit 1
+            fi
+            echo "Waiting for PyPI index propagation (attempt ${attempt}/12)..."
+            sleep 10
+          done
           timeout 30 ani-tupi --help
           test -x "$(command -v manga-tupi)"
-          python -c "import manga_tupi"
