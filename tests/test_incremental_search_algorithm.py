@@ -57,7 +57,7 @@ def no_anilist():
     """Patch AniList discovery to avoid external calls."""
     with patch(
         "utils.anilist_discovery.auto_discover_anilist_id",
-        side_effect=Exception("No AniList"),
+        side_effect=ConnectionError("No AniList"),
     ):
         yield
 
@@ -772,7 +772,7 @@ def test_incremental_search_small_base_results_stops():
 
         with patch(
             "utils.anilist_discovery.auto_discover_anilist_id",
-            side_effect=Exception("No AniList"),
+            side_effect=ConnectionError("No AniList"),
         ):
             state, results = incremental_search_anime("test anime series long")
 
