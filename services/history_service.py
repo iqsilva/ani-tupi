@@ -28,7 +28,7 @@ HISTORY_PATH = get_data_path()
 _history_store = JSONStore(HISTORY_PATH / "history.json")
 
 
-def load_history() -> tuple[str, int, int | None, str | None] | None:
+def load_history(depth: int = 0) -> tuple[str, int, int | None, str | None] | None:
     """Load watch history and let user choose episode (-1/0/+1 from last watched).
 
     Format:
@@ -36,6 +36,9 @@ def load_history() -> tuple[str, int, int | None, str | None] | None:
 
     Returns: (anime_name, episode_idx, anilist_id, anilist_title)
     """
+    if depth > 5:
+        logger.warning("Muitas tentativas de busca. Encerrando.")
+        return None
     try:
         data = _history_store.load({})
 
@@ -228,7 +231,7 @@ def load_history() -> tuple[str, int, int | None, str | None] | None:
                     msg="Múltiplas fontes com episódios. Escolha uma:",
                 )
                 if not selected:
-                    return load_history()
+                    return load_history(depth=depth + 1)
 
                 # Extract original anime_with_source (without episode count)
                 selected_idx = valid_source_list.index(selected)
@@ -311,7 +314,7 @@ def load_history() -> tuple[str, int, int | None, str | None] | None:
                         msg=f"Resultados para '{manual_query}'. Escolha:",
                     )
                     if not selected:
-                        return load_history()
+                        return load_history(depth=depth + 1)
                     selected_anime_title = selected.rsplit(" [", 1)[0]
 
                 # Load episodes from manually selected anime

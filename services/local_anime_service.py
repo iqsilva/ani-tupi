@@ -4,6 +4,7 @@ Scans and manages locally downloaded anime episodes.
 Provides episode discovery, file listing, and metadata tracking.
 """
 
+import json
 import logging
 from pathlib import Path
 
@@ -281,8 +282,6 @@ class LocalAnimeService:
             return AnimeDownloadDatabase()
 
         try:
-            import json
-
             with open(self.db_path, "r") as f:
                 data = json.load(f)
                 return AnimeDownloadDatabase.model_validate(data)
@@ -297,8 +296,6 @@ class LocalAnimeService:
             db: Database to save
         """
         try:
-            import json
-
             self.db_path.parent.mkdir(parents=True, exist_ok=True)
             with open(self.db_path, "w") as f:
                 json.dump(db.model_dump(mode="json"), f, indent=2, default=str)

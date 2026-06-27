@@ -41,7 +41,10 @@ class JikanClient:
             logger.warning(f"Jikan API request failed for '{query}': {e}")
             return []
 
-        raw_items = data.get("data") or []
+        raw_items = data.get("data")
+        if raw_items is None:
+            logger.warning(f"Jikan API resposta inesperada. Keys: {list(data.keys())}")
+            return []
         results: list[JikanAnimeEntry] = []
         for item in raw_items:
             try:

@@ -38,6 +38,23 @@ class UpdateCheckService:
         self.package_name = package_name
         self._local_version_override = local_version
 
+    def get_version_info(self) -> tuple[str, str | None]:
+        """Return (local_version, latest_version) without cooldown caching.
+
+        latest_version is None when the remote release source is unreachable.
+        Use this for explicit version display (--version / update command).
+        """
+        local_version = self._get_local_version()
+        latest_version = self._fetch_latest_version()
+        return local_version, latest_version
+
+    def is_remote_newer(self, local_version: str, remote_version: str) -> bool:
+        """Public wrapper for version comparison.
+
+        Returns True when remote_version is strictly greater than local_version.
+        """
+        return self._is_remote_newer(local_version, remote_version)
+
     def check_for_updates(self) -> UpdateCheckResult:
         """Run update check and return a fail-safe result for startup rendering."""
         local_version = self._get_local_version()

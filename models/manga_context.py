@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from models.models import ChapterData
 
@@ -33,10 +33,7 @@ class ChapterContext(BaseModel):
     chapter_labels: Optional[list[str]] = Field(None, description="Formatted chapter labels")
     current_index: int = Field(0, ge=0, description="Current chapter index in list")
 
-    class Config:
-        """Pydantic config."""
-
-        arbitrary_types_allowed = True
+    model_config = ConfigDict(arbitrary_types_allowed=True)
 
 
 class DownloadRequest(BaseModel):
@@ -61,10 +58,7 @@ class DownloadRequest(BaseModel):
     chapter_idx: int = Field(1, ge=1, description="Chapter index for progress (1-based)")
     total_chapters: int = Field(1, ge=1, description="Total chapters being downloaded")
 
-    class Config:
-        """Pydantic config."""
-
-        arbitrary_types_allowed = True
+    model_config = ConfigDict(arbitrary_types_allowed=True)
 
 
 class ReadingSession(BaseModel):
@@ -87,10 +81,7 @@ class ReadingSession(BaseModel):
     last_synced_chapter: Optional[str] = None
     anilist_progress: Optional[int] = None
 
-    class Config:
-        """Pydantic config."""
-
-        arbitrary_types_allowed = True
+    model_config = ConfigDict(arbitrary_types_allowed=True)
 
 
 @dataclass

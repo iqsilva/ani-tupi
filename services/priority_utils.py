@@ -26,10 +26,8 @@ def sort_by_priority(items: list, priority_order: list[str], source_index: int =
 
     def priority_key(item):
         source = item[source_index]
-        try:
+        if source in priority_order:
             return priority_order.index(source)
-        except ValueError:
-            # Source not in priority_order, place at end
-            return len(priority_order)
+        return len(priority_order)
 
     return sorted(items, key=priority_key)

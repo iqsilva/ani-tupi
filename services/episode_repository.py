@@ -273,9 +273,11 @@ class EpisodeRepository:
         # Find available episodes after from_episode
         available_sources = []
         for urls, source in self.anime_episodes_urls.get(anime, []):
-            # Check if this source has more episodes after from_episode
+            # from_episode is 1-based (e.g., episode 5 → from_episode=5).
+            # urls is 0-based, so the *next* episode lives at urls[from_episode]:
+            #   episode 1 → urls[0], episode 2 → urls[1], …, next → urls[from_episode]
+            # The boundary check (len(urls) > from_episode) confirms that index exists.
             if len(urls) > from_episode:
-                # Has next episode
                 available_sources.append((urls[from_episode], source))
 
         if not available_sources:
