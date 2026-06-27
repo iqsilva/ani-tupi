@@ -29,11 +29,11 @@ class AniTube:
                 url = f"{self.base_url}/wp-json/wp/v2/posts?search={urllib.parse.quote(q)}&per_page=20"
                 response = requests.get(url, headers=HEADERS, timeout=30)
                 response.raise_for_status()
-                results = response.json()
+                posts = response.json()
             except RequestException as e:
                 logger.debug(f"AniTube search request failed for '{q}': {e}")
                 return
-            for post in results:
+            for post in posts:
                 title = post.get("title", {}).get("rendered", "")
                 link = post.get("link", "")
                 if title and link:
