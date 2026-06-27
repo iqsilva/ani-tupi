@@ -83,10 +83,10 @@ def _filter_anime_results(titles: list[str], query: str) -> list[str]:
         normalized title, or the compact normalized query appears in the
         compact normalized title
     """
-    from services.repository import Repository
+    from services.search_repository import SearchRepository as _SearchRepository
     from services.anime.title_normalization import get_compact_normalized_title_key
 
-    normalize_fn = Repository._normalize_for_filter
+    normalize_fn = _SearchRepository._normalize_for_filter
 
     query_normalized = normalize_fn(query)
     query_compact = get_compact_normalized_title_key(query_normalized)
@@ -479,8 +479,8 @@ def incremental_search_anime(
                     if anilist_results:
                         ranking_query = anilist_results[0].title
                         anilist_reference_title = ranking_query
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.debug(f"AniList indisponível para '{used_query}': {e}")
 
                 # Get anime titles with sources, ranked by AniList if available
                 titles_with_sources = _get_ranked_titles_with_sources(
@@ -529,13 +529,15 @@ def incremental_search_anime(
                     )
                     break
 
-            except Exception as e:
+            except (OSError, ConnectionError, TimeoutError, ValueError) as e:
                 logger.warning(f"Error during incremental search at word {current_word_count}: {e}")
                 # Fall back to previous results if available
                 if state.has_previous():
                     state.go_back()
                     current_results = state.get_current().results
                     break
+                raise
+            except Exception:
                 raise
 
         else:
@@ -586,8 +588,8 @@ def incremental_search_anime(
                         if anilist_results:
                             ranking_query = anilist_results[0].title
                             anilist_reference_title = ranking_query
-                    except Exception:
-                        pass
+                    except Exception as e:
+                        logger.debug(f"AniList indisponível para '{used_query}': {e}")
 
                     # Get anime titles with sources, ranked by AniList if available
                     titles_with_sources = _get_ranked_titles_with_sources(
@@ -679,13 +681,15 @@ def incremental_search_anime(
                     current_word_count += 1
                     continue
 
-            except Exception as e:
+            except (OSError, ConnectionError, TimeoutError, ValueError) as e:
                 logger.warning(f"Error during filtering at word {current_word_count}: {e}")
                 # Fall back to previous results if available
                 if state.has_previous():
                     state.go_back()
                     current_results = state.get_current().results
                     break
+                raise
+            except Exception:
                 raise
 
             # Check stopping condition

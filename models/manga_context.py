@@ -7,7 +7,6 @@ Enables cleaner function signatures and better type safety.
 from dataclasses import dataclass
 from pathlib import Path
 
-
 from pydantic import BaseModel, ConfigDict, Field
 
 from models.models import ChapterData
@@ -27,8 +26,8 @@ class ChapterContext(BaseModel):
     manga_url: str | None = Field(None, description="Base manga URL for scrapers")
 
     # Navigation context (optional, for chapter navigation)
-    all_chapters: list[ChapterData | None] = Field(None, description="All chapters for navigation")
-    chapter_labels: list[str | None] = Field(None, description="Formatted chapter labels")
+    all_chapters: list[ChapterData] | None = Field(None, description="All chapters for navigation")
+    chapter_labels: list[str] | None = Field(None, description="Formatted chapter labels")
     current_index: int = Field(0, ge=0, description="Current chapter index in list")
 
     model_config = ConfigDict(arbitrary_types_allowed=True)

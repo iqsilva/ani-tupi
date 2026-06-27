@@ -20,7 +20,6 @@ from services.anilist.manga_operations import MangaOperationsMixin
 from utils.headless_detector import get_token_from_user
 from utils.logging import get_logger
 
-
 logger = get_logger(__name__)
 
 

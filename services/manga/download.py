@@ -5,7 +5,6 @@ Extracted from manga_tupi.py to improve maintainability and enable unit testing.
 """
 
 from pathlib import Path
-
 import requests
 
 from services.manga_service import DownloadedChaptersTracker

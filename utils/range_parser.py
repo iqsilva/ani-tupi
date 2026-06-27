@@ -21,7 +21,7 @@ def _safe_float(value: str) -> float | None:
 def parse_range_input(
     user_input: str,
     last_chapter: str | None = None,
-    available_chapters: list[str | None] = None,
+    available_chapters: list[str] | None = None,
     default_count: int = 5,
 ) -> list[str]:
     """Parse user range input and return list of chapter numbers to download.

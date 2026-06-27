@@ -313,11 +313,6 @@ class Repository:
         """Build search results."""
         return self._search_repo._build_search_results(query)
 
-    @staticmethod
-    def _normalize_for_filter(text: str) -> str:
-        """Normalize text for filtering."""
-        return SearchRepository._normalize_for_filter(text)
-
     def _search_with_incremental_results(self, query: str, verbose: bool = True) -> None:
         """Search with incremental results."""
         self._search_repo._search_with_incremental_results(query, verbose)
