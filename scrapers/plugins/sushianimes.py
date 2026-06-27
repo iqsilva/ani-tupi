@@ -6,6 +6,7 @@ import requests
 from bs4 import BeautifulSoup
 
 from scrapers.plugins.utils import load_plugin, store_player_source
+from models.models import AnimeMetadata
 from services.repository import rep
 
 
@@ -125,7 +126,8 @@ class SushiAnimes:
         response.raise_for_status()
         return BeautifulSoup(response.text, "html.parser")
 
-    def search_anime(self, query: str) -> None:
+    def search_anime(self, query: str) -> list[AnimeMetadata]:
+        results = []
         try:
             soup = self._search_page(query)
             anime_items = soup.select("#animes .list-movie")
@@ -145,19 +147,30 @@ class SushiAnimes:
                 season_panes = anime_page.select(".episodes.tab-content .tab-pane[id^='season-']")
 
                 if len(season_panes) <= 1:
-                    rep.add_anime(
-                        _build_result_title(title, 1), anime_url, self.name, {"season": 1}
+                    results.append(
+                        AnimeMetadata(
+                            title=_build_result_title(title, 1),
+                            url=anime_url,
+                            source=self.name,
+                            params={"season": 1},
+                        )
                     )
                     continue
 
                 for pane in season_panes:
                     season_id = pane.get("id", "season-1")
                     season = _extract_season_number(season_id)
-                    season_title = _build_result_title(title, season)
-                    rep.add_anime(season_title, anime_url, self.name, {"season": season})
+                    results.append(
+                        AnimeMetadata(
+                            title=_build_result_title(title, season),
+                            url=anime_url,
+                            source=self.name,
+                            params={"season": season},
+                        )
+                    )
         except requests.RequestException:
-            # Gracefully skip blocked or unstable sources and let other scrapers provide results.
             pass
+        return results
 
     def search_episodes(self, anime: str, url: str, params: dict | None) -> None:
         try:

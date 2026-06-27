@@ -6,7 +6,7 @@ Enables cleaner function signatures and better type safety.
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional
+
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -24,13 +24,11 @@ class ChapterContext(BaseModel):
     chapter_id: str = Field(..., description="Chapter ID")
     chapter_number: str = Field(..., description="Chapter number (e.g., '42', '42.5')")
     source: str = Field(..., description="Source name (mangadex, mugiwaras, etc.)")
-    manga_url: Optional[str] = Field(None, description="Base manga URL for scrapers")
+    manga_url: str | None = Field(None, description="Base manga URL for scrapers")
 
     # Navigation context (optional, for chapter navigation)
-    all_chapters: Optional[list[ChapterData]] = Field(
-        None, description="All chapters for navigation"
-    )
-    chapter_labels: Optional[list[str]] = Field(None, description="Formatted chapter labels")
+    all_chapters: list[ChapterData | None] = Field(None, description="All chapters for navigation")
+    chapter_labels: list[str | None] = Field(None, description="Formatted chapter labels")
     current_index: int = Field(0, ge=0, description="Current chapter index in list")
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
@@ -47,7 +45,7 @@ class DownloadRequest(BaseModel):
     manga_id: str = Field(..., description="Manga ID")
     manga_title: str = Field(..., description="Manga title")
     source: str = Field(..., description="Source name")
-    manga_url: Optional[str] = Field(None, description="Base manga URL")
+    manga_url: str | None = Field(None, description="Base manga URL")
 
     # Download options
     output_directory: Path = Field(..., description="Base output directory")
@@ -70,16 +68,16 @@ class ReadingSession(BaseModel):
     manga_id: str
     manga_title: str
     source: str
-    manga_url: Optional[str] = None
+    manga_url: str | None = None
 
     # Progress
-    current_chapter: Optional[str] = None
+    current_chapter: str | None = None
     chapters: list[ChapterData] = Field(default_factory=list)
     chapter_index: int = 0
 
     # History/sync
-    last_synced_chapter: Optional[str] = None
-    anilist_progress: Optional[int] = None
+    last_synced_chapter: str | None = None
+    anilist_progress: int | None = None
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
@@ -91,5 +89,5 @@ class DownloadResult:
     success: bool
     chapter_number: str
     error_message: str = ""
-    pdf_path: Optional[Path] = None
+    pdf_path: Path | None = None
     file_size_mb: float = 0.0

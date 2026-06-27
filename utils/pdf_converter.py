@@ -47,7 +47,7 @@ def create_pdf_from_images(
             with Image.open(img_path) as img:
                 img.verify()  # Verify it's a valid image
             valid_images.append(img_path)
-        except (UnidentifiedImageError, IOError, Exception):
+        except (OSError, UnidentifiedImageError, Exception):
             # Skip invalid files (HTML errors, corrupted files, etc.)
             continue
 

@@ -99,7 +99,7 @@ class MangaHistory:
         try:
             with cls._history_file.open("w", encoding="utf-8") as f:
                 json.dump(data, f, indent=2, default=str)
-        except IOError as e:
+        except OSError as e:
             raise MangaError(f"Failed to save history: {e}")
 
     @classmethod
@@ -162,7 +162,7 @@ class DownloadedChaptersTracker:
         try:
             with cls._downloads_file.open("r", encoding="utf-8") as f:
                 return json.load(f)
-        except (json.JSONDecodeError, IOError):
+        except (OSError, json.JSONDecodeError):
             return {}
 
     @classmethod
@@ -173,7 +173,7 @@ class DownloadedChaptersTracker:
         try:
             with cls._downloads_file.open("w", encoding="utf-8") as f:
                 json.dump(data, f, indent=2, default=str)
-        except IOError as e:
+        except OSError as e:
             raise MangaError(f"Failed to save downloads: {e}")
 
     @classmethod

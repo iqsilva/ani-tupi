@@ -5,7 +5,6 @@ Allows users to save their source choice and automatically use it next time.
 """
 
 import json
-from typing import Dict, Optional
 
 from models.config import get_data_path
 
@@ -16,7 +15,7 @@ class MangaSourcePreferences:
     def __init__(self):
         """Initialize preferences manager."""
         self.preferences_file = get_data_path() / "manga_source_preferences.json"
-        self._preferences: Dict[str, str] = {}
+        self._preferences: dict[str, str] = {}
         self._load_preferences()
 
     def _load_preferences(self) -> None:
@@ -25,7 +24,7 @@ class MangaSourcePreferences:
             if self.preferences_file.exists():
                 with self.preferences_file.open("r", encoding="utf-8") as f:
                     self._preferences = json.load(f)
-        except (json.JSONDecodeError, IOError):
+        except (OSError, json.JSONDecodeError):
             self._preferences = {}
 
     def _save_preferences(self) -> None:
@@ -36,11 +35,11 @@ class MangaSourcePreferences:
 
             with self.preferences_file.open("w", encoding="utf-8") as f:
                 json.dump(self._preferences, f, indent=2, ensure_ascii=False)
-        except IOError:
+        except OSError:
             # Silently fail if unable to save (graceful degradation)
             pass
 
-    def get_preferred_source(self, manga_title: str) -> Optional[str]:
+    def get_preferred_source(self, manga_title: str) -> str | None:
         """Get preferred source for a manga.
 
         Args:
@@ -81,7 +80,7 @@ class MangaSourcePreferences:
             return True
         return False
 
-    def get_all_preferences(self) -> Dict[str, str]:
+    def get_all_preferences(self) -> dict[str, str]:
         """Get all manga source preferences.
 
         Returns:

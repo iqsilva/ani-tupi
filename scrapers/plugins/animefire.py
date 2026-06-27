@@ -6,6 +6,7 @@ import requests
 
 from scrapers.core.selenium_driver import SeleniumWebDriver
 from scrapers.plugins.utils import load_plugin, store_player_source
+from models.models import AnimeMetadata
 from services.repository import rep
 
 logger = logging.getLogger(__name__)
@@ -30,7 +31,7 @@ class AnimeFire:
             (parts.scheme, parts.netloc, parts.path, urlencode(query), parts.fragment)
         )
 
-    def search_anime(self, query: str) -> None:
+    def search_anime(self, query: str) -> list[AnimeMetadata]:
         url = "https://animefire.plus/pesquisar/" + "-".join(query.split())
         with SeleniumWebDriver() as driver:
             tree = driver.fetch(url)
@@ -40,7 +41,6 @@ class AnimeFire:
         selector = f"div.{target_class.replace(' ', '.')}"
 
         for div in tree.select(selector):
-            # Find article link within div
             article = div.select_one("article a")
             if article is not None:
                 href = article.get("href")
@@ -48,9 +48,11 @@ class AnimeFire:
                     titles_urls.append(href)
 
         titles = [str(h3.text) for h3 in tree.select("h3.animeTitle")]
+        results = []
         for title, url in zip(titles, titles_urls, strict=False):
-            if url:  # Only add if url is not None
-                rep.add_anime(title, url, self.name)
+            if url:
+                results.append(AnimeMetadata(title=title, url=url, source=self.name))
+        return results
 
     def search_episodes(self, anime: str, url: str, params: dict | None) -> None:
         try:

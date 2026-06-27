@@ -282,7 +282,7 @@ class LocalAnimeService:
             return AnimeDownloadDatabase()
 
         try:
-            with open(self.db_path, "r") as f:
+            with open(self.db_path) as f:
                 data = json.load(f)
                 return AnimeDownloadDatabase.model_validate(data)
         except Exception as e:

@@ -6,6 +6,7 @@ from bs4 import BeautifulSoup
 from requests import RequestException
 
 from scrapers.plugins.utils import load_plugin, store_player_source
+from models.models import AnimeMetadata
 from services.repository import rep
 
 logger = logging.getLogger(__name__)
@@ -20,7 +21,9 @@ class AniTube:
     name = "anitube"
     base_url = "https://www.anitube.zip"
 
-    def search_anime(self, query: str) -> None:
+    def search_anime(self, query: str) -> list[AnimeMetadata]:
+        collected: list[AnimeMetadata] = []
+
         def _do_search(q: str) -> None:
             try:
                 url = f"{self.base_url}/wp-json/wp/v2/posts?search={urllib.parse.quote(q)}&per_page=20"
@@ -45,10 +48,11 @@ class AniTube:
                         .replace(" todos episodios", "")
                         .replace("&#8211;", "–")
                     )
-                    rep.add_anime(title.strip(), link, self.name)
+                    collected.append(AnimeMetadata(title=title.strip(), url=link, source=self.name))
 
         _do_search(query)
         _do_search(f"{query} todos os episodios")
+        return collected
 
     def search_episodes(self, anime: str, url: str, params: dict | None) -> None:
         try:

@@ -5,7 +5,6 @@ Extracted from manga_tupi.py to improve maintainability and enable unit testing.
 """
 
 from pathlib import Path
-from typing import Optional
 
 import requests
 
@@ -21,7 +20,7 @@ def download_chapter(
     chapter,
     service,
     selected_manga,
-    manga_url: Optional[str],
+    manga_url: str | None,
     selected_source: str,
     config,
     tracker: DownloadedChaptersTracker,
@@ -146,7 +145,7 @@ def download_chapters_batch(
     chapters: list,
     service,
     selected_manga,
-    manga_url: Optional[str],
+    manga_url: str | None,
     selected_source: str,
     config,
     tracker: DownloadedChaptersTracker,
@@ -191,10 +190,10 @@ def download_chapters_batch(
 
 
 def prompt_download_range(
-    last_chapter: Optional[str],
+    last_chapter: str | None,
     available_chapters: list,
     default_count: int = 5,
-) -> Optional[list]:
+) -> list | None:
     """Prompt user for chapter range to download.
 
     Asks user to select:
@@ -249,8 +248,8 @@ def prompt_download_range(
 
 
 def _construct_chapter_url(
-    source: str, manga_url: Optional[str], chapter, manga_metadata
-) -> Optional[str]:
+    source: str, manga_url: str | None, chapter, manga_metadata
+) -> str | None:
     """Construct chapter URL based on source.
 
     Args:

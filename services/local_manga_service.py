@@ -145,7 +145,7 @@ class LocalMangaService:
             logger.error(f"Error getting chapters for {manga_title}: {e}")
             return []
 
-    def auto_create_pdf_if_needed(self, manga_title: str, chapter_num: str) -> Optional[Path]:
+    def auto_create_pdf_if_needed(self, manga_title: str, chapter_num: str) -> Path | None:
         """Auto-create PDF from images if PDF doesn't exist.
 
         Args:
@@ -339,7 +339,7 @@ class LocalMangaService:
 
         return images
 
-    def _build_local_chapter(self, chapter_dir: Path, chapter_num: str) -> Optional[LocalChapter]:
+    def _build_local_chapter(self, chapter_dir: Path, chapter_num: str) -> LocalChapter | None:
         """Build LocalChapter object from directory.
 
         Args:

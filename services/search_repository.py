@@ -3,7 +3,6 @@
 import time
 import re
 import threading
-from typing import Optional
 from collections import defaultdict
 from os import cpu_count
 from concurrent.futures import ThreadPoolExecutor, wait, ALL_COMPLETED
@@ -282,7 +281,10 @@ class SearchRepository:
             for future in done:
                 source = future_to_source[future]
                 try:
-                    future.result()
+                    scraper_results = future.result()
+                    if scraper_results:
+                        for anime in scraper_results:
+                            self.add_anime(anime.title, anime.url, anime.source, anime.params)
                     if verbose and len(self.sources) > 1:
                         logger.info(f"✓ {source} ({len(self.anime_to_urls)} resultados)", end="\r")
                 except Exception as e:
@@ -484,7 +486,7 @@ class SearchRepository:
         return SearchMetadata.model_validate(self._last_search_metadata)
 
     def get_anime_titles(
-        self, filter_by_query: Optional[str] = None, min_score: int | None = None
+        self, filter_by_query: str | None = None, min_score: int | None = None
     ) -> list[str]:
         """Get anime titles, optionally filtered by exact match to query.
 
@@ -499,9 +501,9 @@ class SearchRepository:
 
     def get_anime_titles_with_sources(
         self,
-        filter_by_query: Optional[str] = None,
-        original_query: Optional[str] = None,
-        anilist_results: Optional[list] = None,
+        filter_by_query: str | None = None,
+        original_query: str | None = None,
+        anilist_results: list | None = None,
     ) -> list[str]:
         """Get anime titles with source indicators, ranked by relevance.
 

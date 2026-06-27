@@ -6,7 +6,6 @@ with stealth mode, user-agent rotation, and BeautifulSoup parsing.
 
 import random
 import time
-from typing import Optional
 
 from bs4 import BeautifulSoup
 from selenium import webdriver
@@ -87,7 +86,7 @@ class SeleniumWebDriver:
         self.driver.execute_cdp_cmd("Network.setUserAgentOverride", {"userAgent": user_agent})
 
     def fetch(
-        self, url: str, wait_selector: Optional[str] = None, max_retries: int = 2
+        self, url: str, wait_selector: str | None = None, max_retries: int = 2
     ) -> BeautifulSoup:
         """Fetch URL and return parsed HTML with retry on timeout.
 

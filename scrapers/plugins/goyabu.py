@@ -7,6 +7,7 @@ from bs4 import BeautifulSoup
 
 from scrapers.core.blogger_resolver import resolve_blogger_token
 from scrapers.plugins.utils import load_plugin, store_player_source
+from models.models import AnimeMetadata
 from services.repository import rep
 
 BASE_URL = "https://goyabu.io"
@@ -22,7 +23,8 @@ class Goyabu:
     name = "goyabu"
     base_url = BASE_URL
 
-    def search_anime(self, query: str) -> None:
+    def search_anime(self, query: str) -> list[AnimeMetadata]:
+        results = []
         try:
             url = f"{BASE_URL}/?s={urllib.parse.quote(query)}"
             response = requests.get(url, headers=HEADERS, timeout=REQUEST_TIMEOUT)
@@ -36,9 +38,10 @@ class Goyabu:
                 title = title_el.get_text(strip=True)
                 link = a.get("href", "").strip()
                 if title and link:
-                    rep.add_anime(title, link, self.name)
+                    results.append(AnimeMetadata(title=title, url=link, source=self.name))
         except requests.RequestException:
             pass
+        return results
 
     def search_episodes(self, anime: str, url: str, params: dict | None) -> None:
         try:

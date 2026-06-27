@@ -15,7 +15,7 @@ import threading
 from collections import deque
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable, Optional
+from collections.abc import Callable
 
 from tqdm import tqdm
 
@@ -75,7 +75,7 @@ class AnimeDownloadService:
         anime_title: str,
         range_input: str,
         total_episodes: int,
-        get_episode_url: Callable[[int], Optional[tuple[str, str]]],
+        get_episode_url: Callable[[int], tuple[str, str] | None],
     ) -> DownloadResult:
         """Download episodes for an anime.
 
@@ -179,8 +179,8 @@ class AnimeDownloadService:
         self,
         anime_title: str,
         episodes: list[int],
-        get_episode_url: Callable[[int], Optional[tuple[str, str]]],
-    ) -> dict[int, Optional[tuple[str, str]]]:
+        get_episode_url: Callable[[int], tuple[str, str] | None],
+    ) -> dict[int, tuple[str, str] | None]:
         """Pre-fetch all episode URLs serially to avoid browser pool exhaustion.
 
         Uses URL pattern derivation as a fast path when CDN URLs follow a
@@ -202,7 +202,7 @@ class AnimeDownloadService:
         )
 
         logger.debug(f"Pre-fetching URLs for {len(episodes)} episodes")
-        episode_urls: dict[int, Optional[tuple[str, str]]] = {}
+        episode_urls: dict[int, tuple[str, str] | None] = {}
         last_known_url: str | None = None
         last_known_source: str | None = None
 
@@ -245,7 +245,7 @@ class AnimeDownloadService:
         anime_title: str,
         anime_dir: Path,
         episodes: list[int],
-        episode_urls: dict[int, Optional[tuple[str, str]]],
+        episode_urls: dict[int, tuple[str, str] | None],
     ) -> tuple[int, list[int], list[int]]:
         """Download episodes with intelligent retry queue and TQDM progress.
 
@@ -347,7 +347,7 @@ class AnimeDownloadService:
         anime_title: str,
         anime_dir: Path,
         episode_num: int,
-        url_info: Optional[tuple[str, str]],
+        url_info: tuple[str, str] | None,
     ) -> tuple[bool, bool]:
         """Download a single episode with pre-fetched URL (single attempt).
 
@@ -470,7 +470,7 @@ class AnimeDownloadService:
             return AnimeDownloadDatabase()
 
         try:
-            with open(self.db_path, "r") as f:
+            with open(self.db_path) as f:
                 data = json.load(f)
                 return AnimeDownloadDatabase.model_validate(data)
         except Exception as e:

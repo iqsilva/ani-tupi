@@ -22,6 +22,7 @@ from thefuzz import fuzz
 
 from scrapers.core.selenium_driver import SeleniumWebDriver
 from scrapers.plugins.utils import load_plugin, store_player_source
+from models.models import AnimeMetadata
 from services.repository import rep
 
 logger = logging.getLogger(__name__)
@@ -253,7 +254,8 @@ class AnimesDigital:
                 logger.debug(f"Complete slug failed for '{slug}': {e}")
         return all_anime
 
-    def _add_deduplicated(self, all_anime: dict) -> None:
+    def _add_deduplicated(self, all_anime: dict) -> list[AnimeMetadata]:
+        results = []
         seen_urls: set[str] = set()
         for data in all_anime.values():
             legendado_url = data["legendado"]
@@ -262,12 +264,23 @@ class AnimesDigital:
             keep_dublado = dublado_url and dublado_url not in seen_urls
             if keep_legendado:
                 seen_urls.add(legendado_url)
-                rep.add_anime(data["base_title"], legendado_url, AnimesDigital.name)
+                results.append(
+                    AnimeMetadata(
+                        title=data["base_title"], url=legendado_url, source=AnimesDigital.name
+                    )
+                )
             if keep_dublado:
                 seen_urls.add(dublado_url)
-                rep.add_anime(f"{data['base_title']} Dublado", dublado_url, AnimesDigital.name)
+                results.append(
+                    AnimeMetadata(
+                        title=f"{data['base_title']} Dublado",
+                        url=dublado_url,
+                        source=AnimesDigital.name,
+                    )
+                )
+        return results
 
-    def search_anime(self, query: str) -> None:
+    def search_anime(self, query: str) -> list[AnimeMetadata]:
         query_words = query.lower().split()
         all_anime = self._collect_api_results(query_words)
 
@@ -282,7 +295,7 @@ class AnimesDigital:
         if not all_anime:
             all_anime = self._collect_slug_results(query)
 
-        self._add_deduplicated(all_anime)
+        return self._add_deduplicated(all_anime)
 
     def _search_episodes_with_audio(
         self, search_query: str, audio_type: str = "dublado"

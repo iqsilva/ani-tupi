@@ -7,6 +7,7 @@ from bs4 import BeautifulSoup
 
 from scrapers.core.blogger_resolver import resolve_blogger_token
 from scrapers.plugins.utils import load_plugin, store_player_source
+from models.models import AnimeMetadata
 from services.repository import rep
 
 logger = logging.getLogger(__name__)
@@ -24,7 +25,8 @@ class AnimesOnlineCC:
     name = "animesonlinecc"
     base_url = BASE_URL
 
-    def search_anime(self, query: str) -> None:
+    def search_anime(self, query: str) -> list[AnimeMetadata]:
+        results = []
         try:
             url = f"{BASE_URL}/search/{urllib.parse.quote(query)}"
             r = requests.get(url, headers=HEADERS, timeout=REQUEST_TIMEOUT)
@@ -38,9 +40,10 @@ class AnimesOnlineCC:
                 title = title_el.get_text(strip=True) if title_el else a.get_text(strip=True)
                 link = a.get("href", "")
                 if title and link:
-                    rep.add_anime(title, link, self.name)
+                    results.append(AnimeMetadata(title=title, url=link, source=self.name))
         except requests.RequestException as e:
             logger.debug(f"AnimesOnlineCC search request failed for '{query}': {e}")
+        return results
 
     def search_episodes(self, anime: str, url: str, params: dict | None) -> None:
         try:

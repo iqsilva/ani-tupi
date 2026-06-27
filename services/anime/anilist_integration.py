@@ -5,7 +5,7 @@ sequel detection, and synchronization with AniList API.
 """
 
 import json
-from typing import Optional
+
 
 from models.config import get_data_path
 from services.anilist_service import anilist_client
@@ -82,8 +82,8 @@ def _is_anime_released(anime_node) -> bool:
 def offer_sequel_and_continue(
     anilist_id: int,
     args,
-    current_episode: Optional[int] = None,
-    anilist_episodes: Optional[int] = None,
+    current_episode: int | None = None,
+    anilist_episodes: int | None = None,
 ) -> bool:
     """Check for sequels when last episode is watched and offer to continue.
 

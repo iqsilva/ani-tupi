@@ -194,7 +194,7 @@ class PlaybackCoordinator:
                         if container:
                             break
 
-                    except asyncio.TimeoutError:
+                    except TimeoutError:
                         # This source timed out, try next
                         logger.info(f"   ⏱️  {source} timeout (> {timeout}s)")
                         continue

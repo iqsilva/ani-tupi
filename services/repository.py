@@ -6,8 +6,6 @@ Coordinates between specialized repositories:
 - PlaybackCoordinator: video extraction from sources
 """
 
-from typing import Optional
-
 from services.search_repository import SearchRepository
 from services.episode_repository import EpisodeRepository
 from services.playback_coordinator import PlaybackCoordinator
@@ -86,16 +84,16 @@ class Repository:
         self._search_repo.add_anime(title, url, source, params)
 
     def get_anime_titles(
-        self, filter_by_query: Optional[str] = None, min_score: int | None = None
+        self, filter_by_query: str | None = None, min_score: int | None = None
     ) -> list[str]:
         """Get anime titles."""
         return self._search_repo.get_anime_titles(filter_by_query, min_score)
 
     def get_anime_titles_with_sources(
         self,
-        filter_by_query: Optional[str] = None,
-        original_query: Optional[str] = None,
-        anilist_results: Optional[list] = None,
+        filter_by_query: str | None = None,
+        original_query: str | None = None,
+        anilist_results: list | None = None,
     ) -> list[str]:
         """Get anime titles with sources."""
         return self._search_repo.get_anime_titles_with_sources(

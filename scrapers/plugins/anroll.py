@@ -5,6 +5,7 @@ import requests
 from bs4 import BeautifulSoup
 
 from scrapers.plugins.utils import load_plugin, store_player_source
+from models.models import AnimeMetadata
 from services.repository import rep
 
 BASE_URL = "https://www.anroll.info"
@@ -20,7 +21,8 @@ class AnRoll:
     name = "anroll"
     base_url = BASE_URL
 
-    def search_anime(self, query: str) -> None:
+    def search_anime(self, query: str) -> list[AnimeMetadata]:
+        results = []
         try:
             url = f"{BASE_URL}/search/?q={urllib.parse.quote(query)}"
             response = requests.get(url, headers=HEADERS, timeout=REQUEST_TIMEOUT)
@@ -31,14 +33,14 @@ class AnRoll:
                 if "/anime/" not in href or "episodio" in href:
                     continue
                 text = a.get_text(strip=True)
-                # Strip DUBHD/LEGHD prefix, 4-digit year suffix, then language markers
                 title = re.sub(r"^(DUB|LEG)HD", "", text).strip()
                 title = re.sub(r"\s*\d{4}$", "", title).strip()
                 title = re.sub(r"\s*\(?Legendado\)?\s*$", "", title, flags=re.IGNORECASE).strip()
                 if title and href:
-                    rep.add_anime(title, href, self.name)
+                    results.append(AnimeMetadata(title=title, url=href, source=self.name))
         except requests.RequestException:
             pass
+        return results
 
     def search_episodes(self, anime: str, url: str, params: dict | None) -> None:
         try:

@@ -200,18 +200,11 @@ def _best_similarity_score_for_reference(titles: list[str], reference_title: str
 def _get_ranked_titles_with_sources(
     *, filter_by_query: str | None, original_query: str | None, anilist_results
 ) -> list[str]:
-    """Call repository ranking with backwards-compatible fallback."""
-    try:
-        return rep.get_anime_titles_with_sources(
-            filter_by_query=filter_by_query,
-            original_query=original_query,
-            anilist_results=anilist_results,
-        )
-    except TypeError:
-        return rep.get_anime_titles_with_sources(
-            filter_by_query=filter_by_query,
-            original_query=original_query,
-        )
+    return rep.get_anime_titles_with_sources(
+        filter_by_query=filter_by_query,
+        original_query=original_query,
+        anilist_results=anilist_results,
+    )
 
 
 @dataclass

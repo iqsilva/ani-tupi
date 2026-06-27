@@ -1,7 +1,7 @@
 """Player repository for managing video playback and plugin state."""
 
 from collections import defaultdict
-from typing import Optional, Dict, List, Tuple, Any
+from typing import Any
 from utils.cache import get_cache
 from models.config import settings
 
@@ -13,7 +13,7 @@ class PlayerRepository:
     maintain anime-to-AniList-ID mappings, and cache selected URLs.
     """
 
-    _instance: Optional["PlayerRepository"] = None
+    _instance: "PlayerRepository | None" = None
 
     def __new__(cls):
         """Enforce singleton pattern."""
@@ -33,7 +33,7 @@ class PlayerRepository:
         """
         self._plugins[plugin.name] = plugin
 
-    def get_plugin(self, name: str) -> Optional[Any]:
+    def get_plugin(self, name: str) -> Any | None:
         """Get plugin by name.
 
         Args:
@@ -44,7 +44,7 @@ class PlayerRepository:
         """
         return self._plugins.get(name)
 
-    def get_active_sources(self) -> List[str]:
+    def get_active_sources(self) -> list[str]:
         """Get sorted list of registered plugin names.
 
         Returns:
@@ -61,7 +61,7 @@ class PlayerRepository:
         """
         self._anime_to_anilist_id[anime] = anilist_id
 
-    def get_anime_anilist_id(self, anime: str) -> Optional[int]:
+    def get_anime_anilist_id(self, anime: str) -> int | None:
         """Get AniList ID for anime title.
 
         Args:
@@ -72,7 +72,7 @@ class PlayerRepository:
         """
         return self._anime_to_anilist_id.get(anime)
 
-    def get_all_anime_ids(self) -> Dict[str, int]:
+    def get_all_anime_ids(self) -> dict[str, int]:
         """Get all anime-to-AniList-ID mappings.
 
         Returns:
@@ -80,7 +80,7 @@ class PlayerRepository:
         """
         return dict(self._anime_to_anilist_id)
 
-    def set_selected_urls(self, anime: str, episode_num: int, urls: List[Tuple[str, str]]) -> None:
+    def set_selected_urls(self, anime: str, episode_num: int, urls: list[tuple[str, str]]) -> None:
         """Store selected URLs for an episode.
 
         Args:
@@ -90,7 +90,7 @@ class PlayerRepository:
         """
         self._selected_urls[anime][episode_num] = urls
 
-    def get_selected_urls(self, anime: str, episode_num: int) -> List[Tuple[str, str]]:
+    def get_selected_urls(self, anime: str, episode_num: int) -> list[tuple[str, str]]:
         """Get selected URLs for an episode.
 
         Args:
@@ -112,7 +112,7 @@ class PlayerRepository:
         if anime in self._selected_urls and episode_num in self._selected_urls[anime]:
             del self._selected_urls[anime][episode_num]
 
-    def get_video_url(self, anime: str, episode_num: int) -> Optional[str]:
+    def get_video_url(self, anime: str, episode_num: int) -> str | None:
         """Get cached video URL for an episode.
 
         Args:

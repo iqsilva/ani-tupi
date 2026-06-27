@@ -5,7 +5,6 @@ results are found for the same search query (e.g., different scanlations).
 """
 
 import json
-from typing import Dict, Optional
 
 from models.config import get_data_path
 
@@ -16,7 +15,7 @@ class MangaSelectionPreferences:
     def __init__(self):
         """Initialize preferences manager."""
         self.preferences_file = get_data_path() / "manga_selection_preferences.json"
-        self._preferences: Dict[str, str] = {}  # search_query -> manga_id
+        self._preferences: dict[str, str] = {}  # search_query -> manga_id
         self._load_preferences()
 
     def _load_preferences(self) -> None:
@@ -25,7 +24,7 @@ class MangaSelectionPreferences:
             if self.preferences_file.exists():
                 with self.preferences_file.open("r", encoding="utf-8") as f:
                     self._preferences = json.load(f)
-        except (json.JSONDecodeError, IOError):
+        except (OSError, json.JSONDecodeError):
             self._preferences = {}
 
     def _save_preferences(self) -> None:
@@ -36,11 +35,11 @@ class MangaSelectionPreferences:
 
             with self.preferences_file.open("w", encoding="utf-8") as f:
                 json.dump(self._preferences, f, indent=2, ensure_ascii=False)
-        except IOError:
+        except OSError:
             # Silently fail if unable to save (graceful degradation)
             pass
 
-    def get_preferred_manga_id(self, search_query: str) -> Optional[str]:
+    def get_preferred_manga_id(self, search_query: str) -> str | None:
         """Get preferred manga ID for a search query.
 
         Args:
@@ -81,7 +80,7 @@ class MangaSelectionPreferences:
             return True
         return False
 
-    def get_all_preferences(self) -> Dict[str, str]:
+    def get_all_preferences(self) -> dict[str, str]:
         """Get all manga selection preferences.
 
         Returns:

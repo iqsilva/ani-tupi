@@ -39,7 +39,7 @@ def _load_queue() -> OfflineSyncQueue:
     try:
         import json
 
-        with open(queue_path, "r") as f:
+        with open(queue_path) as f:
             data = json.load(f)
             return OfflineSyncQueue.model_validate(data)
     except Exception as e:

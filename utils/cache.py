@@ -11,7 +11,7 @@ Configuration in models/config.py determines cache type and behavior.
 import time
 import threading
 from abc import ABC, abstractmethod
-from typing import Any, Dict, Optional, Union
+from typing import Any
 from pathlib import Path
 from enum import Enum
 
@@ -32,7 +32,7 @@ class Cache(ABC):
     """Abstract cache interface for all cache implementations."""
 
     @abstractmethod
-    def get(self, key: str) -> Optional[Any]:
+    def get(self, key: str) -> Any | None:
         """Get value from cache.
 
         Args:
@@ -44,7 +44,7 @@ class Cache(ABC):
         pass
 
     @abstractmethod
-    def set(self, key: str, value: Any, ttl: Optional[int] = None) -> None:
+    def set(self, key: str, value: Any, ttl: int | None = None) -> None:
         """Set value in cache with TTL.
 
         Args:
@@ -98,13 +98,13 @@ class MemoryCache(Cache):
             max_size_mb: Maximum cache size in MB
             default_ttl: Default TTL in seconds
         """
-        self._cache: Dict[str, "_CacheItem"] = {}
+        self._cache: dict[str, _CacheItem] = {}
         self._max_size_bytes = max_size_mb * 1024 * 1024
         self._current_size_bytes = 0
         self._default_ttl = default_ttl
         self._lock = threading.Lock()
 
-    def get(self, key: str) -> Optional[Any]:
+    def get(self, key: str) -> Any | None:
         """Get value from cache if not expired."""
         with self._lock:
             item = self._cache.get(key)
@@ -119,7 +119,7 @@ class MemoryCache(Cache):
             item.access()
             return item.value
 
-    def set(self, key: str, value: Any, ttl: Optional[int] = None) -> None:
+    def set(self, key: str, value: Any, ttl: int | None = None) -> None:
         """Set value in cache with TTL."""
         if ttl is None:
             ttl = self._default_ttl
@@ -182,7 +182,7 @@ class DiskCache(Cache):
     Provides durability and larger storage capacity.
     """
 
-    def __init__(self, cache_dir: Optional[Path] = None, default_ttl: int = 3600):
+    def __init__(self, cache_dir: Path | None = None, default_ttl: int = 3600):
         """Initialize disk cache.
 
         Args:
@@ -201,14 +201,14 @@ class DiskCache(Cache):
         )
         self._default_ttl = default_ttl
 
-    def get(self, key: str) -> Optional[Any]:
+    def get(self, key: str) -> Any | None:
         """Get value from disk cache."""
         try:
             return self._cache.get(key)
         except Exception:
             return None
 
-    def set(self, key: str, value: Any, ttl: Optional[int] = None) -> None:
+    def set(self, key: str, value: Any, ttl: int | None = None) -> None:
         """Set value in disk cache with TTL."""
         if ttl is None:
             ttl = self._default_ttl
@@ -252,7 +252,7 @@ class HybridCache(Cache):
 
     def __init__(
         self,
-        cache_dir: Optional[Path] = None,
+        cache_dir: Path | None = None,
         memory_size_mb: int = 50,
         default_ttl: int = 3600,
     ):
@@ -266,7 +266,7 @@ class HybridCache(Cache):
         self._memory = MemoryCache(memory_size_mb, default_ttl)
         self._disk = DiskCache(cache_dir, default_ttl)
 
-    def get(self, key: str) -> Optional[Any]:
+    def get(self, key: str) -> Any | None:
         """Get value from memory first, then disk."""
         # Try memory first
         value = self._memory.get(key)
@@ -282,7 +282,7 @@ class HybridCache(Cache):
 
         return None
 
-    def set(self, key: str, value: Any, ttl: Optional[int] = None) -> None:
+    def set(self, key: str, value: Any, ttl: int | None = None) -> None:
         """Set value in both memory and disk."""
         self._memory.set(key, value, ttl)
         self._disk.set(key, value, ttl)
@@ -340,7 +340,7 @@ class _CacheItem:
             return sys.getsizeof(self.value)
 
 
-def create_cache(cache_type: Union[CacheType, str]) -> Cache:
+def create_cache(cache_type: CacheType | str) -> Cache:
     """Create cache instance based on configuration.
 
     Args:
@@ -369,7 +369,7 @@ def create_cache(cache_type: Union[CacheType, str]) -> Cache:
 
 
 # Global cache instance based on configuration
-_global_cache: Optional[Cache] = None
+_global_cache: Cache | None = None
 _cache_lock = threading.Lock()
 
 

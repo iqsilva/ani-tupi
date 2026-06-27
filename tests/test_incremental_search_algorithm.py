@@ -32,7 +32,9 @@ class MockRepository:
         """Mock get_search_metadata."""
         return Mock(used_query=self._last_query)
 
-    def get_anime_titles_with_sources(self, filter_by_query=None, original_query=None):
+    def get_anime_titles_with_sources(
+        self, filter_by_query=None, original_query=None, anilist_results=None
+    ):
         """Mock get_anime_titles_with_sources."""
         return self._last_results
 

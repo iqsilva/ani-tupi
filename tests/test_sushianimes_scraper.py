@@ -110,20 +110,18 @@ class TestSushiAnimesScraper:
     def setup_method(self):
         self.scraper = SushiAnimes()
 
-    @patch("scrapers.plugins.sushianimes.rep")
     @patch("scrapers.plugins.sushianimes.requests.get")
-    def test_search_anime_creates_season_results(self, mock_get, mock_rep):
+    def test_search_anime_creates_season_results(self, mock_get):
         mock_get.side_effect = [_response(SEARCH_HTML), _response(ANIME_PAGE_HTML)]
 
-        self.scraper.search_anime("dorohedoro")
+        results = self.scraper.search_anime("dorohedoro")
 
-        assert mock_rep.add_anime.call_count == 2
-        calls = [call.args for call in mock_rep.add_anime.call_args_list]
-        assert calls[0][0] == "Dorohedoro - Dublado"
-        assert calls[0][2] == "sushianimes"
-        assert calls[0][3] == {"season": 1}
-        assert calls[1][0] == "Dorohedoro 2 - Dublado"
-        assert calls[1][3] == {"season": 2}
+        assert len(results) == 2
+        assert results[0].title == "Dorohedoro - Dublado"
+        assert results[0].source == "sushianimes"
+        assert results[0].params == {"season": 1}
+        assert results[1].title == "Dorohedoro 2 - Dublado"
+        assert results[1].params == {"season": 2}
 
     @patch("scrapers.plugins.sushianimes.rep")
     @patch("scrapers.plugins.sushianimes.requests.get")

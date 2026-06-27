@@ -16,7 +16,7 @@ Defines DTOs (Data Transfer Objects) for:
 from datetime import datetime
 from enum import Enum
 from pathlib import Path
-from typing import Any, Literal, Optional
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
@@ -167,7 +167,7 @@ class MangaMetadata(BaseModel):
     year: int | None = Field(None, ge=1900, le=2100, description="Publication year")
     tags: list[str] = Field(default_factory=list, description="Tags/genres")
     anilist_id: int | None = Field(None, description="AniList manga ID")
-    anilist_data: "Optional[AniListManga]" = Field(None, description="AniList manga data")
+    anilist_data: "AniListManga | None" = Field(None, description="AniList manga data")
 
 
 class ChapterData(BaseModel):

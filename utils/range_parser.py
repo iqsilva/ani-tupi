@@ -9,8 +9,6 @@ Supported patterns:
 - "" (empty) → Use default (5 chapters)
 """
 
-from typing import Optional
-
 
 def _safe_float(value: str) -> float | None:
     """Convert string to float, returning None for non-numeric values like 'extra', 'bonus'."""
@@ -22,8 +20,8 @@ def _safe_float(value: str) -> float | None:
 
 def parse_range_input(
     user_input: str,
-    last_chapter: Optional[str] = None,
-    available_chapters: Optional[list[str]] = None,
+    last_chapter: str | None = None,
+    available_chapters: list[str | None] = None,
     default_count: int = 5,
 ) -> list[str]:
     """Parse user range input and return list of chapter numbers to download.
@@ -86,7 +84,7 @@ def parse_range_input(
 
 
 def _get_default_range(
-    last_chapter: Optional[str],
+    last_chapter: str | None,
     available_chapters: list[str],
     default_count: int,
 ) -> list[str]:
@@ -119,7 +117,7 @@ def _get_default_range(
 
 
 def _get_offset_range(
-    last_chapter: Optional[str],
+    last_chapter: str | None,
     available_chapters: list[str],
     count: int,
 ) -> list[str]:

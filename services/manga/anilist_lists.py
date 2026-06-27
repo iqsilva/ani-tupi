@@ -4,7 +4,7 @@ Consolidates _handle_reading_list, _handle_completed_list, _handle_planning_list
 into a single parameterized function to eliminate code duplication.
 """
 
-from typing import Callable
+from collections.abc import Callable
 
 from services.anilist_service import anilist_client
 from services.manga_service import UnifiedMangaService

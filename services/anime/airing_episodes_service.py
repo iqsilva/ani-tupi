@@ -11,7 +11,7 @@ This service supports the "Novos Episódios" (New Episodes) tab feature by:
 
 import logging
 import time
-from datetime import datetime, timezone
+from datetime import datetime, UTC
 
 from models.config import settings
 from models.models import AiringAnimeEntry, AniListTitle
@@ -52,7 +52,7 @@ class AiringEpisodesService:
         day = end_date.get("day") or 1
 
         try:
-            return datetime(year, month, day, tzinfo=timezone.utc)
+            return datetime(year, month, day, tzinfo=UTC)
         except ValueError:
             return None
 
@@ -70,7 +70,7 @@ class AiringEpisodesService:
         if end_dt is None:
             return False
 
-        now = datetime.now(tz=timezone.utc)
+        now = datetime.now(tz=UTC)
         delta = now - end_dt
         return delta.days < settings.airing.grace_period_days
 

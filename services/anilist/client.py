@@ -19,7 +19,7 @@ from services.anilist.anime_operations import AnimeOperationsMixin
 from services.anilist.manga_operations import MangaOperationsMixin
 from utils.headless_detector import get_token_from_user
 from utils.logging import get_logger
-from typing import Optional
+
 
 logger = get_logger(__name__)
 
@@ -47,7 +47,7 @@ class AniListClient(AnimeOperationsMixin, MangaOperationsMixin):
         except Exception:
             return None
 
-    def _save_token(self, token: str, user_id: Optional[int] = None) -> None:
+    def _save_token(self, token: str, user_id: int | None = None) -> None:
         """Save access token and user_id to file."""
         token_file = settings.anilist.token_file
         token_file.parent.mkdir(parents=True, exist_ok=True)
@@ -159,9 +159,7 @@ class AniListClient(AnimeOperationsMixin, MangaOperationsMixin):
             logger.debug(f"Token validation error: {e}")
             return False
 
-    def _query(
-        self, query: str, variables: Optional[dict] = None, token: Optional[str] = None
-    ) -> dict:
+    def _query(self, query: str, variables: dict | None = None, token: str | None = None) -> dict:
         """Execute GraphQL query with retry on rate limit (429).
 
         Args:

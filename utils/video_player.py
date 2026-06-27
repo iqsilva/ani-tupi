@@ -758,7 +758,7 @@ shift+t script-message toggle-sub-dub
                                         return result
                         except json.JSONDecodeError:
                             continue
-                except socket.timeout:
+                except TimeoutError:
                     continue
                 except Exception as e:
                     logger.info(f"IPC error: {e}")
