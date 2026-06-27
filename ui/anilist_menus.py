@@ -900,10 +900,10 @@ def authenticate_flow() -> None:
 
     if success:
         user_info = anilist_client.get_viewer_info()
-        if user_info:
-            pass
+        username = user_info.get("name", "usuário") if user_info else "usuário"
+        logger.info(f"Autenticado como {username}")
     else:
-        pass
+        logger.error("Falha na autenticação. Verifique o token.")
 
 
 if __name__ == "__main__":

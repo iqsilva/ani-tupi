@@ -10,6 +10,7 @@ from typing import Optional
 
 from bs4 import BeautifulSoup
 from selenium import webdriver
+from selenium.common.exceptions import WebDriverException
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
@@ -116,7 +117,7 @@ class SeleniumWebDriver:
                         WebDriverWait(self.driver, self.timeout).until(
                             EC.presence_of_element_located((By.CSS_SELECTOR, wait_selector))
                         )
-                    except Exception as e:
+                    except WebDriverException as e:
                         raise Exception(f"Failed to find element '{wait_selector}': {e}")
 
                 # Get rendered HTML and parse
@@ -149,7 +150,7 @@ class SeleniumWebDriver:
 
         try:
             self.driver.get(url)
-        except Exception as e:
+        except WebDriverException as e:
             raise Exception(f"Failed to load URL '{url}': {e}") from e
         time.sleep(random.uniform(0.5, 1.5))
 

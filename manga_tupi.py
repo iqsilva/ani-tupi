@@ -95,7 +95,8 @@ def _handle_recent_history(service: UnifiedMangaService) -> None:
             elif isinstance(data, list) and len(data) > 1:
                 try:
                     chapter = int(float(data[1])) + 1  # Convert from 0-indexed
-                except (IndexError, TypeError, ValueError):
+                except (IndexError, TypeError, ValueError) as e:
+                    logger.debug(f"Parse error capítulo: {e}")
                     chapter = "Desconhecido"
             else:
                 chapter = "Desconhecido"
@@ -221,7 +222,10 @@ def _start_manga_search(service: UnifiedMangaService, title: str) -> None:
                     return
                 # Remove star and (salvo) indicators if present
                 clean_title = selected_title.replace("⭐ ", "").replace(" (salvo)", "")
-                selected_manga = next(m for m in results if m.title == clean_title)
+                selected_manga = next((m for m in results if m.title == clean_title), None)
+                if selected_manga is None:
+                    logger.error(f"Manga '{clean_title}' não encontrado nos resultados.")
+                    return
             except KeyboardInterrupt:
                 return
         else:
@@ -258,8 +262,10 @@ def _research_manga_in_new_source(
             if chapters:
                 # ID exists in this source, verify it's the right one
                 return
-        except Exception:
-            pass  # ID doesn't exist in this source, search instead
+        except (ConnectionError, TimeoutError) as e:
+            logger.debug(f"Fonte indisponível: {e}")
+        except Exception as e:
+            logger.warning(f"Erro inesperado ao carregar capítulos: {e}")
 
         # Search for manga in new source
         with loading(f"Buscando '{selected_manga.title}' em {new_source}..."):
@@ -604,9 +610,12 @@ def _continue_manga_flow(
             # Find actual chapter (strip resume hint)
             display_label = selected_label.replace("⮕ Retomar - ", "")
             current_index = next(
-                i
-                for i, label in enumerate(chapter_labels)
-                if label.replace("⮕ Retomar - ", "") == display_label
+                (
+                    i
+                    for i, label in enumerate(chapter_labels)
+                    if label.replace("⮕ Retomar - ", "") == display_label
+                ),
+                0,
             )
 
         auto_load_next = False  # Reset flag for next iteration
@@ -1013,18 +1022,17 @@ def _handle_download_for_later(
 
     # Handle already-downloaded chapters if skip enabled
     if already_downloaded and config.skip_already_downloaded:
-        if already_downloaded:
-            skip_msg = (
-                f"{len(already_downloaded)} capítulo(s) já baixado(s). Continuar apenas com novos?"
-            )
-            confirm_options = ["✅ Sim, continuar", "❌ Cancelar", "🔄 Re-baixar todos"]
-            confirm = menu_navigate(confirm_options, skip_msg)
+        skip_msg = (
+            f"{len(already_downloaded)} capítulo(s) já baixado(s). Continuar apenas com novos?"
+        )
+        confirm_options = ["✅ Sim, continuar", "❌ Cancelar", "🔄 Re-baixar todos"]
+        confirm = menu_navigate(confirm_options, skip_msg)
 
-            if confirm == "❌ Cancelar":
-                return
-            elif confirm == "🔄 Re-baixar todos":
-                new_chapters = chapters_to_download
-            # else: continue with just new_chapters
+        if confirm == "❌ Cancelar":
+            return
+        elif confirm == "🔄 Re-baixar todos":
+            new_chapters = chapters_to_download
+        # else: continue with just new_chapters
 
     if not new_chapters:
         logger.info(f"✓ Todos os {len(already_downloaded)} capítulo(s) já estão baixados")
@@ -1065,7 +1073,8 @@ def _handle_download_for_later(
                 try:
                     # Ask if user wants to continue
                     continue_options = ["✅ Continuar", "❌ Cancelar"]
-                    if menu_navigate(continue_options, "Continuar com próximo capítulo?"):
+                    choice = menu_navigate(continue_options, "Continuar com próximo capítulo?")
+                    if choice == "✅ Continuar":
                         continue
                     else:
                         break
@@ -1438,7 +1447,11 @@ def _show_local_chapters(local_service: "LocalMangaService", manga_title: str) -
 
         # Find selected chapter (handle resume prefix)
         clean_label = selected_label.replace("⮕ Retomar: ", "")
-        chapter_index = [ch.display_name() for ch in chapters].index(clean_label)
+        chapter_names = [ch.display_name() for ch in chapters]
+        if clean_label not in chapter_names:
+            logger.error(f"Capítulo '{clean_label}' não encontrado.")
+            return
+        chapter_index = chapter_names.index(clean_label)
         selected_chapter = chapters[chapter_index]
 
         # Process chapter (auto-create PDF if needed)
@@ -1669,7 +1682,10 @@ def _handle_search_flow(service: UnifiedMangaService) -> None:
     if selected_title is None:
         return
 
-    selected_manga = next(m for m in results if m.title == selected_title)
+    selected_manga = next((m for m in results if m.title == selected_title), None)
+    if selected_manga is None:
+        logger.error(f"Manga '{selected_title}' não encontrado nos resultados.")
+        return
 
     # Continue with the normal manga flow (allowing source change)
     _continue_manga_flow(service, selected_manga, allow_source_change=True)

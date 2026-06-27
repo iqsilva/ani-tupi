@@ -161,35 +161,13 @@ def configure_logging(debug: bool = False) -> None:
     if debug:
         debug_log_file = log_dir / "debug.log"
 
-        # Create a JSON-formatted sink (custom function)
-        def json_sink(message):
-            # message is a loguru.Message object with .record attribute
-            record = message.record
-            log_data = {
-                "timestamp": record["time"].isoformat(),
-                "level": record["level"].name,
-                "logger": record["name"],
-                "function": record["function"],
-                "line": record["line"],
-                "message": record["message"],
-                "process_id": record["process"].id,
-                "thread_id": record["thread"].id,
-            }
-
-            if record["exception"]:
-                exc_type, exc_value, exc_traceback = record["exception"]
-                log_data["exception"] = {
-                    "type": exc_type.__name__ if exc_type else None,
-                    "value": str(exc_value) if exc_value else None,
-                }
-
-            # Write JSON line
-            with open(debug_log_file, "a") as f:
-                f.write(json.dumps(log_data) + "\n")
-
         _base_logger.add(
-            json_sink,
+            debug_log_file,
+            format=_json_formatter,
             level="DEBUG",
+            rotation="50 MB",
+            retention=10,
+            compression="zip",
             filter=SensitiveDataFilter(),
         )
 

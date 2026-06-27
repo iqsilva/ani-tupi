@@ -81,8 +81,7 @@ def show_version_info() -> None:
     from models.config import settings
 
     service = UpdateCheckService()
-    local_version = service._get_local_version()
-    latest_version = service._fetch_latest_version()
+    local_version, latest_version = service.get_version_info()
 
     logger.info(f"ani-tupi local: {local_version}")
     if not latest_version:
@@ -90,7 +89,7 @@ def show_version_info() -> None:
         return
 
     logger.info(f"ani-tupi remoto: {latest_version}")
-    if service._is_remote_newer(local_version, latest_version):
+    if service.is_remote_newer(local_version, latest_version):
         logger.info(f"⬆️  Atualização disponível. Execute: {settings.updates.update_command}")
     else:
         logger.info("✅ Você já está na versão mais recente.")

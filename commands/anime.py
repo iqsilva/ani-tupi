@@ -136,7 +136,7 @@ def handle_anime_download(ctx: "PlaybackContext", args) -> None:
     logger.info(f"   Total de episódios: {ctx.num_episodes}")
 
     # Calculate default range (next unwatched to end)
-    # ctx.episode_idx is 0-indexed, so next episode is episode_idx + 2
+    # episode_idx is 0-based: watched ep (idx+1), next is (idx+2)
     next_episode = ctx.episode_idx + 2
     if next_episode > ctx.num_episodes:
         next_episode = ctx.num_episodes
