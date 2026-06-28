@@ -62,7 +62,7 @@ class Goyabu:
                 ep_num = ep.get("episodio", "")
                 ep_name = ep.get("episode_name", "")
                 link = ep.get("link", "")
-                if not link:
+                if not link or ep_num == "":
                     continue
                 label = f"Episódio {ep_num}"
                 if ep_name:
