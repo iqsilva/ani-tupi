@@ -37,13 +37,13 @@ logger = get_logger(__name__)
 def build_post_playback_options(ctx: "PlaybackContext") -> list[str]:
     """Build post-playback action options for current context."""
     has_next = ctx.episode_idx < ctx.num_episodes - 1
-    extra = []
-    if not has_next:
-        extra.append("↩️  Voltar ao menu anterior")
-    extra.extend(
-        ["📋 Escolher outro episódio", "📥 Baixar para assistir depois", "🔄 Trocar fonte"]
+    extra = ["📋 Escolher outro episódio", "📥 Baixar para assistir depois", "🔄 Trocar fonte"]
+    return build_nav_options(
+        has_next,
+        ctx.episode_idx > 0,
+        extra,
+        back_label="↩️  Voltar ao menu anterior",
     )
-    return build_nav_options(has_next, ctx.episode_idx > 0, extra)
 
 
 def select_episode_from_menu(ctx: "PlaybackContext") -> "PlaybackContext | None":
