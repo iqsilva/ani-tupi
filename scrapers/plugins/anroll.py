@@ -4,16 +4,22 @@ import urllib.parse
 import httpx
 from bs4 import BeautifulSoup
 
-from scrapers.plugins.utils import load_plugin, store_player_source
+from scrapers.plugins.utils import DEFAULT_HEADERS, load_plugin, store_player_source
 from models.models import AnimeMetadata
 from services.repository import rep
 
 BASE_URL = "https://www.anroll.info"
-HEADERS = {
-    "User-Agent": "Mozilla/5.0 (X11; Linux x86_64; rv:126.0) Gecko/20100101 Firefox/126.0",
-    "Accept-Language": "pt-BR,pt;q=0.9",
-}
+HEADERS = DEFAULT_HEADERS
 REQUEST_TIMEOUT = 15
+
+_TITLE_DUB_HD_RE = re.compile(r"^(DUB|LEG)HD")
+_TITLE_YEAR_RE = re.compile(r"\s*\d{4}$")
+_TITLE_LEG_RE = re.compile(r"\s*\(?Legendado\)?\s*$", re.IGNORECASE)
+_EP_URL_RE = re.compile(r"/temporada-(\d+)/episodio-(\d+)$")
+_SLUG_RE = re.compile(r'slug:\s*"([^"]+)"')
+_TEMP_RE = re.compile(r"temporada:\s*(\d+)")
+_EP_NUM_RE = re.compile(r"episodio:\s*(\d+)")
+_FALLBACK_URL_RE = re.compile(r'FALLBACK_URL\s*=\s*"(https?://[^"]+)"')
 
 
 class AnRoll:
@@ -34,9 +40,9 @@ class AnRoll:
                 if "/anime/" not in href or "episodio" in href:
                     continue
                 text = a.get_text(strip=True)
-                title = re.sub(r"^(DUB|LEG)HD", "", text).strip()
-                title = re.sub(r"\s*\d{4}$", "", title).strip()
-                title = re.sub(r"\s*\(?Legendado\)?\s*$", "", title, flags=re.IGNORECASE).strip()
+                title = _TITLE_DUB_HD_RE.sub("", text).strip()
+                title = _TITLE_YEAR_RE.sub("", title).strip()
+                title = _TITLE_LEG_RE.sub("", title).strip()
                 if title and href:
                     results.append(AnimeMetadata(title=title, url=href, source=self.name))
         except httpx.HTTPError:
@@ -54,7 +60,7 @@ class AnRoll:
             urls = []
             for a in soup.find_all("a", href=True):
                 href = str(a.get("href", ""))
-                m = re.search(r"/temporada-(\d+)/episodio-(\d+)$", href)
+                m = _EP_URL_RE.search(href)
                 if not m:
                     continue
                 if href and not href.startswith("http"):
@@ -77,10 +83,10 @@ class AnRoll:
             response.raise_for_status()
             text = response.text
 
-            slug_m = re.search(r'slug:\s*"([^"]+)"', text)
-            temp_m = re.search(r"temporada:\s*(\d+)", text)
-            ep_m = re.search(r"episodio:\s*(\d+)", text)
-            fallback_m = re.search(r'FALLBACK_URL\s*=\s*"(https?://[^"]+)"', text)
+            slug_m = _SLUG_RE.search(text)
+            temp_m = _TEMP_RE.search(text)
+            ep_m = _EP_NUM_RE.search(text)
+            fallback_m = _FALLBACK_URL_RE.search(text)
 
             if not (slug_m and temp_m and ep_m):
                 raise ValueError("urlConfig not found in anroll.info episode page")

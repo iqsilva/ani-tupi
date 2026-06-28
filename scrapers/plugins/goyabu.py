@@ -6,16 +6,17 @@ import httpx
 from bs4 import BeautifulSoup
 
 from scrapers.core.blogger_resolver import resolve_blogger_token
-from scrapers.plugins.utils import load_plugin, store_player_source
+from scrapers.plugins.utils import DEFAULT_HEADERS, load_plugin, store_player_source
 from models.models import AnimeMetadata
 from services.repository import rep
 
 BASE_URL = "https://goyabu.io"
-HEADERS = {
-    "User-Agent": "Mozilla/5.0 (X11; Linux x86_64; rv:126.0) Gecko/20100101 Firefox/126.0",
-    "Accept-Language": "pt-BR,pt;q=0.9",
-}
+HEADERS = DEFAULT_HEADERS
 REQUEST_TIMEOUT = 15
+
+_ALL_EPISODES_RE = re.compile(r"allEpisodes\s*=\s*(\[.*?\])\s*;", re.DOTALL)
+_PLAYERS_DATA_RE = re.compile(r"var\s+playersData\s*=\s*(\[.*?\])\s*;", re.DOTALL)
+_TOKEN_RE = re.compile(r"token=([^&\s]+)")
 
 
 class Goyabu:
@@ -51,7 +52,7 @@ class Goyabu:
             )
             response.raise_for_status()
 
-            match = re.search(r"allEpisodes\s*=\s*(\[.*?\])\s*;", response.text, re.DOTALL)
+            match = _ALL_EPISODES_RE.search(response.text)
             if not match:
                 return
 
@@ -84,7 +85,7 @@ class Goyabu:
             response.raise_for_status()
 
             # Extract playersData JSON from script
-            match = re.search(r"var\s+playersData\s*=\s*(\[.*?\])\s*;", response.text, re.DOTALL)
+            match = _PLAYERS_DATA_RE.search(response.text)
             if not match:
                 raise ValueError("No playersData found in Goyabu episode page")
 
@@ -92,7 +93,7 @@ class Goyabu:
             for player in players:
                 # Extract token from the direct blogger URL (blogger_token is base64-encoded)
                 player_url = player.get("url", "")
-                m = re.search(r"token=([^&\s]+)", player_url)
+                m = _TOKEN_RE.search(player_url)
                 token = m.group(1) if m else ""
 
                 if token:

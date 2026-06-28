@@ -5,14 +5,14 @@ import html
 import httpx
 from bs4 import BeautifulSoup
 
-from scrapers.plugins.utils import load_plugin, store_player_source
+from scrapers.plugins.utils import DEFAULT_HEADERS, load_plugin, store_player_source
 from models.models import AnimeMetadata
 from services.repository import rep
 
 
 BASE_URL = "https://sushianimes.com.br"
 HEADERS = {
-    "User-Agent": "Mozilla/5.0 (X11; Linux x86_64; rv:126.0) Gecko/20100101 Firefox/126.0",
+    **DEFAULT_HEADERS,
     "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
     "Accept-Language": "pt-BR,pt;q=0.9,en-US;q=0.7,en;q=0.3",
     "Connection": "keep-alive",
@@ -25,6 +25,20 @@ HEADERS = {
 # Keep this lower than the generic provider timeout so a stalled source
 # does not block fallback for too long.
 REQUEST_TIMEOUT = 10
+
+_PLAYER_PATTERNS = [
+    re.compile(r'var\s+playerEmbed\s*=\s*["\']([^"\']+)["\']', re.IGNORECASE),
+    re.compile(r'"file"\s*:\s*"([^"\\]+(?:\\.[^"\\]*)*)"', re.IGNORECASE),
+    re.compile(r'https?:\\/\\/[^"\'\s]+\.(?:m3u8|mp4)(?:[^"\'\s]*)', re.IGNORECASE),
+    re.compile(r'https?://[^"\'\s]+\.(?:m3u8|mp4)(?:[^"\'\s]*)', re.IGNORECASE),
+]
+_SEASON_RE = re.compile(r"(?:temporada|season)\s*(\d+)")
+_SEASON_ALT_RE = re.compile(r"(?:^|\D)(\d+)(?:º|ª)?\s*(?:temporada|season)")
+_SEASON_NUM_RE = re.compile(r"(?:^|\D)([1-9]\d?)(?:º|ª)?")
+_DUBBED_RE = re.compile(r"\bdublado\b", re.IGNORECASE)
+_SUBBED_RE = re.compile(r"\blegendado\b", re.IGNORECASE)
+_AUDIO_MARKER_RE = re.compile(r"\s*[(-]?\s*(dublado|legendado)\s*[)]?\s*", re.IGNORECASE)
+_WHITESPACE_RE = re.compile(r"\s+")
 
 
 def _extract_embed_id(soup: BeautifulSoup) -> str | None:
@@ -50,15 +64,8 @@ def _extract_embed_id(soup: BeautifulSoup) -> str | None:
 
 def _extract_player_url(embed_html: str) -> str | None:
     """Extract direct player URL from AJAX embed response."""
-    patterns = [
-        r'var\s+playerEmbed\s*=\s*["\']([^"\']+)["\']',
-        r'"file"\s*:\s*"([^"\\]+(?:\\.[^"\\]*)*)"',
-        r'https?:\\/\\/[^"\'\s]+\.(?:m3u8|mp4)(?:[^"\'\s]*)',
-        r'https?://[^"\'\s]+\.(?:m3u8|mp4)(?:[^"\'\s]*)',
-    ]
-
-    for pattern in patterns:
-        match = re.search(pattern, embed_html, flags=re.IGNORECASE)
+    for pattern in _PLAYER_PATTERNS:
+        match = pattern.search(embed_html)
         if not match:
             continue
 
@@ -81,13 +88,14 @@ def _normalize_url(href: str) -> str:
 
 
 def _extract_season_number(text: str) -> int:
-    match = re.search(r"(?:temporada|season)\s*(\d+)", text.lower())
+    lowered = text.lower()
+    match = _SEASON_RE.search(lowered)
     if match:
         return int(match.group(1))
-    match = re.search(r"(?:^|\D)(\d+)(?:º|ª)?\s*(?:temporada|season)", text.lower())
+    match = _SEASON_ALT_RE.search(lowered)
     if match:
         return int(match.group(1))
-    match = re.search(r"(?:^|\D)([1-9]\d?)(?:º|ª)?", text.lower())
+    match = _SEASON_NUM_RE.search(lowered)
     if match:
         return int(match.group(1))
     return 1
@@ -97,13 +105,13 @@ def _build_result_title(title: str, season: int) -> str:
     normalized = title.strip()
     audio_suffix = ""
 
-    if re.search(r"\bdublado\b", normalized, re.IGNORECASE):
+    if _DUBBED_RE.search(normalized):
         audio_suffix = " - Dublado"
-    elif re.search(r"\blegendado\b", normalized, re.IGNORECASE):
+    elif _SUBBED_RE.search(normalized):
         audio_suffix = " - Legendado"
 
-    base_title = re.sub(r"\s*[(-]?\s*(dublado|legendado)\s*[)]?\s*", " ", normalized, flags=re.I)
-    base_title = re.sub(r"\s+", " ", base_title).strip()
+    base_title = _AUDIO_MARKER_RE.sub(" ", normalized)
+    base_title = _WHITESPACE_RE.sub(" ", base_title).strip()
 
     if season > 1:
         return f"{base_title} {season}{audio_suffix}"

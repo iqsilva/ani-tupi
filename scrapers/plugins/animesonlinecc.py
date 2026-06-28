@@ -6,18 +6,18 @@ import httpx
 from bs4 import BeautifulSoup
 
 from scrapers.core.blogger_resolver import resolve_blogger_token
-from scrapers.plugins.utils import load_plugin, store_player_source
+from scrapers.plugins.utils import DEFAULT_HEADERS, load_plugin, store_player_source
 from models.models import AnimeMetadata
 from services.repository import rep
 
 logger = logging.getLogger(__name__)
 
 BASE_URL = "https://animesonlinecc.to"
-HEADERS = {
-    "User-Agent": "Mozilla/5.0 (X11; Linux x86_64; rv:126.0) Gecko/20100101 Firefox/126.0",
-    "Accept-Language": "pt-BR,pt;q=0.9",
-}
+HEADERS = DEFAULT_HEADERS
 REQUEST_TIMEOUT = 15
+
+_EPISODE_NUM_RE = re.compile(r"-episodio-(\d+)/?$")
+_TOKEN_RE = re.compile(r"token=([^&\s\"']+)")
 
 
 class AnimesOnlineCC:
@@ -57,7 +57,7 @@ class AnimesOnlineCC:
                 ep_url = str(a.get("href", ""))
                 if ep_url.startswith("//"):
                     ep_url = "https:" + ep_url
-                num_match = re.search(r"-episodio-(\d+)/?$", ep_url)
+                num_match = _EPISODE_NUM_RE.search(ep_url)
                 # Skip nav links (no episode number) and relative URLs
                 if not ep_url.startswith("http") or not num_match or ep_url in seen:
                     continue
@@ -79,7 +79,7 @@ class AnimesOnlineCC:
 
             for iframe in soup.find_all("iframe", src=re.compile(r"blogger\.com/video\.g")):
                 src = iframe.get("src", "")
-                m = re.search(r"token=([^&\s\"']+)", src)
+                m = _TOKEN_RE.search(src)
                 if not m:
                     continue
                 token = m.group(1)
