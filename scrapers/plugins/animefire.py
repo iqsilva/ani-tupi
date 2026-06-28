@@ -1,5 +1,5 @@
 import json
-import logging
+from utils.logging import get_logger
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 import httpx
@@ -9,7 +9,7 @@ from scrapers.plugins.utils import load_plugin, store_player_source
 from models.models import AnimeMetadata
 from services.repository import rep
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class AnimeFire:

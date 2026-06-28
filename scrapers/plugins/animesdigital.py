@@ -10,7 +10,7 @@ The parameter enables proper episode ordering from 1 to end.
 import asyncio
 import base64
 import json
-import logging
+from utils.logging import get_logger
 import re
 from concurrent.futures import ThreadPoolExecutor
 from typing import TypedDict
@@ -25,7 +25,7 @@ from scrapers.plugins.utils import load_plugin, store_player_source
 from models.models import AnimeMetadata
 from services.repository import rep
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 REQUEST_TIMEOUT = 30
 API_URL = "https://animesdigital.org/func/listanime"

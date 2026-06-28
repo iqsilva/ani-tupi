@@ -1,13 +1,13 @@
 """Shared Jikan/MAL client for anime title lookups."""
 
-import logging
+from utils.logging import get_logger
 
 import httpx
 
 from models.config import settings
 from models.models import JikanAnimeEntry
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class JikanClient:

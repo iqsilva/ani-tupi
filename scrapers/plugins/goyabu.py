@@ -1,5 +1,5 @@
 import json
-import logging
+from utils.logging import get_logger
 import re
 import urllib.parse
 
@@ -11,7 +11,7 @@ from scrapers.plugins.utils import DEFAULT_HEADERS, load_plugin, store_player_so
 from models.models import AnimeMetadata
 from services.repository import rep
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 BASE_URL = "https://goyabu.io"
 HEADERS = DEFAULT_HEADERS

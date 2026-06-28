@@ -15,13 +15,13 @@ from typing import Any
 from pathlib import Path
 from enum import Enum
 
-import logging
+from utils.logging import get_logger
 
 from diskcache import FanoutCache
 from models.config import settings
 from models.models import CacheStats
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class CacheType(str, Enum):

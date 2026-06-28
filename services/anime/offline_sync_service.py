@@ -9,14 +9,14 @@ Architecture:
 - _classify_error(): Determines if error is retryable (network) or not (auth)
 """
 
-import logging
+from utils.logging import get_logger
 from pathlib import Path
 
 from models.config import get_data_path, settings
 from models.models import OfflineSyncQueue, OfflineSyncQueueEntry
 from services.anime.playback_service import sync_progress_to_anilist
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 def _get_queue_path() -> Path:

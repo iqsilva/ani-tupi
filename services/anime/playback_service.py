@@ -11,7 +11,7 @@ All errors are handled gracefully - functions never raise exceptions.
 """
 
 from dataclasses import dataclass
-import logging
+from utils.logging import get_logger
 
 from models.models import Status
 from services.anime.anilist_discovery_service import (
@@ -20,12 +20,11 @@ from services.anime.anilist_discovery_service import (
 from services.anilist_service import anilist_client
 from services.history_service import load_history
 from services.repository import rep
-from utils.logging import get_logger
 
 logger = get_logger(__name__)
 
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 # =============================================================================
