@@ -12,14 +12,14 @@ All results are returned as immutable dataclasses.
 """
 
 from dataclasses import dataclass
-import logging
+from utils.logging import get_logger
 
 from services.anilist_service import anilist_client
 from utils.anilist_discovery import auto_discover_anilist_id, get_anilist_metadata
 from utils.title_utils import normalize_title_for_search
 
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 @dataclass(frozen=True)

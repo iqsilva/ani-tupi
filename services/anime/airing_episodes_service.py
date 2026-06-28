@@ -9,7 +9,7 @@ This service supports the "Novos Episódios" (New Episodes) tab feature by:
 - Returning structured AiringAnimeEntry objects for display
 """
 
-import logging
+from utils.logging import get_logger
 import time
 from datetime import datetime, UTC
 
@@ -18,7 +18,7 @@ from models.models import AiringAnimeEntry, AniListTitle
 from services.anilist_service import anilist_client
 
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 # Time windows for episode status determination
 NINETY_DAYS_SECONDS = 90 * 24 * 60 * 60  # 90 days in seconds

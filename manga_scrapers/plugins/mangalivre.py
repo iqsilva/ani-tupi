@@ -22,8 +22,27 @@ class MangaLivre:
     base_url = "https://mangalivre.blog"
 
     def __init__(self):
-        """Initialize scraper with SeleniumWebDriver."""
-        pass  # Use SeleniumWebDriver.fetch() directly, no instance needed
+        self._driver: SeleniumWebDriver | None = None
+
+    def _fetch(self, url: str, **kwargs):
+        if self._driver is None:
+            self._driver = SeleniumWebDriver()
+        try:
+            return self._driver.fetch(url, **kwargs)
+        except Exception:
+            self.close()
+            raise
+
+    def close(self) -> None:
+        if self._driver:
+            self._driver.close()
+            self._driver = None
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args):
+        self.close()
 
     def search_manga(self, query: str) -> list[dict[str, Any]]:
         """Search for manga by title.
@@ -57,7 +76,7 @@ class MangaLivre:
                     time.sleep(2)
 
                 # Fetch search results with Selenium
-                tree = SeleniumWebDriver().fetch(search_url)
+                tree = self._fetch(search_url)
 
                 results = []
 
@@ -177,7 +196,7 @@ class MangaLivre:
         """
         try:
             # Use Selenium to render page and wait for AJAX-loaded chapters
-            tree = SeleniumWebDriver().fetch(manga_url)
+            tree = self._fetch(manga_url)
 
             chapters = []
 
@@ -278,7 +297,7 @@ class MangaLivre:
                 if retry_count > 0:
                     time.sleep(2)  # Wait before retrying
 
-                tree = SeleniumWebDriver().fetch(chapter_url)
+                tree = self._fetch(chapter_url)
 
                 page_urls = []
 

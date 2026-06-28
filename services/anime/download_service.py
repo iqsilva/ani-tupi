@@ -10,7 +10,7 @@ All operations maintain immutability - no state mutation.
 """
 
 import json
-import logging
+from utils.logging import get_logger
 import threading
 from collections import deque
 from dataclasses import dataclass
@@ -28,7 +28,7 @@ from models.models import (
 )
 from utils.episode_range_parser import parse_episode_range, RangeParseError
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 @dataclass

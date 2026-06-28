@@ -1,18 +1,16 @@
-import logging
+from utils.logging import get_logger
 import urllib.parse
 
 import httpx
 from bs4 import BeautifulSoup
 
-from scrapers.plugins.utils import load_plugin, store_player_source
+from scrapers.plugins.utils import DEFAULT_HEADERS, load_plugin, store_player_source
 from models.models import AnimeMetadata
 from services.repository import rep
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
-HEADERS = {
-    "User-Agent": "Mozilla/5.0 (X11; Linux x86_64; rv:126.0) Gecko/20100101 Firefox/126.0",
-}
+HEADERS = DEFAULT_HEADERS
 
 
 class AniTube:

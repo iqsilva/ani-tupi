@@ -13,6 +13,7 @@ Defines DTOs (Data Transfer Objects) for:
 - EpisodeList: Immutable episode list
 """
 
+from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
 from pathlib import Path
@@ -916,3 +917,39 @@ class UpdateCheckResult(BaseModel):
         default=None,
         description="User-facing update message when an update is available",
     )
+
+
+@dataclass
+class HistoryEntry:
+    """Watch history entry. Serializes as list for JSON backward compat.
+
+    JSON list format: [timestamp, episode_idx, anilist_id, source, total_episodes, urls]
+    """
+
+    timestamp: int
+    episode_idx: int
+    anilist_id: int | None = None
+    source: str | None = None
+    total_episodes: int | None = None
+    urls: dict[str, str] = field(default_factory=dict)
+
+    @classmethod
+    def from_list(cls, data: list) -> "HistoryEntry":
+        return cls(
+            timestamp=data[0],
+            episode_idx=data[1],
+            anilist_id=data[2] if len(data) > 2 else None,
+            source=data[3] if len(data) > 3 else None,
+            total_episodes=data[4] if len(data) > 4 and data[4] else None,
+            urls=data[5] if len(data) > 5 and isinstance(data[5], dict) else {},
+        )
+
+    def to_list(self) -> list:
+        return [
+            self.timestamp,
+            self.episode_idx,
+            self.anilist_id,
+            self.source,
+            self.total_episodes,
+            self.urls,
+        ]

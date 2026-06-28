@@ -21,8 +21,27 @@ class MugiwarasOficial:
     base_url = "https://mugiwarasoficial.com"
 
     def __init__(self):
-        """Initialize scraper with SeleniumWebDriver."""
-        pass  # Use SeleniumWebDriver.fetch() directly, no instance needed
+        self._driver: SeleniumWebDriver | None = None
+
+    def _fetch(self, url: str, **kwargs):
+        if self._driver is None:
+            self._driver = SeleniumWebDriver()
+        try:
+            return self._driver.fetch(url, **kwargs)
+        except Exception:
+            self.close()
+            raise
+
+    def close(self) -> None:
+        if self._driver:
+            self._driver.close()
+            self._driver = None
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args):
+        self.close()
 
     def search_manga(self, query: str) -> list[dict[str, Any]]:
         """Search for manga by title.
@@ -38,8 +57,7 @@ class MugiwarasOficial:
             search_url = f"{self.base_url}/?s={query.replace(' ', '+')}&post_type=wp-manga"
 
             # Fetch with Selenium for robustness
-            with SeleniumWebDriver() as driver:
-                tree = driver.fetch(search_url)
+            tree = self._fetch(search_url)
 
             results = []
 

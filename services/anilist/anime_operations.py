@@ -3,7 +3,7 @@
 Mixin class providing anime trending, lists, search, sync, and relations.
 """
 
-import logging
+from utils.logging import get_logger
 from typing import Protocol
 
 from models.models import (
@@ -16,7 +16,7 @@ from models.models import (
     Status,
 )
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class _AnimeOperationsRequired(Protocol):

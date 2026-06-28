@@ -9,6 +9,7 @@ Handles offline viewing of downloaded anime episodes with:
 
 from pathlib import Path
 
+from commands._shared import build_nav_options, is_next, is_prev, is_replay
 from models.config import get_data_path
 from services.local_anime_service import LocalAnimeService
 from utils.anilist_discovery import (
@@ -89,26 +90,20 @@ def _show_post_playback_menu(
     final_episode: int,
 ) -> str | None:
     """Show post-playback action menu."""
-    opts = []
     current_idx = next(
         (i for i, (ep_num, _) in enumerate(episodes) if ep_num == final_episode), None
     )
-
-    if current_idx is not None:
-        if current_idx < len(episodes) - 1:
-            opts.append("▶️  Próximo")
-        if current_idx > 0:
-            opts.append("◀️  Anterior")
-
-    opts.extend(
+    has_next = current_idx is not None and current_idx < len(episodes) - 1
+    has_prev = current_idx is not None and current_idx > 0
+    opts = build_nav_options(
+        has_next,
+        has_prev,
         [
-            "🔁 Replay",
             "📚 Voltar à biblioteca do anime",
             "🗑️  Apagar episódio atual",
             "📂 Voltar à biblioteca local",
-        ]
+        ],
     )
-
     return menu_navigate(opts, msg="O que quer fazer agora?", enable_search=False)
 
 
@@ -250,21 +245,17 @@ def handle_local_library_playback(args) -> None:
             if post_playback_action == "📂 Voltar à biblioteca local":
                 break
 
-            if post_playback_action == "▶️  Próximo" and current_idx is not None:
-                if current_idx < len(episodes) - 1:
-                    selected_ep_num = episodes[current_idx + 1][0]
-                else:
-                    selected_ep_num = None
+            if is_next(post_playback_action) and current_idx is not None:
+                selected_ep_num = (
+                    episodes[current_idx + 1][0] if current_idx < len(episodes) - 1 else None
+                )
                 continue
 
-            if post_playback_action == "◀️  Anterior" and current_idx is not None:
-                if current_idx > 0:
-                    selected_ep_num = episodes[current_idx - 1][0]
-                else:
-                    selected_ep_num = None
+            if is_prev(post_playback_action) and current_idx is not None:
+                selected_ep_num = episodes[current_idx - 1][0] if current_idx > 0 else None
                 continue
 
-            if post_playback_action == "🔁 Replay":
+            if is_replay(post_playback_action):
                 selected_ep_num = final_episode
                 continue
 

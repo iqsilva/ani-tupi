@@ -5,7 +5,7 @@ Provides episode discovery, file listing, and metadata tracking.
 """
 
 import json
-import logging
+from utils.logging import get_logger
 from pathlib import Path
 
 from models.config import get_data_path, settings
@@ -13,7 +13,7 @@ from models.models import (
     AnimeDownloadDatabase,
 )
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class LocalAnimeService:

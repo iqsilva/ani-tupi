@@ -266,85 +266,61 @@ class TestSaveHistoryFromEvent:
 
 
 class TestLoadHistoryDepthGuard:
-    """Tests for the recursive depth guard in load_history() (BUG-07 fix)."""
+    """Tests for the retry loop guard in load_history() (BUG-07 fix).
 
-    def test_returns_none_when_depth_exceeds_5(self):
-        """load_history returns None immediately when depth > 5."""
+    Recursion was replaced by a for-loop with range(6). Tests validate that the
+    loop terminates and emits the expected warning after exhausting retries.
+    """
+
+    def test_returns_none_on_cancelled_menu(self, history_store):
+        """Cancelled history menu returns None gracefully (no warning)."""
         from services.history_service import load_history
 
-        result = load_history(depth=6)
+        with patch("ui.components.menu_navigate", return_value=None):
+            result = load_history()
 
         assert result is None
 
-    def test_returns_none_at_exactly_depth_6(self):
-        """Boundary: depth=6 triggers the guard (depth > 5)."""
-        from services.history_service import load_history
-
-        assert load_history(depth=6) is None
-
-    def test_does_not_trigger_at_depth_5(self, history_store):
-        """depth=5 does NOT hit the guard – function proceeds normally."""
-        from services.history_service import load_history
-
-        # Empty history → menu will return None → function returns None gracefully
-        with patch("services.history_service.menu_navigate", return_value=None):
-            result = load_history(depth=5)
-
-        # Returns None because menu was cancelled, not because of the depth guard
-        assert result is None
-
-    def test_guard_does_not_log_at_depth_5(self, capsys):
-        """The 'Muitas tentativas' warning fires only when depth > 5."""
-        from services.history_service import load_history
-
-        with patch("services.history_service.menu_navigate", return_value=None):
-            load_history(depth=5)
-
-        captured = capsys.readouterr()
-        assert "Muitas tentativas" not in captured.err
-
-    def test_guard_logs_warning_at_depth_6(self):
-        """The 'Muitas tentativas' warning fires when depth > 5.
-
-        Patch the bound logger on the module to capture the call.
-        """
-        from services.history_service import load_history
+    def test_no_warning_when_menu_cancelled(self, history_store):
+        """No 'Muitas tentativas' warning when user simply cancels the menu."""
         import services.history_service as hs_module
+        from services.history_service import load_history
 
-        with patch.object(hs_module.logger, "warning") as mock_warn:
-            load_history(depth=6)
+        with patch("ui.components.menu_navigate", return_value=None):
+            with patch.object(hs_module.logger, "warning") as mock_warn:
+                load_history()
 
+        mock_warn.assert_not_called()
+
+    def test_guard_logs_warning_after_max_retries(self, history_store):
+        """Warning fires after 6 retry-inducing iterations."""
+        import services.history_service as hs_module
+        from services.history_service import save_history
+
+        save_history("Goblin Slayer", 1, source="animefire")
+
+        # _find_episodes returning (anime, None, ...) triggers continue each iteration
+        with patch.object(
+            hs_module,
+            "_find_episodes",
+            return_value=("Goblin Slayer", None, True, True),
+        ):
+            with patch("ui.components.menu_navigate", return_value="Goblin Slayer (Ep 2)"):
+                with patch.object(hs_module.logger, "warning") as mock_warn:
+                    result = hs_module.load_history()
+
+        assert result is None
         mock_warn.assert_called_once()
         assert "Muitas tentativas" in mock_warn.call_args[0][0]
 
-    def test_accumulates_depth_across_recursive_calls(self, history_store):
-        """Recursive call with depth+1 eventually hits the guard and returns None.
+    def test_returns_none_immediately_with_empty_history(self, history_store):
+        """Empty history → menu has no items → returns None without looping."""
+        from services.history_service import load_history
 
-        Simulates the scenario where menu_navigate always selects 'go back'
-        (returning None from load_history repeatedly) — after 5 bounces the
-        guard fires.  We drive this by patching menu_navigate to always return
-        a value that triggers a recursive branch and verifying that the final
-        result is None.
-        """
-
-        # With empty history the menu returns None → load_history returns None
-        # before recursing, so we validate the guard directly via depth argument.
-        call_depths = []
-
-        original_load = __import__(
-            "services.history_service", fromlist=["load_history"]
-        ).load_history
-
-        def counting_load(depth=0):
-            call_depths.append(depth)
-            return original_load(depth=depth)
-
-        with patch("services.history_service.menu_navigate", return_value=None):
-            result = counting_load(depth=0)
+        with patch("ui.components.menu_navigate", return_value=None):
+            result = load_history()
 
         assert result is None
-        # depth=0 was called; menu returned None so no recursion occurred
-        assert 0 in call_depths
 
 
 # ---------------------------------------------------------------------------
@@ -359,7 +335,7 @@ class TestLoadHistoryEmptyHistory:
         """Returns None (not an exception) when history file is missing."""
         from services.history_service import load_history
 
-        with patch("services.history_service.menu_navigate", return_value=None):
+        with patch("ui.components.menu_navigate", return_value=None):
             result = load_history()
 
         assert result is None
@@ -370,7 +346,7 @@ class TestLoadHistoryEmptyHistory:
 
         save_history("One Punch Man", 0)
 
-        with patch("services.history_service.menu_navigate", return_value=None):
+        with patch("ui.components.menu_navigate", return_value=None):
             result = load_history()
 
         assert result is None

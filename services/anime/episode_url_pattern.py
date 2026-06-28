@@ -7,15 +7,14 @@ Supported pattern: `/<ep>.mp4/` (1–3 digit episode number)
 Example: https://cdn-s01.example.net/stream/y/<slug>/11.mp4/index.m3u8
 """
 
-import logging
+from utils.logging import get_logger
 import re
 
 import httpx
-from utils.logging import get_logger
 
 logger = get_logger(__name__)
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 _EPISODE_PATTERN = re.compile(r"/(\d{1,3})\.mp4/")
 
