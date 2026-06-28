@@ -47,6 +47,8 @@ class SearchRepository:
         self.sources = {}
         self.anime_to_urls = defaultdict(list)
         self.norm_titles = {}
+        self._norm_idx: dict[str, str] = {}
+        self._compact_idx: dict[str, list[tuple[str, str]]] = {}
         self._last_search_metadata = {}
         self._add_lock = threading.Lock()
 
@@ -67,6 +69,8 @@ class SearchRepository:
     def clear_search_results(self) -> None:
         self.anime_to_urls = defaultdict(list)
         self.norm_titles = {}
+        self._norm_idx = {}
+        self._compact_idx = {}
 
     def _build_search_results(self, query: str) -> SearchResults:
         results = []
@@ -339,24 +343,23 @@ class SearchRepository:
             compact_new = get_compact_normalized_title_key(normalized_new)
             self.norm_titles[title] = normalized_new
 
-            for existing_title in list(self.anime_to_urls):
-                existing_norm = self.norm_titles.get(existing_title)
-                if existing_norm is None:
-                    existing_norm = normalize_title_for_dedup(existing_title)
-                    self.norm_titles[existing_title] = existing_norm
+            # O(1) exact-norm match
+            existing_title = self._norm_idx.get(normalized_new)
+            if existing_title is not None:
+                self.anime_to_urls[existing_title].append((url, source, params))
+                return
 
-                if normalized_new == existing_norm:
+            # O(k) compact-key match (k = titles sharing the same compact key, typically 0-3)
+            for existing_norm, existing_title in self._compact_idx.get(compact_new, []):
+                if are_language_version_markers_compatible(
+                    normalized_new, existing_norm
+                ) and are_season_markers_compatible(normalized_new, existing_norm):
                     self.anime_to_urls[existing_title].append((url, source, params))
                     return
 
-                if (
-                    compact_new == get_compact_normalized_title_key(existing_norm)
-                    and are_language_version_markers_compatible(normalized_new, existing_norm)
-                    and are_season_markers_compatible(normalized_new, existing_norm)
-                ):
-                    self.anime_to_urls[existing_title].append((url, source, params))
-                    return
-
+            # New entry — update both indices
+            self._norm_idx[normalized_new] = title
+            self._compact_idx.setdefault(compact_new, []).append((normalized_new, title))
             self.anime_to_urls[title].append((url, source, params))
 
     def _guard_sources(self, query: str) -> SearchResults | None:
