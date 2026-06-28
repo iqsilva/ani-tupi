@@ -11,6 +11,7 @@ This is a thin coordinator that delegates all business logic to services.
 
 from pathlib import Path
 
+from commands._shared import build_nav_options, is_next, is_prev, is_replay
 from services import anime_service
 from services.history_service import save_history
 from services.repository import rep
@@ -35,22 +36,14 @@ logger = get_logger(__name__)
 
 def build_post_playback_options(ctx: "PlaybackContext") -> list[str]:
     """Build post-playback action options for current context."""
-    opts = []
-    has_next_episode = ctx.episode_idx < ctx.num_episodes - 1
-
-    if has_next_episode:
-        opts.append("▶️  Próximo")
-    else:
-        opts.append("↩️  Voltar ao menu anterior")
-
-    if ctx.episode_idx > 0:
-        opts.append("◀️  Anterior")
-
-    opts.append("🔁 Replay")
-    opts.append("📋 Escolher outro episódio")
-    opts.append("📥 Baixar para assistir depois")
-    opts.append("🔄 Trocar fonte")
-    return opts
+    has_next = ctx.episode_idx < ctx.num_episodes - 1
+    extra = []
+    if not has_next:
+        extra.append("↩️  Voltar ao menu anterior")
+    extra.extend(
+        ["📋 Escolher outro episódio", "📥 Baixar para assistir depois", "🔄 Trocar fonte"]
+    )
+    return build_nav_options(has_next, ctx.episode_idx > 0, extra)
 
 
 def select_episode_from_menu(ctx: "PlaybackContext") -> "PlaybackContext | None":
@@ -495,15 +488,15 @@ def anime(args) -> None:
             if selected_opt == "↩️  Voltar ao menu anterior":
                 return
 
-            if "▶️  Próximo" in selected_opt:  # May have ⏭️ indicator
+            if is_next(selected_opt):
                 ctx = navigate_episodes(ctx, "next")
                 break
 
-            if "◀️  Anterior" in selected_opt:  # May have ⏭️ indicator
+            if is_prev(selected_opt):
                 ctx = navigate_episodes(ctx, "previous")
                 break
 
-            if "🔁 Replay" in selected_opt:  # May have ⏭️ indicator
+            if is_replay(selected_opt):
                 ctx = navigate_episodes(ctx, "replay")
                 break
 
