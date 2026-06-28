@@ -29,16 +29,13 @@ def _make_menu_responder(choices: list[str], calls: list[tuple[list[str], str]])
 
 class TestHistoryService:
     def test_load_history_returns_none_when_user_goes_back(self, temp_dir, repository, monkeypatch):
+        import ui.components
         from services import history_service
 
         history_store = JSONStore(temp_dir / "history.json")
         monkeypatch.setattr(history_service, "_history_store", history_store)
         monkeypatch.setattr(history_service, "rep", repository)
-        monkeypatch.setattr(
-            history_service,
-            "menu_navigate",
-            _make_menu_responder([None], []),
-        )
+        monkeypatch.setattr(ui.components, "menu_navigate", _make_menu_responder([None], []))
 
         history_store.set(
             "Goblin Slayer",
@@ -75,7 +72,9 @@ class TestHistoryService:
         history_store = JSONStore(temp_dir / "history.json")
         monkeypatch.setattr(history_service, "_history_store", history_store)
         monkeypatch.setattr(history_service, "rep", repository)
-        monkeypatch.setattr(history_service, "loading", lambda *args, **kwargs: nullcontext())
+        import ui.components
+
+        monkeypatch.setattr(ui.components, "loading", lambda *args, **kwargs: nullcontext())
 
         repository.register(EpisodePlugin("animefire", 3, repository))
 
@@ -93,7 +92,7 @@ class TestHistoryService:
 
         menu_calls: list[tuple[list[str], str]] = []
         monkeypatch.setattr(
-            history_service,
+            ui.components,
             "menu_navigate",
             _make_menu_responder(
                 ["Goblin Slayer (2/13)", "▶️  Episódio 2 (Local)"],
