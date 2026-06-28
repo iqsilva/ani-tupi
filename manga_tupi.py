@@ -159,7 +159,7 @@ def _start_manga_search(service: UnifiedMangaService, title: str) -> None:
 
     # Search with loading spinner
     try:
-        with loading(f"Buscando '{search_term}' em {service.current_source}..."):
+        with loading(f"Buscando '{search_term}'..."):
             results = service.search_manga(search_term)
     except MangaNotFoundError:
         logger.info("❌ Mangá não encontrado. Tente outra pesquisa.")
@@ -188,9 +188,11 @@ def _start_manga_search(service: UnifiedMangaService, title: str) -> None:
 
     # If preferred manga found, ask user to confirm or change
     if selected_manga:
+        sources_str = ", ".join(sorted(selected_manga.sources)) if selected_manga.sources else ""
+        suffix = f" [{sources_str}]" if sources_str else ""
         # Give user option to continue with saved or change
         confirm_options = [
-            f"⭐ Continuar com: {selected_manga.title} (salvo)",
+            f"⭐ Continuar com: {selected_manga.title}{suffix} (salvo)",
             "🔄 Trocar de mangá",
         ]
 
@@ -209,23 +211,26 @@ def _start_manga_search(service: UnifiedMangaService, title: str) -> None:
     # Select manga if not found in preferences or multiple results
     if not selected_manga:
         if len(results) > 1:
+            label_to_manga = {}
             manga_titles = []
             for manga in results:
+                sources_str = ", ".join(sorted(manga.sources)) if manga.sources else ""
+                suffix = f" [{sources_str}]" if sources_str else ""
                 # Check if this is the saved preference
                 if manga.id == preferred_manga_id:
-                    manga_titles.append(f"⭐ {manga.title} (salvo)")
+                    label = f"⭐ {manga.title}{suffix} (salvo)"
                 else:
-                    manga_titles.append(manga.title)
+                    label = f"{manga.title}{suffix}"
+                label_to_manga[label] = manga
+                manga_titles.append(label)
 
             try:
                 selected_title = menu_navigate(manga_titles, "Selecione mangá")
                 if selected_title is None:
                     return
-                # Remove star and (salvo) indicators if present
-                clean_title = selected_title.replace("⭐ ", "").replace(" (salvo)", "")
-                selected_manga = next((m for m in results if m.title == clean_title), None)
+                selected_manga = label_to_manga.get(selected_title)
                 if selected_manga is None:
-                    logger.error(f"Manga '{clean_title}' não encontrado nos resultados.")
+                    logger.error(f"Manga '{selected_title}' não encontrado nos resultados.")
                     return
             except KeyboardInterrupt:
                 return
@@ -257,6 +262,13 @@ def _research_manga_in_new_source(
         new_source: The new source to search in
     """
     try:
+        # If the merged search already discovered this manga's id in the new
+        # source, use it directly — no re-search needed.
+        known_id = (getattr(selected_manga, "sources", {}) or {}).get(new_source)
+        if known_id:
+            selected_manga.id = known_id
+            return
+
         # First try to fetch with the current ID (IDs may be shared across sources)
         try:
             chapters = service.get_chapters(selected_manga.id, source=new_source)
@@ -306,12 +318,71 @@ def _research_manga_in_new_source(
         logger.info(f"⚠️  Erro ao buscar em {new_source}: {e}")
 
 
+def _build_manga_url(source: str, manga_id: str) -> str | None:
+    """Construct the base manga URL for sources that need it."""
+    if source == "mugiwaras":
+        return f"https://mugiwarasoficial.com/manga/{manga_id}/"
+    elif source == "mangadex":
+        return f"https://mangadex.org/title/{manga_id}"
+    return None
+
+
+def _find_chapter_by_number(chapters: list, number: int):
+    """Return the chapter whose integer number matches, or None."""
+    for chapter in chapters:
+        try:
+            if int(float(chapter.number)) == number:
+                return chapter
+        except (ValueError, TypeError):
+            continue
+    return None
+
+
+def _resume_from_other_source(
+    service: UnifiedMangaService, selected_manga, chapter_num: int, current_source: str
+):
+    """Find a chapter in the manga's other known sources.
+
+    Returns (source, manga_url, sorted_chapters, chapter) for the first source
+    that has ``chapter_num`` with a usable URL, or None. Mutates
+    ``selected_manga.id`` to the matching source's id on success.
+    """
+    other_sources = [s for s in (selected_manga.sources or {}) if s != current_source]
+    for src in other_sources:
+        src_id = selected_manga.sources[src]
+        manga_url = _build_manga_url(src, src_id)
+        try:
+            with loading(f"Procurando capítulo {chapter_num} em {src}..."):
+                chapters = service.get_chapters(src_id, manga_url=manga_url, source=src)
+        except Exception:
+            continue
+        if not chapters:
+            continue
+        chapters.sort(
+            key=lambda c: (
+                float(str(c.number).replace(",", "."))
+                if str(c.number).replace(",", ".").replace("-", "").replace(".", "").isdigit()
+                else 0.0
+            )
+        )
+        chapter = _find_chapter_by_number(chapters, chapter_num)
+        if chapter and chapter.url:
+            service.set_source(src)
+            selected_manga.id = src_id
+            return src, manga_url, chapters, chapter
+    return None
+
+
 def _continue_manga_flow(
     service: UnifiedMangaService, selected_manga, allow_source_change: bool = True
 ) -> None:
     """Continue with chapter selection and reading for selected manga."""
-    # Use the source where manga was found, or fall back to current source
-    selected_source = service.last_found_source or service.current_source
+    # Prefer a source the manga was actually found in (multi-source search),
+    # falling back to the last-found/current source.
+    manga_sources = list(getattr(selected_manga, "sources", {}) or {})
+    selected_source = (
+        manga_sources[0] if manga_sources else (service.last_found_source or service.current_source)
+    )
 
     # Allow user to change source if requested
     if allow_source_change:
@@ -320,9 +391,11 @@ def _continue_manga_flow(
             # Check if user has a saved preference
             saved_source = manga_source_preferences.get_preferred_source(selected_manga.title)
 
-            # Get sources that actually have this manga (quick check)
-            logger.info("🔍 Verificando disponibilidade em outras fontes...")
-            sources_with_manga = service.get_available_sources_for_manga(selected_manga.title)
+            # Sources that have this manga are already known from the merged
+            # search result; only fall back to a live check if absent.
+            sources_with_manga = manga_sources or service.get_available_sources_for_manga(
+                selected_manga.title
+            )
 
             # Build menu options - only show sources that have the manga
             menu_options = [f"📖 Ler com {selected_source}"]
@@ -341,10 +414,14 @@ def _continue_manga_flow(
                 if source != selected_source:
                     menu_options.append(f"🔄 Trocar para: {source}")
 
+            sources_str = ", ".join(sorted(sources_with_manga)) if sources_with_manga else ""
+            menu_title = f"{selected_manga.title}"
+            if sources_str:
+                menu_title += f" [{sources_str}]"
+            menu_title += f" - Fonte: {selected_source}"
+
             try:
-                action = menu_navigate(
-                    menu_options, f"{selected_manga.title} - Fonte: {selected_source}"
-                )
+                action = menu_navigate(menu_options, menu_title)
             except KeyboardInterrupt:
                 return
 
@@ -445,11 +522,7 @@ def _continue_manga_flow(
             return
 
     # Construct manga URL for scrapers that need it
-    manga_url = None
-    if selected_source == "mugiwaras":
-        manga_url = f"https://mugiwarasoficial.com/manga/{selected_manga.id}/"
-    elif selected_source == "mangadex":
-        manga_url = f"https://mangadex.org/title/{selected_manga.id}"
+    manga_url = _build_manga_url(selected_source, selected_manga.id)
 
     # Load chapters with loading spinner
     try:
@@ -468,21 +541,21 @@ def _continue_manga_flow(
                     logger.info(f"  Tentando {fallback_source}...")
                     try:
                         if service.set_source(fallback_source):
-                            if fallback_source == "mugiwaras":
-                                manga_url = (
-                                    f"https://mugiwarasoficial.com/manga/{selected_manga.id}/"
-                                )
-                            elif fallback_source == "mangadex":
-                                manga_url = f"https://mangadex.org/title/{selected_manga.id}"
+                            # Use the per-source id when known (ids differ per source)
+                            fb_id = (selected_manga.sources or {}).get(
+                                fallback_source, selected_manga.id
+                            )
+                            manga_url = _build_manga_url(fallback_source, fb_id)
 
                             chapters = service.get_chapters(
-                                selected_manga.id,
+                                fb_id,
                                 manga_url=manga_url,
                                 source=fallback_source,
                             )
                             # Only use this source if we got chapters
                             if chapters:
                                 selected_source = fallback_source
+                                selected_manga.id = fb_id
                                 manga_source_preferences.set_preferred_source(
                                     selected_manga.title, fallback_source
                                 )
@@ -514,47 +587,45 @@ def _continue_manga_flow(
     # Handle immediate resume if user chose to resume
     if resume_immediately and recommended_chapter_num:
         # Find the chapter that matches the recommended chapter number
-        recommended_chapter = None
-        for chapter in chapters:
-            try:
-                chapter_num = int(float(chapter.number))
-                if chapter_num == recommended_chapter_num:
-                    recommended_chapter = chapter
-                    break
-            except (ValueError, TypeError):
-                continue
+        recommended_chapter = _find_chapter_by_number(chapters, recommended_chapter_num)
 
-        if recommended_chapter:
-            # Verify chapter has a URL before attempting to read
-            if not recommended_chapter.url:
-                logger.info(
-                    f"⚠️  Capítulo {recommended_chapter_num} não disponível em {selected_source}."
-                )
-                logger.info("   Capítulo não disponível nesta fonte. Mostrando lista completa...")
-                # Fall back to normal chapter selection (continue to menu below)
-            else:
-                logger.info(
-                    f"✓ Capítulo {recommended_chapter_num} encontrado. Iniciando leitura..."
-                )
-                # Go directly to read now action
-                _handle_read_now(
-                    service,
-                    selected_manga,
-                    recommended_chapter,
-                    manga_url,
-                    selected_source,
-                    history,
-                    chapters,
-                    [ch.display_name() for ch in chapters],  # Create labels for navigation
-                    chapters.index(recommended_chapter),
-                )
-                return  # Exit after reading
-
-        else:
+        # If the chapter is missing (or has no URL) in the current source,
+        # try the manga's other known sources before giving up.
+        if not recommended_chapter or not recommended_chapter.url:
             logger.info(
-                f"⚠️  Capítulo {recommended_chapter_num} não encontrado. Mostrando lista completa..."
+                f"⚠️  Capítulo {recommended_chapter_num} não disponível em {selected_source}. "
+                "Tentando outras fontes..."
             )
-            # Fall back to normal chapter selection
+            fallback = _resume_from_other_source(
+                service, selected_manga, recommended_chapter_num, selected_source
+            )
+            if fallback:
+                selected_source, manga_url, chapters, recommended_chapter = fallback
+                manga_source_preferences.set_preferred_source(selected_manga.title, selected_source)
+
+        if recommended_chapter and recommended_chapter.url:
+            logger.info(
+                f"✓ Capítulo {recommended_chapter_num} encontrado em {selected_source}. "
+                "Iniciando leitura..."
+            )
+            _handle_read_now(
+                service,
+                selected_manga,
+                recommended_chapter,
+                manga_url,
+                selected_source,
+                history,
+                chapters,
+                [ch.display_name() for ch in chapters],  # Create labels for navigation
+                chapters.index(recommended_chapter),
+            )
+            return  # Exit after reading
+
+        logger.info(
+            f"⚠️  Capítulo {recommended_chapter_num} não encontrado em nenhuma fonte. "
+            "Mostrando lista completa..."
+        )
+        # Fall back to normal chapter selection
 
     # Format chapter labels for display
     chapter_labels = [ch.display_name() for ch in chapters]
