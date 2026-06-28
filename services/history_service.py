@@ -9,7 +9,7 @@ from utils.title_utils import clean_title_for_display
 from utils.exceptions import PersistenceError
 from utils.logging import get_logger
 from utils.anilist_discovery import get_anilist_id_with_interactive_fallback
-from models.models import Status
+from models.models import HistoryEntry, Status
 from services.anime.mappings import load_anilist_urls
 
 logger = get_logger(__name__)
@@ -28,10 +28,13 @@ def _load_persisted_history():
     sorted_data = sorted(data.items(), key=lambda x: x[1][0], reverse=True)
 
     titles = {}
-    for entry, info in sorted_data:
-        ep_idx = info[1]
-        total = info[4] if len(info) > 4 and info[4] else None
-        ep_info = f" ({ep_idx + 1}/{total})" if total else f" (Ep {ep_idx + 1})"
+    for entry, raw in sorted_data:
+        he = HistoryEntry.from_list(raw)
+        ep_info = (
+            f" ({he.episode_idx + 1}/{he.total_episodes})"
+            if he.total_episodes
+            else f" (Ep {he.episode_idx + 1})"
+        )
         titles[entry + ep_info] = len(ep_info)
 
     selected = menu_navigate(list(titles.keys()), msg="Continue assistindo.")
@@ -39,15 +42,8 @@ def _load_persisted_history():
         return None
 
     anime = selected[: -titles[selected]]
-    d = data[anime]
-    return (
-        data,
-        anime,
-        d[1],
-        d[2] if len(d) > 2 else None,
-        d[3] if len(d) > 3 else None,
-        d[5] if len(d) > 5 else None,
-    )
+    he = HistoryEntry.from_list(data[anime])
+    return data, anime, he.episode_idx, he.anilist_id, he.source, he.urls or None
 
 
 def _resolve_anilist_progress(anilist_id, saved_source, anime):
@@ -390,10 +386,15 @@ def save_history(
                     break
 
     try:
-        _history_store.set(
-            anime,
-            [int(time.time()), episode, anilist_id, source, total_episodes, anime_urls],
+        entry = HistoryEntry(
+            timestamp=int(time.time()),
+            episode_idx=episode,
+            anilist_id=anilist_id,
+            source=source,
+            total_episodes=total_episodes,
+            urls=anime_urls or {},
         )
+        _history_store.set(anime, entry.to_list())
     except PersistenceError as e:
         logger.error(f"Failed to save history: {e}")
 
@@ -429,9 +430,7 @@ def save_history_from_event(
             try:
                 history_data = _history_store.load({})
                 if anime_title in history_data:
-                    history_entry = history_data[anime_title]
-                    if len(history_entry) > 2:
-                        anilist_id = history_entry[2]
+                    anilist_id = HistoryEntry.from_list(history_data[anime_title]).anilist_id
             except Exception:
                 pass
 
