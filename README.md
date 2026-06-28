@@ -81,6 +81,21 @@ uv pip install --upgrade ani-tupi
 # ou: pip install --upgrade ani-tupi
 ```
 
+### Via Homebrew (macOS e Linux)
+
+```bash
+brew tap levyvix/ani-tupi
+brew install ani-tupi
+```
+
+Atualizar:
+
+```bash
+brew upgrade ani-tupi
+```
+
+> Requer `mpv` instalado: `brew install mpv`
+
 ### Instalação com Um Comando (Alternativa)
 
 Script completo com clone do repositório — útil se você prefere o bootstrap automático ou está contribuindo com o código:

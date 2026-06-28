@@ -136,3 +136,41 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: uv run semantic-release publish
+
+  update-homebrew:
+    name: Update Homebrew Formula
+    runs-on: ubuntu-latest
+    needs: release
+    steps:
+      - name: Get latest release info
+        id: release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG=$(gh api repos/levyvix/ani-tupi/releases/latest --jq '.tag_name')
+          URL="https://github.com/levyvix/ani-tupi/archive/refs/tags/${TAG}.tar.gz"
+          SHA256=$(curl -sL "$URL" | sha256sum | cut -d' ' -f1)
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "sha256=$SHA256" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout homebrew tap
+        uses: actions/checkout@v4
+        with:
+          repository: levyvix/homebrew-ani-tupi
+          token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+
+      - name: Update formula
+        run: |
+          TAG="${{ steps.release.outputs.tag }}"
+          SHA256="${{ steps.release.outputs.sha256 }}"
+          URL="https://github.com/levyvix/ani-tupi/archive/refs/tags/${TAG}.tar.gz"
+          sed -i "s|url \"https://github.com/levyvix/ani-tupi/archive/refs/tags/.*\"|url \"${URL}\"|" Formula/ani-tupi.rb
+          sed -i "s|sha256 \".*\"|sha256 \"${SHA256}\"|" Formula/ani-tupi.rb
+
+      - name: Commit and push
+        run: |
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git config user.name "github-actions[bot]"
+          git add Formula/ani-tupi.rb
+          git diff --staged --quiet || git commit -m "chore: update ani-tupi to ${{ steps.release.outputs.tag }}"
+          git push
