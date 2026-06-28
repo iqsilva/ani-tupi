@@ -5,7 +5,7 @@ description = "Assista anime e leia mangá direto do terminal sem anúncios"
 readme = "README.md"
 requires-python = ">=3.12"
 authors = [
-    {name = "Eduardo Nery", email = "eduardonery1@gmail.com"}
+    {name = "Levy Marques", email = "levy.vix@protonmail.com"}
 ]
 license = {text = "GPL-3.0"}
 keywords = ["anime", "manga", "cli", "streaming", "terminal"]
