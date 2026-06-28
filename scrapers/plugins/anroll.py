@@ -1,3 +1,4 @@
+import logging
 import re
 import urllib.parse
 
@@ -7,6 +8,8 @@ from bs4 import BeautifulSoup
 from scrapers.plugins.utils import DEFAULT_HEADERS, load_plugin, store_player_source
 from models.models import AnimeMetadata
 from services.repository import rep
+
+logger = logging.getLogger(__name__)
 
 BASE_URL = "https://www.anroll.info"
 HEADERS = DEFAULT_HEADERS
@@ -45,8 +48,8 @@ class AnRoll:
                 title = _TITLE_LEG_RE.sub("", title).strip()
                 if title and href:
                     results.append(AnimeMetadata(title=title, url=href, source=self.name))
-        except httpx.HTTPError:
-            pass
+        except httpx.HTTPError as e:
+            logger.debug("anroll search_anime falhou: %s", e)
         return results
 
     def search_episodes(self, anime: str, url: str, params: dict | None) -> None:
@@ -72,8 +75,8 @@ class AnRoll:
                 urls.append(href)
             if titles and urls:
                 rep.add_episode_list(anime, titles, urls, self.name)
-        except httpx.HTTPError:
-            pass
+        except httpx.HTTPError as e:
+            logger.debug("anroll search_episodes falhou: %s", e)
 
     def search_player_src(self, url: str, container: list, event) -> None:
         try:

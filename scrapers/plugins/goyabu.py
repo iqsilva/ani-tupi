@@ -1,4 +1,5 @@
 import json
+import logging
 import re
 import urllib.parse
 
@@ -9,6 +10,8 @@ from scrapers.core.blogger_resolver import resolve_blogger_token
 from scrapers.plugins.utils import DEFAULT_HEADERS, load_plugin, store_player_source
 from models.models import AnimeMetadata
 from services.repository import rep
+
+logger = logging.getLogger(__name__)
 
 BASE_URL = "https://goyabu.io"
 HEADERS = DEFAULT_HEADERS
@@ -41,8 +44,8 @@ class Goyabu:
                 link = a.get("href", "").strip()
                 if title and link:
                     results.append(AnimeMetadata(title=title, url=link, source=self.name))
-        except httpx.HTTPError:
-            pass
+        except httpx.HTTPError as e:
+            logger.debug("goyabu search_anime falhou: %s", e)
         return results
 
     def search_episodes(self, anime: str, url: str, params: dict | None) -> None:

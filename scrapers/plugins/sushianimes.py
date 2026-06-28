@@ -1,6 +1,7 @@
+import html
+import logging
 import re
 import urllib.parse
-import html
 
 import httpx
 from bs4 import BeautifulSoup
@@ -8,6 +9,8 @@ from bs4 import BeautifulSoup
 from scrapers.plugins.utils import DEFAULT_HEADERS, load_plugin, store_player_source
 from models.models import AnimeMetadata
 from services.repository import rep
+
+logger = logging.getLogger(__name__)
 
 
 BASE_URL = "https://sushianimes.com.br"
@@ -175,8 +178,8 @@ class SushiAnimes:
                             params={"season": season},
                         )
                     )
-        except httpx.HTTPError:
-            pass
+        except httpx.HTTPError as e:
+            logger.debug("sushianimes search_anime falhou: %s", e)
         return results
 
     def search_episodes(self, anime: str, url: str, params: dict | None) -> None:
@@ -216,9 +219,8 @@ class SushiAnimes:
 
             if titles and urls:
                 rep.add_episode_list(anime, titles, urls, self.name, season=season)
-        except httpx.HTTPError:
-            # Avoid leaking thread tracebacks when the site blocks direct requests.
-            pass
+        except httpx.HTTPError as e:
+            logger.debug("sushianimes search_episodes falhou: %s", e)
 
     def search_player_src(self, url: str, container: list, event) -> None:
         try:
@@ -252,8 +254,8 @@ class SushiAnimes:
             if not player_url:
                 raise ValueError(f"No player URL found in SushiAnimes embed response for: {url}")
             store_player_source(container, event, player_url)
-        except httpx.HTTPError:
-            pass
+        except httpx.HTTPError as e:
+            logger.debug("sushianimes search_player_src falhou: %s", e)
 
 
 def load() -> None:
