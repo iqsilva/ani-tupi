@@ -43,18 +43,21 @@ class SeleniumWebDriver:
     and BeautifulSoup integration for CSS selector-based parsing.
     """
 
-    def __init__(self, headless: bool = True, timeout: int = 20):
+    def __init__(self, headless: bool = True, timeout: int = 20, user_agent: str | None = None):
         """Initialize Selenium WebDriver with Chrome options.
 
         Args:
             headless: Run browser in headless mode (default: True)
             timeout: Page load timeout in seconds (default: 20)
+            user_agent: Fixed user-agent to use instead of random rotation.
+                Required when the extracted media URL is bound to the UA that
+                will later play it (e.g. anroll/anidrive googlevideo links).
         """
         self.timeout = timeout
         self.driver = None
-        self._init_driver(headless)
+        self._init_driver(headless, user_agent)
 
-    def _init_driver(self, headless: bool) -> None:
+    def _init_driver(self, headless: bool, user_agent: str | None = None) -> None:
         """Initialize Chrome WebDriver with stealth options."""
         options = Options()
 
@@ -74,8 +77,8 @@ class SeleniumWebDriver:
         options.add_argument("--disable-java")
         options.add_argument("--disable-popup-blocking")
 
-        # User agent rotation
-        user_agent = random.choice(USER_AGENTS)
+        # User agent: fixed when provided, otherwise rotate
+        user_agent = user_agent or random.choice(USER_AGENTS)
         options.add_argument(f"user-agent={user_agent}")
 
         # Initialize driver (Selenium Manager auto-downloads chromedriver)
