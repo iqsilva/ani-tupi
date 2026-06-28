@@ -479,3 +479,4 @@ Para questões legais específicas em sua jurisdição, consulte um advogado esp
 - Comunidade anime brasileira
 - Desenvolvedores do mpv
 - Projeto ani-cli (inspiração)
+- [Eduardo Nery](https://github.com/eduardonery1) — autor do projeto original [ani-tupi](https://github.com/eduardonery1/ani-tupi), do qual este fork é derivado

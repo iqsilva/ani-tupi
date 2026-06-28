@@ -37,6 +37,11 @@ dependencies = [
     "thefuzz>=0.22.1",
 ]
 
+[project.urls]
+"Homepage" = "https://github.com/levyvix/ani-tupi"
+"Bug Tracker" = "https://github.com/levyvix/ani-tupi/issues"
+"Forked From" = "https://github.com/eduardonery1/ani-tupi"
+
 [project.scripts]
 ani-tupi = "main:cli"
 manga-tupi = "manga_tupi:main"

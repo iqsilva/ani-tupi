@@ -1,0 +1,9 @@
+ani-tupi
+Copyright (C) 2026 Levy Marques <levy.vix@protonmail.com>
+
+This project is a fork of the original ani-tupi by Eduardo Nery:
+https://github.com/eduardonery1/ani-tupi
+
+The original project is licensed under the GNU General Public License v3.0.
+This fork maintains the same license. The codebase has been substantially
+rewritten and extended by Levy Marques.
