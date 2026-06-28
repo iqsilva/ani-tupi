@@ -18,6 +18,7 @@ from services.manga_service import (
 )
 from utils.logging import get_logger
 from services.manga.anilist_lists import handle_anilist_list
+from services.manga.download import _download_images, download_chapter, prompt_download_range
 from ui.components import loading, menu_navigate
 from utils.manga_reader import is_zathura_running, open_pdf_reader
 from utils.pdf_converter import create_pdf_from_images
@@ -677,66 +678,6 @@ def _show_chapter_action_menu() -> str | None:
     return None
 
 
-def _prompt_download_range(
-    last_chapter: str | None, available_chapters: list, default_count: int = 5
-) -> list | None:
-    """Prompt user for chapter range to download.
-
-    Args:
-        last_chapter: Last read chapter number
-        available_chapters: List of available ChapterData objects
-        default_count: Default number to download
-
-    Returns:
-        List of ChapterData objects to download, or None if cancelled
-    """
-    from utils.range_parser import parse_range_input
-
-    # Get chapter numbers as strings
-    chapter_numbers = [ch.number for ch in available_chapters]
-
-    # Build prompt with context
-    prompt_text = "Quantos capítulos deseja baixar?\n"
-    if last_chapter:
-        prompt_text += f"  (último lido: {last_chapter})\n"
-    prompt_text += f"  (padrão: {default_count}, próximos após o último)\n\n"
-    prompt_text += "Digite número ou intervalo:\n"
-    prompt_text += '  • "5" → Próximos 5 capítulos\n'
-    prompt_text += '  • "3-10" → Capítulos 3-10\n'
-    prompt_text += '  • "all" → Todos disponíveis\n'
-    prompt_text += "  (Enter para padrão)"
-
-    try:
-        user_input = inquirer.text(message=prompt_text).execute()  # type: ignore[attr-defined]
-    except KeyboardInterrupt:
-        return None
-
-    if user_input is None:
-        return None
-
-    try:
-        selected_chapters = parse_range_input(
-            user_input.strip(),
-            last_chapter=last_chapter,
-            available_chapters=chapter_numbers,
-            default_count=default_count,
-        )
-    except ValueError as e:
-        logger.info(f"❌ {e}")
-        logger.info("Voltando...")
-        return None
-
-    # Map chapter numbers back to ChapterData objects
-    chapter_map = {ch.number: ch for ch in available_chapters}
-    result = [chapter_map[num] for num in selected_chapters if num in chapter_map]
-
-    if not result:
-        logger.info("❌ Nenhum capítulo selecionado")
-        return None
-
-    return result
-
-
 def _handle_read_now(
     service,
     selected_manga,
@@ -763,189 +704,6 @@ def _handle_read_now(
         chapter_labels,
         current_index,
     )
-
-
-def _download_single_chapter(
-    chapter,
-    service,
-    selected_manga,
-    manga_url,
-    selected_source,
-    config,
-    tracker,
-    chapter_idx,
-    total_chapters,
-) -> tuple[bool, str]:
-    """Download a single chapter and return (success, error_message).
-
-    Args:
-        chapter: ChapterData object to download
-        service: UnifiedMangaService instance
-        selected_manga: Selected manga metadata
-        manga_url: Base manga URL
-        selected_source: Source name
-        config: Manga settings
-        tracker: DownloadedChaptersTracker instance
-        chapter_idx: Chapter index for progress (1-based)
-        total_chapters: Total number of chapters being downloaded
-
-    Returns:
-        tuple: (success: bool, error_message: str)
-    """
-    try:
-        logger.info(f"\n[{chapter_idx}/{total_chapters}] Capítulo {chapter.number}...")
-
-        # Construct chapter URL based on source
-        # Use chapter URL provided by plugin
-        chapter_url = chapter.url or ""
-
-        if config.debug_download_failures:
-            logger.info(f"  🔍 Buscando páginas do capítulo {chapter.number}...")
-            logger.info(f"     URL: {chapter_url}")
-            logger.info(f"     ID: {chapter.id}")
-
-        try:
-            # Get chapter pages
-            pages = service.get_chapter_pages(
-                chapter.id, chapter_url=chapter_url, source=selected_source
-            )
-        except Exception as e:
-            error_msg = f"Falha ao buscar páginas do capítulo {chapter.number}: {str(e)}"
-            if config.debug_download_failures:
-                logger.info(f"  ❌ {error_msg}")
-            return False, error_msg
-
-        if not pages:
-            error_msg = f"Nenhuma página disponível para capítulo {chapter.number} (fonte: {selected_source})"
-            if config.debug_download_failures:
-                logger.info(f"  ❌ {error_msg}")
-            return False, error_msg
-
-        if config.debug_download_failures:
-            logger.info(f"  ✓ Encontradas {len(pages)} páginas")
-
-        # Create output directory
-        output_path = config.output_directory / selected_manga.title / chapter.number
-        output_path.mkdir(parents=True, exist_ok=True)
-
-        # Define PDF path
-        pdf_path = output_path / f"{chapter.number}.pdf"
-
-        # Download pages
-        if config.debug_download_failures:
-            logger.info(f"Baixando {len(pages)} páginas...")
-        import httpx
-
-        valid_downloads = 0
-        failed_pages = []
-
-        for i, url in enumerate(pages):
-            if config.debug_download_failures and (
-                i % 10 == 0 or i < 3
-            ):  # Log first 3 and every 10th
-                logger.info(f"     Página {i + 1}/{len(pages)}: {url[:60]}...")
-            from pathlib import Path as UrlPath
-
-            ext = UrlPath(url.split("?")[0]).suffix or ".png"
-            img_path = output_path / f"{i:03d}{ext}"
-            if not img_path.exists():
-                response = None
-                try:
-                    response = httpx.get(url, timeout=15, follow_redirects=True)
-                    response.raise_for_status()
-
-                    # Validate content is actually an image
-                    content_type = response.headers.get("content-type", "").lower()
-                    if not content_type.startswith("image/"):
-                        failed_pages.append(f"Page {i}: Invalid content-type '{content_type}'")
-                        continue
-
-                    img_data = response.content
-                    if len(img_data) < 1024:  # Skip very small files (likely errors)
-                        failed_pages.append(f"Page {i}: Too small ({len(img_data)} bytes)")
-                        continue
-
-                    img_path.write_bytes(img_data)
-                    valid_downloads += 1
-                except httpx.TimeoutException:
-                    failed_pages.append(f"Page {i}: Timeout")
-                    continue
-                except httpx.ConnectError:
-                    failed_pages.append(f"Page {i}: Connection error")
-                    continue
-                except httpx.HTTPStatusError:
-                    status_code = (
-                        getattr(response, "status_code", "unknown") if response else "unknown"
-                    )
-                    failed_pages.append(f"Page {i}: HTTP {status_code}")
-                    continue
-                except Exception as e:
-                    failed_pages.append(f"Page {i}: {str(e)}")
-                    continue
-            else:
-                valid_downloads += 1
-
-        # Log failed pages if any
-        if failed_pages:
-            logger.info(f"  ⚠️  {len(failed_pages)} páginas falharam:")
-            for failure in failed_pages[:5]:  # Show first 5 failures
-                logger.info(f"    {failure}")
-            if len(failed_pages) > 5:
-                logger.info(f"    ... e mais {len(failed_pages) - 5} falhas")
-
-        logger.info(f"✓ {valid_downloads} imagens válidas baixadas")
-
-        # Check if we have enough valid images
-        image_extensions = ["*.png", "*.jpg", "*.jpeg", "*.webp"]
-        image_files = []
-        for ext in image_extensions:
-            image_files.extend(output_path.glob(ext))
-
-        if len(image_files) == 0:
-            return (
-                False,
-                f"Nenhuma imagem válida baixada para capítulo {chapter.number}",
-            )
-
-        if len(image_files) < len(pages) * 0.5:  # Less than 50% success rate
-            return (
-                False,
-                f"Apenas {len(image_files)}/{len(pages)} imagens válidas baixadas para capítulo {chapter.number}",
-            )
-
-        # Create PDF
-        logger.info(f"📄 Criando PDF com {len(image_files)} imagens...")
-        try:
-            create_pdf_from_images(
-                output_path,
-                pdf_path,
-                quality=config.pdf_quality,
-            )
-        except Exception as e:
-            return False, f"Falha ao criar PDF para capítulo {chapter.number}: {str(e)}"
-
-        # Delete images if configured
-        if config.delete_images_after_pdf:
-            for ext in ["*.png", "*.jpg", "*.jpeg", "*.webp"]:
-                for img in output_path.glob(ext):
-                    img.unlink()
-
-        # Track download
-        file_size_mb = pdf_path.stat().st_size / (1024 * 1024)
-        tracker.mark_downloaded(
-            selected_manga.id,
-            selected_manga.title,
-            chapter.number,
-            str(pdf_path),
-            file_size_mb,
-            source=selected_source,
-        )
-
-        logger.info(f"✓ Capítulo {chapter.number} baixado ({file_size_mb:.1f} MB)")
-        return True, ""
-
-    except Exception as e:
-        return False, f"Erro ao baixar capítulo {chapter.number}: {e}"
 
 
 def _handle_download_for_later(
@@ -1000,7 +758,7 @@ def _handle_download_for_later(
     last_chapter = history.get_last_chapter(selected_manga.title)
 
     # Prompt for range
-    chapters_to_download = _prompt_download_range(
+    chapters_to_download = prompt_download_range(
         last_chapter,
         all_chapters,
         default_count=config.default_download_range,
@@ -1054,7 +812,7 @@ def _handle_download_for_later(
         failed = []
 
         for chapter_idx, chapter in enumerate(new_chapters, 1):
-            success, error_msg = _download_single_chapter(
+            success, error_msg = download_chapter(
                 chapter,
                 service,
                 selected_manga,
@@ -1096,7 +854,7 @@ def _handle_download_for_later(
                 future_to_chapter = {}
                 for chapter_idx, chapter in enumerate(new_chapters, 1):
                     future = executor.submit(
-                        _download_single_chapter,
+                        download_chapter,
                         chapter,
                         service,
                         selected_manga,
@@ -1184,20 +942,7 @@ def _process_chapter(
         # Download pages
         logger.info(f"Baixando {len(pages)} páginas...")
         try:
-            import httpx
-            from tqdm import tqdm
-
-            for i, url in enumerate(tqdm(pages, desc="Download")):
-                # Extract file extension from URL (webp, png, jpg, etc.)
-                from pathlib import Path as UrlPath
-
-                ext = UrlPath(url.split("?")[0]).suffix or ".png"
-                img_path = output_path / f"{i:03d}{ext}"
-                if not img_path.exists():
-                    response = httpx.get(url, timeout=10, follow_redirects=True)
-                    response.raise_for_status()
-                    content = response.content
-                    img_path.write_bytes(content)
+            _download_images(pages, output_path, config)
 
             if not config.auto_create_pdf:
                 logger.info(f"✓ Capítulo salvo em: {output_path}")

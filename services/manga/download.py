@@ -6,11 +6,12 @@ Extracted from manga_tupi.py to improve maintainability and enable unit testing.
 
 from pathlib import Path
 import httpx
+from InquirerPy import inquirer
 
 from services.manga_service import DownloadedChaptersTracker
-from ui.components import menu_navigate
 from utils.pdf_converter import create_pdf_from_images
 from utils.logging import get_logger
+from utils.range_parser import parse_range_input
 
 logger = get_logger(__name__)
 
@@ -193,11 +194,7 @@ def prompt_download_range(
     available_chapters: list,
     default_count: int = 5,
 ) -> list | None:
-    """Prompt user for chapter range to download.
-
-    Asks user to select:
-    1. Starting chapter (default: after last read)
-    2. Number of chapters (default: 5)
+    """Prompt user for chapter range to download via free-text input.
 
     Args:
         last_chapter: Last read chapter number
@@ -210,37 +207,46 @@ def prompt_download_range(
     if not available_chapters:
         return None
 
-    # Find starting chapter index
-    start_idx = 0
+    chapter_numbers = [ch.number for ch in available_chapters]
+
+    prompt_text = "Quantos capítulos deseja baixar?\n"
     if last_chapter:
-        for i, ch in enumerate(available_chapters):
-            if ch.number == last_chapter:
-                start_idx = max(0, i - 1)  # Start one before last read
-                break
+        prompt_text += f"  (último lido: {last_chapter})\n"
+    prompt_text += f"  (padrão: {default_count}, próximos após o último)\n\n"
+    prompt_text += "Digite número ou intervalo:\n"
+    prompt_text += '  • "5" → Próximos 5 capítulos\n'
+    prompt_text += '  • "3-10" → Capítulos 3-10\n'
+    prompt_text += '  • "all" → Todos disponíveis\n'
+    prompt_text += "  (Enter para padrão)"
 
-    # Build menu options for number of chapters
-    chapter_count_options = [
-        "1 capítulo",
-        "3 capítulos",
-        "5 capítulos",
-        "10 capítulos",
-        "Todos (a partir de agora)",
-    ]
-
-    count_map = {
-        "1 capítulo": 1,
-        "3 capítulos": 3,
-        "5 capítulos": 5,
-        "10 capítulos": 10,
-        "Todos (a partir de agora)": len(available_chapters) - start_idx,
-    }
-
-    choice = menu_navigate(chapter_count_options, "Quantos capítulos baixar?")
-    if not choice:
+    try:
+        user_input = inquirer.text(message=prompt_text).execute()  # type: ignore[attr-defined]
+    except KeyboardInterrupt:
         return None
 
-    count = count_map.get(choice, default_count)
-    return available_chapters[start_idx : start_idx + count]
+    if user_input is None:
+        return None
+
+    try:
+        selected_numbers = parse_range_input(
+            user_input.strip(),
+            last_chapter=last_chapter,
+            available_chapters=chapter_numbers,
+            default_count=default_count,
+        )
+    except ValueError as e:
+        logger.info(f"❌ {e}")
+        logger.info("Voltando...")
+        return None
+
+    chapter_map = {ch.number: ch for ch in available_chapters}
+    result = [chapter_map[num] for num in selected_numbers if num in chapter_map]
+
+    if not result:
+        logger.info("❌ Nenhum capítulo selecionado")
+        return None
+
+    return result
 
 
 # ========== Private Helpers ==========
