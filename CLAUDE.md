@@ -306,6 +306,10 @@ uv remove package-name                   # Remove dependency
 uv sync --upgrade                        # Update all
 ```
 
+**Branch naming**:
+- Do **not** use the `cursor/` prefix for feature branches — it interferes with version-bump commits from the release bot.
+- Prefer descriptive names with conventional prefixes, e.g. `feat/anilist-sync`, `fix/scraper-timeout`, `chore/consolidate-pyright-config`.
+
 **How to Use**:
 
 Just write conventional commits and push to branch:
