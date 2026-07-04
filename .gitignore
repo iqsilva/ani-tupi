@@ -12,6 +12,7 @@ log.txt
 .beads/
 .serena
 .playwright
+graphify-out/*
 
 
 # Virtual environmentsn
