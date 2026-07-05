@@ -411,6 +411,11 @@ mpv --version
 
 Contribuições são bem-vindas! Abra uma issue ou pull request.
 
+> 📖 **Antes de mexer no código, leia [`CONTRIBUTING.md`](./CONTRIBUTING.md)** —
+> especialmente a seção **Filosofia de fontes**, que explica as decisões do autor
+> sobre priorização de fontes (velocidade, qualidade HD e legenda) e as regras
+> que todo PR deve preservar.
+
 1. Fork o projeto
 2. Crie uma branch para sua feature (`git checkout -b feature/MinhaFeature`)
 3. Commit suas mudanças (`git commit -m 'Adiciona MinhaFeature'`)
