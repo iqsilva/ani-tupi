@@ -52,6 +52,7 @@ class VideoPlayer:
         """
         self.autoplay = autoplay
         self._last_mpv_log_file: str | None = None
+        self._api_socket_path: str | None = None  # Socket path override for API control
 
     def _get_mpv_logs_dir(self) -> Path:
         """Return directory for persistent MPV logs."""
@@ -186,8 +187,8 @@ class VideoPlayer:
         try:
             logger.debug(f"Source={source} IPC={use_ipc}")
             logger.debug(f"Full URL: {url}")
-            # Generate socket path and input.conf
-            socket_path = self._create_ipc_socket_path()
+            # Generate socket path and input.conf (use API socket if set)
+            socket_path = self._api_socket_path or self._create_ipc_socket_path()
             input_conf_path, _ = self._generate_input_conf()
 
             # Launch MPV with IPC

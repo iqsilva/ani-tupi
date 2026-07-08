@@ -174,6 +174,11 @@ async def start_playback(request: PlaybackStartRequest) -> PlaybackResponse:
             position=0.0,
         )
 
+        # Create a predictable socket path for IPC control
+        import tempfile
+        socket_path = str(Path(tempfile.gettempdir()) / "ani-tupi-api-mpv.sock")
+        playback_state.mpv_socket_path = socket_path
+
         # Get the current event loop to schedule callbacks from thread
         loop = asyncio.get_event_loop()
 
@@ -182,6 +187,9 @@ async def start_playback(request: PlaybackStartRequest) -> PlaybackResponse:
             global _mpv_process
             player = _get_player()
             player.set_autoplay_state(playback_state.autoplay)
+
+            # Use our fixed socket path
+            player._api_socket_path = socket_path
 
             result = player.play_episode(
                 url=video_url,
