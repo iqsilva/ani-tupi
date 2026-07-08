@@ -159,8 +159,11 @@ async def start_playback(request: PlaybackStartRequest) -> PlaybackResponse:
                 detail="Failed to extract video URL from sources",
             )
 
-        # Update state before starting playback
+        # Get referrer from the source URL (needed to bypass Cloudflare)
         source_name = sources_with_urls[0][1] if sources_with_urls else "unknown"
+        referrer = sources_with_urls[0][0] if sources_with_urls else None
+
+        # Update state before starting playback
         playback_state.update(
             is_playing=True,
             anime=request.anime,
@@ -188,6 +191,7 @@ async def start_playback(request: PlaybackStartRequest) -> PlaybackResponse:
                 source=source_name,
                 use_ipc=True,
                 max_quality=request.quality,
+                referrer=referrer,
             )
 
             # Playback ended - schedule broadcast on main event loop
