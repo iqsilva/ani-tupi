@@ -15,7 +15,7 @@ Assista anime e leia mangá direto do terminal sem anúncios! Interface CLI em p
 - **Python 3.12+** (obrigatório)
 - **mpv** (player de vídeo)
 - **Zathura** (leitor de PDF para mangá - recomendado)
-- **Firefox** (opcional, para alguns scrapers)
+- **Chromium** (ou Google Chrome — necessário para os scrapers de mangá que usam Selenium)
 - **git** (opcional — só necessário para clonar o repositório ou usar `install.sh`)
 
 ### Instalando dependências
@@ -23,32 +23,32 @@ Assista anime e leia mangá direto do terminal sem anúncios! Interface CLI em p
 #### Linux (Arch)
 ```bash
 # Instalar dependências do sistema
-sudo pacman -S python mpv zathura firefox git libxml2 libvpx flite webkit2gtk-4.1
+sudo pacman -S python mpv zathura chromium git
 ```
 
 #### Linux (Ubuntu/Debian)
 ```bash
 # Instalar dependências do sistema
-sudo apt install python3 mpv zathura firefox git libxml2 libvpx libflite1 webkit2gtk-4.1
+sudo apt install python3 mpv zathura chromium-browser git
 ```
 
 #### Linux (Fedora)
 ```bash
 # Instalar dependências do sistema
-sudo dnf install python3 mpv zathura firefox git libxml2 libvpx flite webkit2gtk-4.1
+sudo dnf install python3 mpv zathura chromium git
 ```
 
 #### macOS
 ```bash
 # Instalar dependências do sistema
-brew install python@3.12 mpv zathura firefox git
+brew install python@3.12 mpv zathura chromium git
 ```
 
 #### Windows
 Recomendamos usar [Chocolatey](https://chocolatey.org/install):
 ```powershell
 # Como administrador
-choco install python mpv zathura firefox git
+choco install python mpv zathura googlechrome git
 ```
 
 **Nota:** Zathura é primariamente para Linux. No Windows, o sistema detectará automaticamente outros leitores de PDF instalados (Adobe Reader, SumatraPDF, etc).
