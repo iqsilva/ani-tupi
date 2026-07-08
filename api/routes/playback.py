@@ -167,6 +167,9 @@ async def start_playback(request: PlaybackStartRequest) -> PlaybackResponse:
             position=0.0,
         )
 
+        # Get the current event loop to schedule callbacks from thread
+        loop = asyncio.get_event_loop()
+
         # Start playback in background thread
         def play_in_background():
             global _mpv_process
@@ -183,9 +186,15 @@ async def start_playback(request: PlaybackStartRequest) -> PlaybackResponse:
                 max_quality=request.quality,
             )
 
-            # Playback ended
+            # Playback ended - schedule broadcast on main event loop
             playback_state.reset()
-            asyncio.run(playback_state.broadcast_state())
+            try:
+                loop.call_soon_threadsafe(
+                    lambda: asyncio.create_task(playback_state.broadcast_state())
+                )
+            except RuntimeError:
+                # Event loop closed, ignore
+                pass
 
         _playback_thread = threading.Thread(target=play_in_background, daemon=True)
         _playback_thread.start()
