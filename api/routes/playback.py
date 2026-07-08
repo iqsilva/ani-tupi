@@ -146,8 +146,12 @@ async def start_playback(request: PlaybackStartRequest) -> PlaybackResponse:
                     detail=f"Source '{request.source}' not available for this episode",
                 )
 
-        # Get video URL via playback coordinator
-        video_url = rep.search_player(request.anime, request.episode)
+        # Get video URL via playback coordinator (use async version)
+        from services.playback_coordinator import PlaybackCoordinator
+        coordinator = PlaybackCoordinator(rep.sources)
+        video_url = await coordinator.search_player_async(
+            sources_with_urls, request.anime, request.episode
+        )
 
         if not video_url:
             raise HTTPException(

@@ -74,10 +74,10 @@ class PlaybackCoordinator:
         # If not detected by domain, return None
         return None
 
-    def search_player(
+    async def _search_player_impl(
         self, sources_with_urls: list[tuple], anime: str, episode_num: int
     ) -> str | None:
-        """Search for video URLs with caching across multiple sources.
+        """Internal async implementation for searching video URLs.
 
         Cache video URLs to speed up rewatching (7-15s → 100ms!)
         Respects configured priority order for source selection.
@@ -90,10 +90,6 @@ class PlaybackCoordinator:
         Returns:
             Video URL or None if not found
         """
-        # Defensive check: No sources have this episode available
-        if not sources_with_urls:
-            logger.info(f"   ❌ Episódio {episode_num} não disponível nas fontes ativas.")
-            return None
 
         # Get anilist_id for cache key (if already discovered)
         anilist_id = self.anime_to_anilist_id.get(anime)
@@ -218,7 +214,53 @@ class PlaybackCoordinator:
 
             return video_url
 
-        return asyncio.run(search_all_sources())
+        return await search_all_sources()
+
+    def search_player(
+        self, sources_with_urls: list[tuple], anime: str, episode_num: int
+    ) -> str | None:
+        """Search for video URLs (sync version for CLI use).
+
+        Args:
+            sources_with_urls: List of (url, source) tuples for the episode
+            anime: Anime title
+            episode_num: Episode number (1-indexed)
+
+        Returns:
+            Video URL or None if not found
+        """
+        if not sources_with_urls:
+            logger.info(f"   ❌ Episódio {episode_num} não disponível nas fontes ativas.")
+            return None
+
+        try:
+            asyncio.get_running_loop()
+            raise RuntimeError("Use search_player_async in async context")
+        except RuntimeError as e:
+            if "no running event loop" not in str(e):
+                raise
+            return asyncio.run(
+                self._search_player_impl(sources_with_urls, anime, episode_num)
+            )
+
+    async def search_player_async(
+        self, sources_with_urls: list[tuple], anime: str, episode_num: int
+    ) -> str | None:
+        """Async version of search_player for use in FastAPI routes.
+
+        Args:
+            sources_with_urls: List of (url, source) tuples for the episode
+            anime: Anime title
+            episode_num: Episode number (1-indexed)
+
+        Returns:
+            Video URL or None if not found
+        """
+        if not sources_with_urls:
+            logger.info(f"   ❌ Episódio {episode_num} não disponível nas fontes ativas.")
+            return None
+
+        return await self._search_player_impl(sources_with_urls, anime, episode_num)
 
     def search_player_from_page(self, page_url: str, source_name: str) -> list[str]:
         """Extract candidate video URLs from an episode page for a specific source.
