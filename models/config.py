@@ -489,6 +489,33 @@ class UpdateCheckSettings(BaseModel):
     )
 
 
+class ApiSettings(BaseModel):
+    """Remote control API server settings."""
+
+    enabled: bool = Field(
+        False,
+        description="Enable remote control API server",
+    )
+    host: str = Field(
+        "0.0.0.0",
+        description="Host address to bind the API server",
+    )
+    port: int = Field(
+        8765,
+        ge=1024,
+        le=65535,
+        description="Port for the API server",
+    )
+    cors_origins: list[str] = Field(
+        default_factory=lambda: ["*"],
+        description="Allowed CORS origins for the API",
+    )
+    auth_token: str | None = Field(
+        None,
+        description="Optional auth token for API requests (None = no auth)",
+    )
+
+
 class AppSettings(BaseSettings):
     """Root application settings with environment variable support.
 
@@ -537,6 +564,7 @@ class AppSettings(BaseSettings):
     performance: PerformanceSettings = PerformanceSettings()  # type: ignore[call-arg]
     airing: AiringSettings = AiringSettings()  # type: ignore[call-arg]
     updates: UpdateCheckSettings = UpdateCheckSettings()  # type: ignore[call-arg]
+    api: ApiSettings = ApiSettings()  # type: ignore[call-arg]
 
 
 # Singleton instance - import and use throughout the app

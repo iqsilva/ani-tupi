@@ -1,0 +1,884 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <meta name="theme-color" content="#1a1a2e">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <link rel="manifest" href="/manifest.json">
+    <title>Ani-Tupi Remote</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        :root {
+            --bg-primary: #1a1a2e;
+            --bg-secondary: #16213e;
+            --bg-card: #0f3460;
+            --accent: #e94560;
+            --accent-hover: #ff6b6b;
+            --text-primary: #ffffff;
+            --text-secondary: #a0a0a0;
+            --success: #4caf50;
+            --warning: #ff9800;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+            padding-bottom: 80px;
+        }
+
+        /* Header */
+        header {
+            background: var(--bg-secondary);
+            padding: 16px 20px;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+        }
+
+        header h1 {
+            font-size: 1.3rem;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        header h1 span {
+            font-size: 1.5rem;
+        }
+
+        /* Connection status */
+        .status-bar {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+            margin-top: 8px;
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--warning);
+        }
+
+        .status-dot.connected {
+            background: var(--success);
+        }
+
+        /* Navigation */
+        nav {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: var(--bg-secondary);
+            display: flex;
+            justify-content: space-around;
+            padding: 10px 0;
+            box-shadow: 0 -2px 10px rgba(0,0,0,0.3);
+            z-index: 100;
+        }
+
+        nav button {
+            background: none;
+            border: none;
+            color: var(--text-secondary);
+            font-size: 0.75rem;
+            padding: 8px 16px;
+            cursor: pointer;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 4px;
+            transition: color 0.2s;
+        }
+
+        nav button.active {
+            color: var(--accent);
+        }
+
+        nav button span {
+            font-size: 1.5rem;
+        }
+
+        /* Pages */
+        .page {
+            display: none;
+            padding: 20px;
+            animation: fadeIn 0.3s ease;
+        }
+
+        .page.active {
+            display: block;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* Search */
+        .search-container {
+            position: relative;
+            margin-bottom: 20px;
+        }
+
+        .search-input {
+            width: 100%;
+            padding: 14px 50px 14px 16px;
+            font-size: 1rem;
+            border: none;
+            border-radius: 12px;
+            background: var(--bg-card);
+            color: var(--text-primary);
+            outline: none;
+        }
+
+        .search-input::placeholder {
+            color: var(--text-secondary);
+        }
+
+        .search-btn {
+            position: absolute;
+            right: 8px;
+            top: 50%;
+            transform: translateY(-50%);
+            background: var(--accent);
+            border: none;
+            border-radius: 8px;
+            padding: 8px 12px;
+            font-size: 1.2rem;
+            cursor: pointer;
+        }
+
+        /* Cards */
+        .card {
+            background: var(--bg-card);
+            border-radius: 12px;
+            padding: 16px;
+            margin-bottom: 12px;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .card:active {
+            transform: scale(0.98);
+        }
+
+        .card h3 {
+            font-size: 1rem;
+            margin-bottom: 6px;
+            line-height: 1.3;
+        }
+
+        .card p {
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+        }
+
+        .card .sources {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            margin-top: 10px;
+        }
+
+        .card .source-tag {
+            font-size: 0.7rem;
+            padding: 4px 8px;
+            border-radius: 6px;
+            background: var(--bg-secondary);
+            color: var(--text-secondary);
+        }
+
+        /* Episode grid */
+        .episode-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(60px, 1fr));
+            gap: 10px;
+            margin-top: 16px;
+        }
+
+        .episode-btn {
+            aspect-ratio: 1;
+            border: none;
+            border-radius: 10px;
+            background: var(--bg-card);
+            color: var(--text-primary);
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .episode-btn:active {
+            background: var(--accent);
+            transform: scale(0.95);
+        }
+
+        .episode-btn.watched {
+            background: var(--bg-secondary);
+            color: var(--text-secondary);
+        }
+
+        /* Player controls */
+        .player-section {
+            background: var(--bg-card);
+            border-radius: 16px;
+            padding: 24px;
+            text-align: center;
+        }
+
+        .now-playing {
+            margin-bottom: 20px;
+        }
+
+        .now-playing h2 {
+            font-size: 1.1rem;
+            margin-bottom: 8px;
+        }
+
+        .now-playing p {
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+        }
+
+        .player-controls {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 20px;
+            margin: 24px 0;
+        }
+
+        .player-btn {
+            background: none;
+            border: none;
+            color: var(--text-primary);
+            font-size: 2rem;
+            cursor: pointer;
+            padding: 16px;
+            border-radius: 50%;
+            transition: all 0.2s;
+        }
+
+        .player-btn:active {
+            background: var(--bg-secondary);
+            transform: scale(0.9);
+        }
+
+        .player-btn.play-pause {
+            background: var(--accent);
+            font-size: 2.5rem;
+            padding: 20px;
+        }
+
+        .player-btn.play-pause:active {
+            background: var(--accent-hover);
+        }
+
+        /* Progress bar */
+        .progress-container {
+            margin: 20px 0;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 6px;
+            background: var(--bg-secondary);
+            border-radius: 3px;
+            overflow: hidden;
+            cursor: pointer;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: var(--accent);
+            border-radius: 3px;
+            transition: width 0.3s;
+        }
+
+        .time-display {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+            margin-top: 6px;
+        }
+
+        /* Volume */
+        .volume-slider {
+            width: 100%;
+            margin-top: 16px;
+        }
+
+        input[type="range"] {
+            width: 100%;
+            height: 6px;
+            -webkit-appearance: none;
+            background: var(--bg-secondary);
+            border-radius: 3px;
+            outline: none;
+        }
+
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: var(--accent);
+            cursor: pointer;
+        }
+
+        /* Toggle */
+        .toggle-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 0;
+            border-bottom: 1px solid var(--bg-secondary);
+        }
+
+        .toggle-switch {
+            width: 50px;
+            height: 28px;
+            background: var(--bg-secondary);
+            border-radius: 14px;
+            position: relative;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+
+        .toggle-switch.on {
+            background: var(--accent);
+        }
+
+        .toggle-switch::after {
+            content: '';
+            position: absolute;
+            width: 22px;
+            height: 22px;
+            border-radius: 50%;
+            background: white;
+            top: 3px;
+            left: 3px;
+            transition: transform 0.3s;
+        }
+
+        .toggle-switch.on::after {
+            transform: translateX(22px);
+        }
+
+        /* Empty state */
+        .empty-state {
+            text-align: center;
+            padding: 40px 20px;
+            color: var(--text-secondary);
+        }
+
+        .empty-state span {
+            font-size: 4rem;
+            display: block;
+            margin-bottom: 16px;
+        }
+
+        /* Loading */
+        .loading {
+            display: flex;
+            justify-content: center;
+            padding: 40px;
+        }
+
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 3px solid var(--bg-secondary);
+            border-top-color: var(--accent);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* Modal */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.7);
+            display: none;
+            justify-content: center;
+            align-items: flex-end;
+            z-index: 200;
+        }
+
+        .modal-overlay.active {
+            display: flex;
+        }
+
+        .modal {
+            background: var(--bg-secondary);
+            width: 100%;
+            max-height: 70vh;
+            border-radius: 20px 20px 0 0;
+            padding: 24px;
+            overflow-y: auto;
+            animation: slideUp 0.3s ease;
+        }
+
+        @keyframes slideUp {
+            from { transform: translateY(100%); }
+            to { transform: translateY(0); }
+        }
+
+        .modal h2 {
+            margin-bottom: 20px;
+            font-size: 1.2rem;
+        }
+
+        .modal-close {
+            position: absolute;
+            top: 16px;
+            right: 16px;
+            background: none;
+            border: none;
+            color: var(--text-secondary);
+            font-size: 1.5rem;
+            cursor: pointer;
+        }
+
+        /* Back button */
+        .back-btn {
+            background: none;
+            border: none;
+            color: var(--text-secondary);
+            font-size: 1rem;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 16px;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1><span>🎬</span> Ani-Tupi Remote</h1>
+        <div class="status-bar">
+            <div class="status-dot" id="statusDot"></div>
+            <span id="statusText">Conectando...</span>
+        </div>
+    </header>
+
+    <!-- Search Page -->
+    <div class="page active" id="searchPage">
+        <div class="search-container">
+            <input type="text" class="search-input" id="searchInput" placeholder="Buscar anime...">
+            <button class="search-btn" id="searchBtn">🔍</button>
+        </div>
+        <div id="searchResults"></div>
+    </div>
+
+    <!-- Episodes Page (hidden by default) -->
+    <div class="page" id="episodesPage">
+        <button class="back-btn" id="backToSearch">← Voltar</button>
+        <h2 id="animeTitle"></h2>
+        <p id="episodeCount"></p>
+        <div class="episode-grid" id="episodeGrid"></div>
+    </div>
+
+    <!-- Player Page -->
+    <div class="page" id="playerPage">
+        <div class="player-section">
+            <div class="now-playing">
+                <h2 id="playingTitle">Nada tocando</h2>
+                <p id="playingEpisode">Selecione um anime para começar</p>
+            </div>
+            
+            <div class="progress-container">
+                <div class="progress-bar" id="progressBar">
+                    <div class="progress-fill" id="progressFill"></div>
+                </div>
+                <div class="time-display">
+                    <span id="currentTime">0:00</span>
+                    <span id="totalTime">0:00</span>
+                </div>
+            </div>
+
+            <div class="player-controls">
+                <button class="player-btn" id="prevBtn">⏮️</button>
+                <button class="player-btn play-pause" id="playPauseBtn">▶️</button>
+                <button class="player-btn" id="nextBtn">⏭️</button>
+            </div>
+
+            <div class="volume-slider">
+                <label>🔊 Volume</label>
+                <input type="range" id="volumeSlider" min="0" max="100" value="100">
+            </div>
+
+            <div class="toggle-row">
+                <span>Autoplay</span>
+                <div class="toggle-switch" id="autoplayToggle"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- History Page -->
+    <div class="page" id="historyPage">
+        <h2 style="margin-bottom: 16px;">Continuar Assistindo</h2>
+        <div id="historyList"></div>
+    </div>
+
+    <!-- Navigation -->
+    <nav>
+        <button class="active" data-page="searchPage">
+            <span>🔍</span>
+            Buscar
+        </button>
+        <button data-page="playerPage">
+            <span>🎮</span>
+            Player
+        </button>
+        <button data-page="historyPage">
+            <span>📺</span>
+            Histórico
+        </button>
+    </nav>
+
+    <!-- Episode selection modal -->
+    <div class="modal-overlay" id="modalOverlay">
+        <div class="modal" id="modal">
+            <h2 id="modalTitle"></h2>
+            <div id="modalContent"></div>
+        </div>
+    </div>
+
+    <script>
+        // State
+        let ws = null;
+        let playbackState = {
+            is_playing: false,
+            anime: null,
+            episode: null,
+            total_episodes: null,
+            source: null,
+            position: 0,
+            duration: 0,
+            paused: false,
+            autoplay: false,
+            volume: 100
+        };
+        let currentAnime = null;
+        let reconnectAttempts = 0;
+
+        // API base URL (same host as page)
+        const API_BASE = '';
+
+        // Elements
+        const statusDot = document.getElementById('statusDot');
+        const statusText = document.getElementById('statusText');
+        const searchInput = document.getElementById('searchInput');
+        const searchBtn = document.getElementById('searchBtn');
+        const searchResults = document.getElementById('searchResults');
+        const episodesPage = document.getElementById('episodesPage');
+        const episodeGrid = document.getElementById('episodeGrid');
+        const playingTitle = document.getElementById('playingTitle');
+        const playingEpisode = document.getElementById('playingEpisode');
+        const progressFill = document.getElementById('progressFill');
+        const currentTime = document.getElementById('currentTime');
+        const totalTime = document.getElementById('totalTime');
+        const playPauseBtn = document.getElementById('playPauseBtn');
+        const volumeSlider = document.getElementById('volumeSlider');
+        const autoplayToggle = document.getElementById('autoplayToggle');
+        const historyList = document.getElementById('historyList');
+
+        // Navigation
+        document.querySelectorAll('nav button').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const pageId = btn.dataset.page;
+                showPage(pageId);
+                document.querySelectorAll('nav button').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+            });
+        });
+
+        function showPage(pageId) {
+            document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+            document.getElementById(pageId).classList.add('active');
+            
+            if (pageId === 'historyPage') loadHistory();
+        }
+
+        // WebSocket connection
+        function connectWebSocket() {
+            const wsProtocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
+            ws = new WebSocket(`${wsProtocol}//${location.host}/api/playback/ws`);
+
+            ws.onopen = () => {
+                statusDot.classList.add('connected');
+                statusText.textContent = 'Conectado';
+                reconnectAttempts = 0;
+            };
+
+            ws.onmessage = (event) => {
+                const msg = JSON.parse(event.data);
+                if (msg.type === 'state') {
+                    updatePlaybackUI(msg.data);
+                }
+            };
+
+            ws.onclose = () => {
+                statusDot.classList.remove('connected');
+                statusText.textContent = 'Desconectado';
+                
+                // Reconnect with exponential backoff
+                const delay = Math.min(1000 * Math.pow(2, reconnectAttempts), 30000);
+                reconnectAttempts++;
+                setTimeout(connectWebSocket, delay);
+            };
+
+            ws.onerror = () => {
+                ws.close();
+            };
+
+            // Keepalive ping
+            setInterval(() => {
+                if (ws.readyState === WebSocket.OPEN) {
+                    ws.send(JSON.stringify({ type: 'ping' }));
+                }
+            }, 25000);
+        }
+
+        // Search
+        searchBtn.addEventListener('click', performSearch);
+        searchInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') performSearch();
+        });
+
+        async function performSearch() {
+            const query = searchInput.value.trim();
+            if (!query) return;
+
+            searchResults.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
+
+            try {
+                const res = await fetch(`${API_BASE}/api/search?q=${encodeURIComponent(query)}`);
+                const data = await res.json();
+                
+                if (data.results.length === 0) {
+                    searchResults.innerHTML = `
+                        <div class="empty-state">
+                            <span>😢</span>
+                            <p>Nenhum resultado encontrado</p>
+                        </div>
+                    `;
+                    return;
+                }
+
+                searchResults.innerHTML = data.results.map(anime => `
+                    <div class="card" onclick="selectAnime('${escapeHtml(anime.title)}')">
+                        <h3>${escapeHtml(anime.title)}</h3>
+                        <div class="sources">
+                            ${anime.sources.map(s => `<span class="source-tag">${s.source}</span>`).join('')}
+                        </div>
+                    </div>
+                `).join('');
+
+            } catch (err) {
+                searchResults.innerHTML = `
+                    <div class="empty-state">
+                        <span>❌</span>
+                        <p>Erro ao buscar. Verifique a conexão.</p>
+                    </div>
+                `;
+            }
+        }
+
+        async function selectAnime(title) {
+            currentAnime = title;
+            document.getElementById('animeTitle').textContent = title;
+            
+            episodeGrid.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
+            showPage('episodesPage');
+
+            try {
+                const res = await fetch(`${API_BASE}/api/search/episodes?anime=${encodeURIComponent(title)}`);
+                const data = await res.json();
+
+                document.getElementById('episodeCount').textContent = `${data.total} episódios`;
+
+                episodeGrid.innerHTML = data.episodes.map(ep => `
+                    <button class="episode-btn" onclick="playEpisode('${escapeHtml(title)}', ${ep})">${ep}</button>
+                `).join('');
+
+            } catch (err) {
+                episodeGrid.innerHTML = `
+                    <div class="empty-state">
+                        <span>❌</span>
+                        <p>Erro ao carregar episódios</p>
+                    </div>
+                `;
+            }
+        }
+
+        document.getElementById('backToSearch').addEventListener('click', () => {
+            showPage('searchPage');
+        });
+
+        // Playback
+        async function playEpisode(anime, episode) {
+            try {
+                await fetch(`${API_BASE}/api/playback/start`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ anime, episode })
+                });
+
+                // Switch to player page
+                document.querySelectorAll('nav button').forEach(b => b.classList.remove('active'));
+                document.querySelector('nav button[data-page="playerPage"]').classList.add('active');
+                showPage('playerPage');
+
+            } catch (err) {
+                alert('Erro ao iniciar playback');
+            }
+        }
+
+        function updatePlaybackUI(state) {
+            playbackState = state;
+
+            if (state.is_playing) {
+                playingTitle.textContent = state.anime || 'Carregando...';
+                playingEpisode.textContent = `Episódio ${state.episode}${state.total_episodes ? ' / ' + state.total_episodes : ''}`;
+                playPauseBtn.textContent = state.paused ? '▶️' : '⏸️';
+
+                const progress = state.duration > 0 ? (state.position / state.duration * 100) : 0;
+                progressFill.style.width = `${progress}%`;
+                currentTime.textContent = formatTime(state.position);
+                totalTime.textContent = formatTime(state.duration);
+            } else {
+                playingTitle.textContent = 'Nada tocando';
+                playingEpisode.textContent = 'Selecione um anime para começar';
+                playPauseBtn.textContent = '▶️';
+                progressFill.style.width = '0%';
+                currentTime.textContent = '0:00';
+                totalTime.textContent = '0:00';
+            }
+
+            volumeSlider.value = state.volume;
+            autoplayToggle.classList.toggle('on', state.autoplay);
+        }
+
+        // Player controls
+        playPauseBtn.addEventListener('click', async () => {
+            const action = playbackState.paused ? 'resume' : 'pause';
+            await sendControl(action);
+        });
+
+        document.getElementById('prevBtn').addEventListener('click', () => sendControl('previous'));
+        document.getElementById('nextBtn').addEventListener('click', () => sendControl('next'));
+
+        volumeSlider.addEventListener('change', () => {
+            sendControl('volume', volumeSlider.value);
+        });
+
+        autoplayToggle.addEventListener('click', async () => {
+            await fetch(`${API_BASE}/api/playback/autoplay`, { method: 'POST' });
+        });
+
+        document.getElementById('progressBar').addEventListener('click', (e) => {
+            if (playbackState.duration > 0) {
+                const rect = e.target.getBoundingClientRect();
+                const pos = (e.clientX - rect.left) / rect.width;
+                sendControl('seek', pos * playbackState.duration);
+            }
+        });
+
+        async function sendControl(action, value = null) {
+            try {
+                await fetch(`${API_BASE}/api/playback/control`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action, value })
+                });
+            } catch (err) {
+                console.error('Control error:', err);
+            }
+        }
+
+        // History
+        async function loadHistory() {
+            historyList.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
+
+            try {
+                const res = await fetch(`${API_BASE}/api/history`);
+                const data = await res.json();
+
+                if (data.entries.length === 0) {
+                    historyList.innerHTML = `
+                        <div class="empty-state">
+                            <span>📺</span>
+                            <p>Nenhum histórico ainda</p>
+                        </div>
+                    `;
+                    return;
+                }
+
+                historyList.innerHTML = data.entries.map(entry => `
+                    <div class="card" onclick="playEpisode('${escapeHtml(entry.anime)}', ${entry.episode})">
+                        <h3>${escapeHtml(entry.anime)}</h3>
+                        <p>Episódio ${entry.episode}${entry.total_episodes ? ' / ' + entry.total_episodes : ''}</p>
+                    </div>
+                `).join('');
+
+            } catch (err) {
+                historyList.innerHTML = `
+                    <div class="empty-state">
+                        <span>❌</span>
+                        <p>Erro ao carregar histórico</p>
+                    </div>
+                `;
+            }
+        }
+
+        // Utilities
+        function formatTime(seconds) {
+            if (!seconds || isNaN(seconds)) return '0:00';
+            const mins = Math.floor(seconds / 60);
+            const secs = Math.floor(seconds % 60);
+            return `${mins}:${secs.toString().padStart(2, '0')}`;
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML.replace(/'/g, "\\'");
+        }
+
+        // Initialize
+        connectWebSocket();
+
+        // Register service worker for PWA
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('/sw.js').catch(() => {});
+        }
+    </script>
+</body>
+</html>

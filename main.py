@@ -169,6 +169,22 @@ def cli() -> None:
         default="best",
         help="Qualidade máxima do vídeo (ex: 480, 720). Padrão: best",
     )
+    parser.add_argument(
+        "--server",
+        action="store_true",
+        help="Iniciar servidor de controle remoto (API REST + WebSocket)",
+    )
+    parser.add_argument(
+        "--server-host",
+        default=None,
+        help="Host do servidor (padrão: 0.0.0.0)",
+    )
+    parser.add_argument(
+        "--server-port",
+        type=int,
+        default=None,
+        help="Porta do servidor (padrão: 8765)",
+    )
 
     args = parser.parse_args()
 
@@ -181,6 +197,13 @@ def cli() -> None:
         sys.exit(update_cmd(args))
     if args.command == "config":
         sys.exit(config_cmd(args))
+
+    if args.server:
+        # Start remote control API server
+        from api import start_server
+
+        start_server(host=args.server_host, port=args.server_port)
+        sys.exit(0)
 
     if args.version:
         show_version_info()
