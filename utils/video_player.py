@@ -479,6 +479,10 @@ shift+t script-message toggle-sub-dub
 
         ytdl_format = QUALITY_FORMATS.get(max_quality, QUALITY_FORMATS["best"])
 
+        # Log quality setting for user visibility
+        quality_label = "máxima disponível" if max_quality == "best" else f"{max_quality}p"
+        logger.info(f"   📺 Qualidade: {quality_label}")
+
         mpv_args = [
             "mpv",
             f"--input-ipc-server={socket_path}",
