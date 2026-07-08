@@ -162,6 +162,13 @@ def cli() -> None:
         metavar="[anime_name]",
         help="Limpar cache (sem argumentos limpa tudo, ou especifique anime para limpar apenas um)",
     )
+    parser.add_argument(
+        "--quality",
+        "-Q",
+        choices=["1080", "720", "480", "360", "best"],
+        default="best",
+        help="Qualidade máxima do vídeo (ex: 480, 720). Padrão: best",
+    )
 
     args = parser.parse_args()
 

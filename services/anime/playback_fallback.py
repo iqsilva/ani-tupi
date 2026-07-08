@@ -58,6 +58,7 @@ def play_episode_with_fallback(
     anilist_id: int | None = None,
     anilist_episodes: int | None = None,
     extractor: Callable[[str, str], str | list[str] | None] | None = None,
+    max_quality: str = "best",
 ) -> PlaybackFallbackResult:
     """Play episode using rank-major fallback until one attempt succeeds.
 
@@ -86,6 +87,7 @@ def play_episode_with_fallback(
             May return a single URL or an ordered list of candidates to try with MPV
             before moving to the next source. When None, tuple elements are already
             extracted video URLs.
+        max_quality: Maximum video quality preset ("1080", "720", "480", "360", "best")
 
     Returns:
         PlaybackFallbackResult with outcome details
@@ -160,6 +162,7 @@ def play_episode_with_fallback(
                 anilist_id=anilist_id,
                 anilist_episodes=anilist_episodes,
                 referrer=referrer_cache[idx],
+                max_quality=max_quality,
             )
             last_result = result
             sources_tried.append((source, result.exit_code))

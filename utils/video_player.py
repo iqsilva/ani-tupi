@@ -17,6 +17,15 @@ from utils.playback_hints import resolve_mpv_stream_options
 
 logger = get_logger(__name__)
 
+# Mapping of quality presets to ytdl-format strings for MPV
+QUALITY_FORMATS: dict[str, str] = {
+    "1080": "bestvideo[height<=1080]+bestaudio/best[height<=1080]",
+    "720": "bestvideo[height<=720]+bestaudio/best[height<=720]",
+    "480": "bestvideo[height<=480]+bestaudio/best[height<=480]",
+    "360": "bestvideo[height<=360]+bestaudio/best[height<=360]",
+    "best": "bestvideo[height<=1080]+bestaudio/best",
+}
+
 
 class VideoPlaybackResult(NamedTuple):
     """Result of video playback with optional navigation data.
@@ -126,6 +135,7 @@ class VideoPlayer:
         anilist_id: int | None = None,
         anilist_episodes: int | None = None,
         referrer: str | None = None,
+        max_quality: str = "best",
     ) -> VideoPlaybackResult:
         """Play a single episode with optional IPC support for episode navigation.
 
@@ -139,6 +149,7 @@ class VideoPlayer:
             debug: Skip playback and return simulated result
             anilist_id: AniList ID for syncing progress (optional)
             anilist_episodes: Total episodes from AniList (optional, for display)
+            max_quality: Maximum video quality preset ("1080", "720", "480", "360", "best")
 
         Returns:
             VideoPlaybackResult with exit code, action, and optional data
@@ -187,6 +198,7 @@ class VideoPlayer:
                 anime_title=anime_title,
                 episode_number=episode_number,
                 referrer=referrer,
+                max_quality=max_quality,
             )
 
             # Start monitoring events
@@ -444,6 +456,7 @@ shift+t script-message toggle-sub-dub
         anime_title: str | None = None,
         episode_number: int | None = None,
         referrer: str | None = None,
+        max_quality: str = "best",
     ) -> subprocess.Popen:
         """Launch MPV process with IPC socket support.
 
@@ -453,7 +466,8 @@ shift+t script-message toggle-sub-dub
             input_conf: Path to input.conf file
             anime_title: Anime title for window title
             episode_number: Episode number for window title
-            source: Source name for window title
+            referrer: Referrer header for video request
+            max_quality: Maximum video quality preset ("1080", "720", "480", "360", "best")
 
         Returns:
             MPV subprocess handle
@@ -462,6 +476,8 @@ shift+t script-message toggle-sub-dub
         self._last_mpv_log_file = None
 
         referrer, demuxer_lavf_o = resolve_mpv_stream_options(url, referrer)
+
+        ytdl_format = QUALITY_FORMATS.get(max_quality, QUALITY_FORMATS["best"])
 
         mpv_args = [
             "mpv",
@@ -476,7 +492,7 @@ shift+t script-message toggle-sub-dub
             "--stream-buffer-size=2M",
             "--hwdec=no",
             "--ytdl=yes",
-            "--ytdl-format=bestvideo[height<=1080]+bestaudio/best",
+            f"--ytdl-format={ytdl_format}",
             "--user-agent=Mozilla/5.0 (X11; Linux x86_64; rv:126.0) Gecko/20100101 Firefox/126.0",
         ]
 

@@ -393,6 +393,7 @@ def anime(args) -> None:
             debug=args.debug,
             anilist_id=ctx.anilist_id,
             anilist_episodes=ctx.total_episodes_anilist,
+            max_quality=getattr(args, "quality", "best"),
         )
 
         playback_result = fallback_result.playback_result
