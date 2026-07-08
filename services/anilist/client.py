@@ -97,8 +97,12 @@ class AniListClient(AnimeOperationsMixin, MangaOperationsMixin):
             # Validate token
             try:
                 valid = self._validate_token(token)
-            except Exception as e:
-                logger.info(f"\n❌ Token validation failed: {e}\n")
+            except (httpx.ConnectError, httpx.TimeoutException):
+                return False
+            except Exception:
+                logger.info(
+                    "\n❌ Não foi possível validar o token. AniList pode estar fora do ar. Tente novamente mais tarde.\n"
+                )
                 return False
 
             if valid:
@@ -154,7 +158,22 @@ class AniListClient(AnimeOperationsMixin, MangaOperationsMixin):
         try:
             result = self._query(query, token=token)
             return result is not None and "Viewer" in result
+        except httpx.ConnectError:
+            logger.warning(
+                "⚠️  Não foi possível conectar ao AniList. Verifique sua conexão ou tente mais tarde."
+            )
+            raise
+        except httpx.TimeoutException:
+            logger.warning("⚠️  AniList não respondeu a tempo. O serviço pode estar fora do ar.")
+            raise
         except Exception as e:
+            msg = str(e)
+            server_error = any(f"status {code}" in msg for code in (500, 502, 503, 504))
+            if server_error:
+                logger.warning(
+                    "⚠️  AniList retornou erro de servidor. O serviço pode estar fora do ar."
+                )
+                raise
             logger.debug(f"Token validation error: {e}")
             return False
 
