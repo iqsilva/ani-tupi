@@ -19,11 +19,11 @@ logger = get_logger(__name__)
 
 # Mapping of quality presets to ytdl-format strings for MPV
 QUALITY_FORMATS: dict[str, str] = {
-    "1080": "bestvideo[height<=1080]+bestaudio/best[height<=1080]",
-    "720": "bestvideo[height<=720]+bestaudio/best[height<=720]",
-    "480": "bestvideo[height<=480]+bestaudio/best[height<=480]",
-    "360": "bestvideo[height<=360]+bestaudio/best[height<=360]",
-    "best": "bestvideo[height<=1080]+bestaudio/best",
+    "1080": "bestvideo[height<=1080][vcodec^=avcl]+bestaudio/best[height<=1080]",
+    "720": "bestvideo[height<=720][vcodec^=avcl]+bestaudio/best[height<=720]",
+    "480": "bestvideo[height<=480][vcodec^=avcl]+bestaudio/best[height<=480]",
+    "360": "bestvideo[height<=360][vcodec^=avcl]+bestaudio/best[height<=360]",
+    "best": "bestvideo[height<=1080][vcodec^=avcl]+bestaudio/best",
 }
 
 
