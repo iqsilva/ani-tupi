@@ -62,12 +62,13 @@ def create_app() -> FastAPI:
     )
 
     # Register API routes
-    from api.routes import search_router, playback_router, history_router, sources_router
+    from api.routes import search_router, playback_router, history_router, sources_router, settings_router
 
     app.include_router(search_router, prefix="/api")
     app.include_router(playback_router, prefix="/api")
     app.include_router(history_router, prefix="/api")
     app.include_router(sources_router, prefix="/api")
+    app.include_router(settings_router, prefix="/api")
 
     # Serve static frontend files
     frontend_dir = Path(__file__).parent / "frontend"

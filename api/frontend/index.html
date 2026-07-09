@@ -977,7 +977,19 @@
         initSettings();
 
         // Settings modal
-        function initSettings() {
+        async function initSettings() {
+            // Load saved quality preference from server
+            try {
+                const res = await fetch(`${API_BASE}/api/settings`);
+                const data = await res.json();
+                if (data.quality) {
+                    selectedQuality = data.quality;
+                    updateQualityUI();
+                }
+            } catch (err) {
+                console.error('Failed to load settings:', err);
+            }
+
             // Open settings modal
             settingsBtn.addEventListener('click', () => {
                 updateQualityUI();
@@ -993,9 +1005,20 @@
 
             // Quality selection
             qualityOptions.querySelectorAll('.quality-btn').forEach(btn => {
-                btn.addEventListener('click', () => {
+                btn.addEventListener('click', async () => {
                     selectedQuality = btn.dataset.quality;
                     updateQualityUI();
+                    
+                    // Save preference to server
+                    try {
+                        await fetch(`${API_BASE}/api/settings`, {
+                            method: 'PUT',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ quality: selectedQuality })
+                        });
+                    } catch (err) {
+                        console.error('Failed to save quality preference:', err);
+                    }
                 });
             });
         }
