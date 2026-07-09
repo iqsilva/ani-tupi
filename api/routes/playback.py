@@ -28,6 +28,7 @@ router = APIRouter(prefix="/playback", tags=["playback"])
 _player: VideoPlayer | None = None
 _playback_thread: threading.Thread | None = None
 _mpv_process: subprocess.Popen | None = None
+_state_polling_task: asyncio.Task | None = None
 
 
 def _get_player() -> VideoPlayer:
@@ -70,6 +71,27 @@ def _send_mpv_command(command: list) -> dict | None:
     except Exception as e:
         logger.debug(f"MPV IPC error: {e}")
         return None
+
+
+async def _poll_mpv_state():
+    """Continuously poll MPV for playback position/duration and broadcast updates."""
+    while playback_state.is_playing:
+        if playback_state.mpv_socket_path:
+            pos_resp = _send_mpv_command(["get_property", "time-pos"])
+            if pos_resp and "data" in pos_resp and pos_resp["data"] is not None:
+                playback_state.position = pos_resp["data"]
+
+            dur_resp = _send_mpv_command(["get_property", "duration"])
+            if dur_resp and "data" in dur_resp and dur_resp["data"] is not None:
+                playback_state.duration = dur_resp["data"]
+
+            pause_resp = _send_mpv_command(["get_property", "pause"])
+            if pause_resp and "data" in pause_resp:
+                playback_state.paused = pause_resp["data"]
+
+            await playback_state.broadcast_state()
+
+        await asyncio.sleep(1)  # Poll every second
 
 
 @router.get("/state", response_model=PlaybackState)
@@ -219,6 +241,12 @@ async def start_playback(request: PlaybackStartRequest) -> PlaybackResponse:
         # Wait a moment for MPV to start
         await asyncio.sleep(0.5)
 
+        # Start state polling task
+        global _state_polling_task
+        if _state_polling_task:
+            _state_polling_task.cancel()
+        _state_polling_task = asyncio.create_task(_poll_mpv_state())
+
         # Broadcast state update
         await playback_state.broadcast_state()
 
@@ -238,6 +266,13 @@ async def start_playback(request: PlaybackStartRequest) -> PlaybackResponse:
 
 async def stop_playback_internal() -> None:
     """Internal function to stop playback."""
+    global _state_polling_task
+
+    # Stop polling task
+    if _state_polling_task:
+        _state_polling_task.cancel()
+        _state_polling_task = None
+
     if playback_state.mpv_socket_path:
         _send_mpv_command(["quit"])
         await asyncio.sleep(0.3)
