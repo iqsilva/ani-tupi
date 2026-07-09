@@ -202,7 +202,14 @@ class VideoPlayer:
                 max_quality=max_quality,
             )
 
-            # Start monitoring events
+            # If running via API, don't enter IPC event loop - let API handle polling
+            # The API will connect to the socket for state queries
+            if self._api_socket_path:
+                logger.debug("API mode: waiting for MPV process without blocking socket")
+                mpv_process.wait()
+                return VideoPlaybackResult(exit_code=mpv_process.returncode, action="quit", data=None)
+
+            # Start monitoring events (CLI mode only)
             result = self._ipc_event_loop(mpv_process, socket_path, episode_context)
 
             # Wait for process to finish if still running
