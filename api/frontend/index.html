@@ -476,11 +476,85 @@
             gap: 8px;
             margin-bottom: 16px;
         }
+
+        /* Settings button in header */
+        .header-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .settings-btn {
+            background: none;
+            border: none;
+            color: var(--text-secondary);
+            font-size: 1.5rem;
+            cursor: pointer;
+            padding: 8px;
+            border-radius: 8px;
+            transition: background 0.2s;
+        }
+
+        .settings-btn:active {
+            background: var(--bg-card);
+        }
+
+        /* Quality selector in modal */
+        .quality-options {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-top: 12px;
+        }
+
+        .quality-btn {
+            flex: 1;
+            min-width: 70px;
+            padding: 14px 16px;
+            border: 2px solid var(--bg-card);
+            border-radius: 10px;
+            background: var(--bg-card);
+            color: var(--text-primary);
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .quality-btn.selected {
+            border-color: var(--accent);
+            background: var(--accent);
+        }
+
+        .quality-btn:active {
+            transform: scale(0.95);
+        }
+
+        .setting-section {
+            margin-bottom: 24px;
+        }
+
+        .setting-section h3 {
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+            margin-bottom: 8px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .current-quality {
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+            margin-top: 8px;
+        }
     </style>
 </head>
 <body>
     <header>
-        <h1><span>🎬</span> Ani-Tupi Remote</h1>
+        <div class="header-row">
+            <h1><span>🎬</span> Ani-Tupi Remote</h1>
+            <button class="settings-btn" id="settingsBtn" title="Configurações">⚙️</button>
+        </div>
         <div class="status-bar">
             <div class="status-dot" id="statusDot"></div>
             <span id="statusText">Conectando...</span>
@@ -570,6 +644,25 @@
         </div>
     </div>
 
+    <!-- Settings modal -->
+    <div class="modal-overlay" id="settingsOverlay">
+        <div class="modal">
+            <h2>⚙️ Configurações</h2>
+            
+            <div class="setting-section">
+                <h3>Qualidade do Vídeo</h3>
+                <div class="quality-options" id="qualityOptions">
+                    <button class="quality-btn" data-quality="best">Auto</button>
+                    <button class="quality-btn" data-quality="1080">1080p</button>
+                    <button class="quality-btn" data-quality="720">720p</button>
+                    <button class="quality-btn" data-quality="480">480p</button>
+                    <button class="quality-btn" data-quality="360">360p</button>
+                </div>
+                <p class="current-quality">A qualidade será aplicada ao próximo episódio</p>
+            </div>
+        </div>
+    </div>
+
     <script>
         // State
         let ws = null;
@@ -579,6 +672,7 @@
             episode: null,
             total_episodes: null,
             source: null,
+            quality: 'best',
             position: 0,
             duration: 0,
             paused: false,
@@ -587,6 +681,7 @@
         };
         let currentAnime = null;
         let reconnectAttempts = 0;
+        let selectedQuality = 'best';
 
         // API base URL (same host as page)
         const API_BASE = '';
@@ -608,6 +703,9 @@
         const volumeSlider = document.getElementById('volumeSlider');
         const autoplayToggle = document.getElementById('autoplayToggle');
         const historyList = document.getElementById('historyList');
+        const settingsBtn = document.getElementById('settingsBtn');
+        const settingsOverlay = document.getElementById('settingsOverlay');
+        const qualityOptions = document.getElementById('qualityOptions');
 
         // Navigation
         document.querySelectorAll('nav button').forEach(btn => {
@@ -748,7 +846,7 @@
                 await fetch(`${API_BASE}/api/playback/start`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ anime, episode })
+                    body: JSON.stringify({ anime, episode, quality: selectedQuality })
                 });
 
                 // Switch to player page
@@ -874,6 +972,37 @@
 
         // Initialize
         connectWebSocket();
+        initSettings();
+
+        // Settings modal
+        function initSettings() {
+            // Open settings modal
+            settingsBtn.addEventListener('click', () => {
+                updateQualityUI();
+                settingsOverlay.classList.add('active');
+            });
+
+            // Close settings modal on overlay click
+            settingsOverlay.addEventListener('click', (e) => {
+                if (e.target === settingsOverlay) {
+                    settingsOverlay.classList.remove('active');
+                }
+            });
+
+            // Quality selection
+            qualityOptions.querySelectorAll('.quality-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    selectedQuality = btn.dataset.quality;
+                    updateQualityUI();
+                });
+            });
+        }
+
+        function updateQualityUI() {
+            qualityOptions.querySelectorAll('.quality-btn').forEach(btn => {
+                btn.classList.toggle('selected', btn.dataset.quality === selectedQuality);
+            });
+        }
 
         // Register service worker for PWA
         if ('serviceWorker' in navigator) {

@@ -26,6 +26,7 @@ class PlaybackStateManager:
     episode: int | None = None
     total_episodes: int | None = None
     source: str | None = None
+    quality: str = "best"
     position: float = 0.0
     duration: float = 0.0
     paused: bool = False
@@ -47,6 +48,7 @@ class PlaybackStateManager:
             "episode": self.episode,
             "total_episodes": self.total_episodes,
             "source": self.source,
+            "quality": self.quality,
             "position": self.position,
             "duration": self.duration,
             "paused": self.paused,
@@ -98,6 +100,7 @@ class PlaybackStateManager:
         self.episode = None
         self.total_episodes = None
         self.source = None
+        self.quality = "best"
         self.position = 0.0
         self.duration = 0.0
         self.paused = False

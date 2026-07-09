@@ -69,6 +69,7 @@ class PlaybackState(BaseModel):
     episode: int | None = None
     total_episodes: int | None = None
     source: str | None = None
+    quality: str = "best"
     position: float = 0.0  # Seconds
     duration: float = 0.0  # Seconds
     paused: bool = False

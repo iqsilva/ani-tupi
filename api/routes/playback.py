@@ -170,6 +170,7 @@ async def start_playback(request: PlaybackStartRequest) -> PlaybackResponse:
             episode=request.episode,
             total_episodes=len(episodes),
             source=source_name,
+            quality=request.quality,
             paused=False,
             position=0.0,
         )
