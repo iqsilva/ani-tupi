@@ -29,6 +29,7 @@ _player: VideoPlayer | None = None
 _playback_thread: threading.Thread | None = None
 _mpv_process: subprocess.Popen | None = None
 _state_polling_task: asyncio.Task | None = None
+_current_playback_info: dict | None = None  # Store info for autoplay
 
 
 def _get_player() -> VideoPlayer:
@@ -92,6 +93,26 @@ async def _poll_mpv_state():
             await playback_state.broadcast_state()
 
         await asyncio.sleep(1)  # Poll every second
+
+
+async def _autoplay_next_episode(info: dict) -> None:
+    """Start the next episode automatically."""
+    from api.schemas import PlaybackStartRequest
+    
+    next_episode = info["episode"] + 1
+    request = PlaybackStartRequest(
+        anime=info["anime"],
+        episode=next_episode,
+        season=info.get("season"),
+        source=info.get("source"),
+        quality=info.get("quality", "best"),
+    )
+    
+    try:
+        await start_playback(request)
+    except Exception as e:
+        logger.error(f"Autoplay failed: {e}")
+        await playback_state.broadcast_state()
 
 
 @router.get("/state", response_model=PlaybackState)
@@ -202,12 +223,23 @@ async def start_playback(request: PlaybackStartRequest) -> PlaybackResponse:
         socket_path = str(Path(tempfile.gettempdir()) / "ani-tupi-api-mpv.sock")
         playback_state.mpv_socket_path = socket_path
 
+        # Store playback info for autoplay
+        global _current_playback_info
+        _current_playback_info = {
+            "anime": request.anime,
+            "episode": request.episode,
+            "total_episodes": len(episodes),
+            "quality": request.quality,
+            "season": request.season,
+            "source": request.source,
+        }
+
         # Get the current event loop to schedule callbacks from thread
         loop = asyncio.get_event_loop()
 
         # Start playback in background thread
         def play_in_background():
-            global _mpv_process
+            global _mpv_process, _current_playback_info
             player = _get_player()
             player.set_autoplay_state(playback_state.autoplay)
 
@@ -225,12 +257,28 @@ async def start_playback(request: PlaybackStartRequest) -> PlaybackResponse:
                 referrer=referrer,
             )
 
-            # Playback ended - schedule broadcast on main event loop
+            # Playback ended - check for autoplay
+            info = _current_playback_info
+            should_autoplay = (
+                playback_state.autoplay
+                and info
+                and info["episode"] < info["total_episodes"]
+            )
+
             playback_state.reset()
+            
             try:
-                loop.call_soon_threadsafe(
-                    lambda: asyncio.create_task(playback_state.broadcast_state())
-                )
+                if should_autoplay:
+                    # Schedule next episode
+                    next_ep = info["episode"] + 1
+                    logger.info(f"Autoplay: starting episode {next_ep}")
+                    loop.call_soon_threadsafe(
+                        lambda: asyncio.create_task(_autoplay_next_episode(info))
+                    )
+                else:
+                    loop.call_soon_threadsafe(
+                        lambda: asyncio.create_task(playback_state.broadcast_state())
+                    )
             except RuntimeError:
                 # Event loop closed, ignore
                 pass
