@@ -16,6 +16,7 @@ from api.schemas import (
     PlaybackState,
 )
 from api.state import playback_state
+from services.history_service import save_history
 from services.repository import rep
 from utils.logging import get_logger
 from utils.video_player import VideoPlayer
@@ -257,8 +258,21 @@ async def start_playback(request: PlaybackStartRequest) -> PlaybackResponse:
                 referrer=referrer,
             )
 
-            # Playback ended - check for autoplay
+            # Playback ended - save to history
             info = _current_playback_info
+            if info:
+                try:
+                    save_history(
+                        anime_title=info["anime"],
+                        episode_idx=info["episode"] - 1,  # Convert to 0-indexed
+                        total_episodes=info["total_episodes"],
+                        source=info.get("source"),
+                    )
+                    logger.info(f"History saved: {info['anime']} ep {info['episode']}")
+                except Exception as e:
+                    logger.error(f"Failed to save history: {e}")
+
+            # Check for autoplay
             should_autoplay = (
                 playback_state.autoplay
                 and info
@@ -376,9 +390,34 @@ async def control_playback(request: PlaybackControlRequest) -> PlaybackResponse:
             msg = f"Volume set to {int(value)}%"
 
         elif action == "next":
-            # Trigger next episode via MPV IPC
-            _send_mpv_command(["script-message", "mark-next"])
-            msg = "Next episode"
+            # Save current episode to history and start next
+            if _current_playback_info:
+                info = _current_playback_info
+                try:
+                    save_history(
+                        anime_title=info["anime"],
+                        episode_idx=info["episode"] - 1,  # Convert to 0-indexed
+                        total_episodes=info["total_episodes"],
+                        source=info.get("source"),
+                    )
+                    logger.info(f"History saved: {info['anime']} ep {info['episode']}")
+                except Exception as e:
+                    logger.error(f"Failed to save history: {e}")
+                
+                # Check if there's a next episode
+                if info["episode"] < info["total_episodes"]:
+                    # Stop current playback and start next
+                    await stop_playback_internal()
+                    await _autoplay_next_episode(info)
+                    return PlaybackResponse(
+                        success=True,
+                        message=f"Starting episode {info['episode'] + 1}",
+                        state=PlaybackState(**playback_state.to_dict()),
+                    )
+                else:
+                    msg = "No more episodes"
+            else:
+                msg = "No playback info available"
 
         elif action == "previous":
             # Trigger previous episode via MPV IPC
