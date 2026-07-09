@@ -600,6 +600,7 @@
                 <button class="player-btn" id="prevBtn">⏮️</button>
                 <button class="player-btn play-pause" id="playPauseBtn">▶️</button>
                 <button class="player-btn" id="nextBtn">⏭️</button>
+                <button class="player-btn" id="stopBtn" title="Parar">⏹️</button>
             </div>
 
             <div class="volume-slider">
@@ -892,6 +893,7 @@
 
         document.getElementById('prevBtn').addEventListener('click', () => sendControl('previous'));
         document.getElementById('nextBtn').addEventListener('click', () => sendControl('next'));
+        document.getElementById('stopBtn').addEventListener('click', () => sendControl('stop'));
 
         volumeSlider.addEventListener('change', () => {
             sendControl('volume', volumeSlider.value);
