@@ -107,7 +107,7 @@ All settings flow through `models/config.py` (Pydantic v2):
 ```python
 from models.config import settings
 cache_ttl = settings.cache_duration_hours
-reader = settings.manga.pdf_reader
+player = settings.performance
 ```
 
 Why? Environment variables override defaults (`ANI_TUPI__CACHE__DURATION_HOURS=48`), no scattered `.env` files, type validation on boot, configuration is self-documenting.
@@ -186,16 +186,12 @@ Scrapers stay simple. Services control cache strategy. Cache invalidation is cen
 
 ### Pattern: External Tools via Adapters
 
-MPV, PDF readers, MangaDex API—all external. Wrap them:
+MPV and other external tools—wrap them:
 
 ```python
 class VideoPlayer:
     def play(self, url: str, episode_number: int) -> None:
         # IPC to MPV
-
-class MangaReader:
-    def open(self, pdf_path: str) -> None:
-        # Detect installed readers, execute in priority order
 ```
 
 Why? Replacing MPV = swap one class. Testing doesn't require external tools (mock them).

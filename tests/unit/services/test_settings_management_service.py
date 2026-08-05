@@ -16,8 +16,8 @@ def test_parse_input_value_supports_common_types():
     assert svc.parse_input_value("cache", "search_cache_ttl_seconds", "7200") == 7200
     assert svc.parse_input_value("plugins", "disabled_plugins", "a, b ,c") == ["a", "b", "c"]
     assert (
-        svc.parse_input_value("anilist", "token_file", "~/token.json")
-        == Path("~/token.json").expanduser()
+        svc.parse_input_value("cache", "cache_dir", "~/cache")
+        == Path("~/cache").expanduser()
     )
 
 

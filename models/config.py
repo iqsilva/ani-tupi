@@ -69,50 +69,6 @@ def save_user_settings_overrides(overrides: dict) -> None:
     temp_file.replace(settings_file)
 
 
-class AniListSettings(BaseModel):
-    """AniList API configuration."""
-
-    api_url: str = Field(
-        "https://graphql.anilist.co",
-        description="AniList GraphQL API endpoint",
-    )
-    auth_url: str = Field(
-        "https://anilist.co/api/v2/oauth/authorize",
-        description="OAuth authorization URL",
-    )
-    client_id: int = Field(
-        38122,
-        gt=0,
-        description="OAuth client ID (public)",
-    )
-    token_file: Path = Field(
-        default_factory=lambda: get_data_path() / "anilist_token.json",
-        description="Path to stored access token",
-    )
-    prefer_english_title: bool = Field(
-        False,
-        description="Use English title for searches (True) or Romaji (False)",
-    )
-    manga_prefer_english_title: bool = Field(
-        False,
-        description="Use English title for manga searches (True) or Romaji (False)",
-    )
-    manga_auto_sync: bool = Field(
-        True,
-        description="Automatically sync manga progress with AniList when confirmed",
-    )
-    manga_progress_confirmation: bool = Field(
-        True,
-        description="Ask for chapter completion confirmation after reading",
-    )
-    request_timeout_seconds: float = Field(
-        30.0,
-        gt=0,
-        le=120,
-        description="HTTP timeout for AniList API requests in seconds",
-    )
-
-
 class CacheSettings(BaseModel):
     """Unified cache configuration with TTL and refresh options."""
 
@@ -122,13 +78,13 @@ class CacheSettings(BaseModel):
     )
     anilist_auto_discover: bool = Field(
         True,
-        description="Auto-discover AniList ID for manual searches via fuzzy matching",
+        description="Deprecated (AniList integration removed)",
     )
     anilist_fuzzy_threshold: int = Field(
         90,
         ge=70,
         le=100,
-        description="Minimum fuzzy match score (0-100) for AniList ID auto-discovery",
+        description="Deprecated (AniList integration removed)",
     )
     episodes_cache_enabled: bool = Field(
         False,
@@ -319,7 +275,6 @@ class PerformanceSettings(BaseModel):
             "search": 5,  # 5 minutes for search results
             "episodes": 30,  # 30 minutes for episode lists
             "video": 15,  # 15 minutes for video URLs (expire quickly)
-            "manga": 24,  # 24 hours for manga chapters
             "anilist_meta": 720,  # 30 days for AniList metadata
         },
         description="Source-specific TTL in hours",
@@ -346,117 +301,6 @@ class AnimeDownloadSettings(BaseModel):
     skip_already_downloaded: bool = Field(
         True,
         description="Skip already-downloaded episodes in batch operations",
-    )
-
-
-class OfflineSyncConfig(BaseModel):
-    """Configuration for offline AniList sync queue."""
-
-    max_retry_count: int = Field(
-        default=3,
-        ge=1,
-        le=10,
-        description="Maximum retries before giving up on failed sync",
-    )
-    enable_auto_retry: bool = Field(
-        default=True,
-        description="Automatically retry offline syncs on app startup",
-    )
-    enable_file_cleanup: bool = Field(
-        default=True,
-        description="Automatically delete local episode files after successful sync",
-    )
-    delete_after_watch: bool = Field(
-        default=True,
-        description="Delete local files after watching (regardless of AniList sync)",
-    )
-
-
-class MangaSettings(BaseModel):
-    """Manga reader settings with multi-source support."""
-
-    api_url: str = Field(
-        "https://api.mangadex.org",
-        description="MangaDex API base URL",
-    )
-
-    output_directory: Path = Field(
-        default_factory=lambda: Path.home() / ".manga_tupi",
-        description="Where to save downloaded manga chapters",
-    )
-    preferred_sources: list[str] = Field(
-        default_factory=lambda: ["mangalivre", "mugiwaras", "mangadex"],
-        description="Preferred manga sources in priority order",
-    )
-    pdf_reader: str | None = Field(
-        None,
-        description="PDF reader to use (zathura, evince, okular, mupdf). None = auto-detect",
-    )
-    pdf_reader_priority: list[str] = Field(
-        default_factory=lambda: ["zathura", "evince", "okular", "mupdf", "xdg-open"],
-        description="Priority list for PDF reader auto-detection",
-    )
-    delete_images_after_pdf: bool = Field(
-        True,
-        description="Delete PNG images after PDF creation (keeps only PDF)",
-    )
-    pdf_quality: int = Field(
-        85,
-        ge=1,
-        le=100,
-        description="JPEG quality for images inside PDF (0-100, lower = smaller file)",
-    )
-    auto_create_pdf: bool = Field(
-        True,
-        description="Automatically create PDF after downloading images",
-    )
-    zathura_auto_config: bool = Field(
-        True,
-        description="Automatically configure Zathura for fit-width zoom",
-    )
-    # Download for later settings
-    default_download_range: int = Field(
-        5,
-        ge=1,
-        le=100,
-        description="Default chapters to download when user selects 'download'",
-    )
-    auto_open_after_download: bool = Field(
-        False,
-        description="Auto-open PDF reader after downloading (False = stay in menu)",
-    )
-    skip_already_downloaded: bool = Field(
-        True,
-        description="Skip already-downloaded chapters in batch operations",
-    )
-    download_storage_dir: str | None = Field(
-        None,
-        description="Custom directory for downloaded PDFs (None = use output_directory)",
-    )
-    auto_delete_read_chapters: bool = Field(
-        True,
-        description="Automatically delete chapter files after marking as read (saves disk space)",
-    )
-    debug_download_failures: bool = Field(
-        False,
-        description="Enable detailed logging for download failures (helps debug issues)",
-    )
-    max_parallel_downloads: int = Field(
-        0,
-        ge=0,
-        le=16,
-        description="Maximum parallel chapter downloads (0 = use CPU count, 1 = sequential)",
-    )
-
-
-class AiringSettings(BaseModel):
-    """Settings for airing episodes feature."""
-
-    grace_period_days: int = Field(
-        60,
-        ge=1,
-        le=365,
-        description="Days after a show finishes airing to keep it visible in the New Episodes tab (default: 60)",
     )
 
 
@@ -554,15 +398,11 @@ class AppSettings(BaseSettings):
             file_secret_settings,
         )
 
-    anilist: AniListSettings = AniListSettings()  # type: ignore[call-arg]
     cache: CacheSettings = CacheSettings()  # type: ignore[call-arg]
     search: SearchSettings = SearchSettings()  # type: ignore[call-arg]
     plugins: PluginSettings = PluginSettings()  # type: ignore[call-arg]
     anime_download: AnimeDownloadSettings = AnimeDownloadSettings()  # type: ignore[call-arg]
-    offline_sync: OfflineSyncConfig = OfflineSyncConfig()  # type: ignore[call-arg]
-    manga: MangaSettings = MangaSettings()  # type: ignore[call-arg]
     performance: PerformanceSettings = PerformanceSettings()  # type: ignore[call-arg]
-    airing: AiringSettings = AiringSettings()  # type: ignore[call-arg]
     updates: UpdateCheckSettings = UpdateCheckSettings()  # type: ignore[call-arg]
     api: ApiSettings = ApiSettings()  # type: ignore[call-arg]
 

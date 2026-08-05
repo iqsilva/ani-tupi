@@ -75,40 +75,78 @@ def _send_mpv_command(command: list) -> dict | None:
         return None
 
 
+async def _send_mpv_command_async(command: list) -> dict | None:
+    """Async wrapper for _send_mpv_command: keeps a stuck MPV socket (up to 2s
+    per call) from blocking the event loop."""
+    return await asyncio.to_thread(_send_mpv_command, command)
+
+
+async def _broadcast_status(message: str, error: bool = False) -> None:
+    """Broadcast a loading/status phase to all WebSocket clients."""
+    try:
+        await playback_state.broadcast(
+            {"type": "status", "data": {"message": message, "error": error}}
+        )
+    except Exception:
+        pass
+
+
 async def _poll_mpv_state():
     """Continuously poll MPV for playback position/duration and broadcast updates."""
+    ticks = 0
     while playback_state.is_playing:
         if playback_state.mpv_socket_path:
-            pos_resp = _send_mpv_command(["get_property", "time-pos"])
+            pos_resp = await _send_mpv_command_async(["get_property", "time-pos"])
             if pos_resp and "data" in pos_resp and pos_resp["data"] is not None:
                 playback_state.position = pos_resp["data"]
 
-            dur_resp = _send_mpv_command(["get_property", "duration"])
+            dur_resp = await _send_mpv_command_async(["get_property", "duration"])
             if dur_resp and "data" in dur_resp and dur_resp["data"] is not None:
                 playback_state.duration = dur_resp["data"]
 
-            pause_resp = _send_mpv_command(["get_property", "pause"])
+            pause_resp = await _send_mpv_command_async(["get_property", "pause"])
             if pause_resp and "data" in pause_resp:
                 playback_state.paused = pause_resp["data"]
 
             await playback_state.broadcast_state()
+
+            # Persist in-episode progress to history every ~30s
+            ticks += 1
+            if ticks % 30 == 0 and _current_playback_info and playback_state.position:
+                info = _current_playback_info
+                try:
+                    save_history(
+                        anime=info["anime"],
+                        episode=info["episode"] - 1,
+                        total_episodes=info["total_episodes"],
+                        source=info.get("source"),
+                        position=playback_state.position,
+                        duration=playback_state.duration or None,
+                    )
+                except Exception as e:
+                    logger.debug(f"Periodic history save failed: {e}")
 
         await asyncio.sleep(1)  # Poll every second
 
 
 async def _autoplay_next_episode(info: dict) -> None:
     """Start the next episode automatically."""
+    await _play_episode_offset(info, +1)
+
+
+async def _play_episode_offset(info: dict, offset: int) -> None:
+    """Start playback of the episode at info['episode'] + offset."""
     from api.schemas import PlaybackStartRequest
-    
-    next_episode = info["episode"] + 1
+
+    target_episode = info["episode"] + offset
     request = PlaybackStartRequest(
         anime=info["anime"],
-        episode=next_episode,
+        episode=target_episode,
         season=info.get("season"),
         source=info.get("source"),
         quality=info.get("quality", "best"),
     )
-    
+
     try:
         await start_playback(request)
     except Exception as e:
@@ -121,15 +159,15 @@ async def get_playback_state() -> PlaybackState:
     """Get current playback state."""
     # Update position/duration from MPV if playing
     if playback_state.is_playing and playback_state.mpv_socket_path:
-        pos_resp = _send_mpv_command(["get_property", "time-pos"])
+        pos_resp = await _send_mpv_command_async(["get_property", "time-pos"])
         if pos_resp and "data" in pos_resp:
             playback_state.position = pos_resp["data"] or 0.0
 
-        dur_resp = _send_mpv_command(["get_property", "duration"])
+        dur_resp = await _send_mpv_command_async(["get_property", "duration"])
         if dur_resp and "data" in dur_resp:
             playback_state.duration = dur_resp["data"] or 0.0
 
-        pause_resp = _send_mpv_command(["get_property", "pause"])
+        pause_resp = await _send_mpv_command_async(["get_property", "pause"])
         if pause_resp and "data" in pause_resp:
             playback_state.paused = pause_resp["data"]
 
@@ -153,12 +191,15 @@ async def start_playback(request: PlaybackStartRequest) -> PlaybackResponse:
         await stop_playback_internal()
 
     try:
-        # Ensure episodes are loaded
-        rep.search_episodes(request.anime)
+        # Ensure episodes are loaded (sync scraping → threadpool so the event
+        # loop keeps serving requests and WebSocket updates)
+        await _broadcast_status(f"Buscando fontes para '{request.anime}'...")
+        await asyncio.to_thread(rep.search_episodes, request.anime)
 
         # Get episode list
         episodes = rep.get_episode_list(request.anime, season=request.season)
         if not episodes:
+            await _broadcast_status("Nenhum episódio encontrado", error=True)
             raise HTTPException(
                 status_code=404,
                 detail=f"No episodes found for '{request.anime}'",
@@ -190,18 +231,33 @@ async def start_playback(request: PlaybackStartRequest) -> PlaybackResponse:
                     detail=f"Source '{request.source}' not available for this episode",
                 )
 
-        # Get video URL via playback coordinator (use async version)
+        # Get video URL via playback coordinator (use async version) with a
+        # global deadline so a chain of slow sources can't hang the request
         from services.playback_coordinator import PlaybackCoordinator
         coordinator = PlaybackCoordinator(rep.sources)
-        video_url = await coordinator.search_player_async(
-            sources_with_urls, request.anime, request.episode
-        )
+        await _broadcast_status(f"Extraindo vídeo do episódio {request.episode}...")
+        try:
+            video_url = await asyncio.wait_for(
+                coordinator.search_player_async(
+                    sources_with_urls, request.anime, request.episode
+                ),
+                timeout=60,
+            )
+        except (TimeoutError, asyncio.TimeoutError):
+            await _broadcast_status("Tempo esgotado ao extrair vídeo", error=True)
+            raise HTTPException(
+                status_code=504,
+                detail="Timed out extracting video URL (60s). Try again or pick another source.",
+            )
 
         if not video_url:
+            await _broadcast_status("Falha ao extrair vídeo das fontes", error=True)
             raise HTTPException(
                 status_code=500,
                 detail="Failed to extract video URL from sources",
             )
+
+        await _broadcast_status("Iniciando player...")
 
         # Get referrer from the source URL (needed to bypass Cloudflare)
         source_name = sources_with_urls[0][1] if sources_with_urls else "unknown"
@@ -258,15 +314,17 @@ async def start_playback(request: PlaybackStartRequest) -> PlaybackResponse:
                 referrer=referrer,
             )
 
-            # Playback ended - save to history
+            # Playback ended - save to history (with last known in-episode progress)
             info = _current_playback_info
             if info:
                 try:
                     save_history(
-                        anime_title=info["anime"],
-                        episode_idx=info["episode"] - 1,  # Convert to 0-indexed
+                        anime=info["anime"],
+                        episode=info["episode"] - 1,  # Convert to 0-indexed
                         total_episodes=info["total_episodes"],
                         source=info.get("source"),
+                        position=playback_state.position or None,
+                        duration=playback_state.duration or None,
                     )
                     logger.info(f"History saved: {info['anime']} ep {info['episode']}")
                 except Exception as e:
@@ -323,6 +381,7 @@ async def start_playback(request: PlaybackStartRequest) -> PlaybackResponse:
     except Exception as e:
         logger.error(f"Failed to start playback: {e}")
         playback_state.reset()
+        await _broadcast_status("Erro ao iniciar reprodução", error=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -395,10 +454,12 @@ async def control_playback(request: PlaybackControlRequest) -> PlaybackResponse:
                 info = _current_playback_info
                 try:
                     save_history(
-                        anime_title=info["anime"],
-                        episode_idx=info["episode"] - 1,  # Convert to 0-indexed
+                        anime=info["anime"],
+                        episode=info["episode"] - 1,  # Convert to 0-indexed
                         total_episodes=info["total_episodes"],
                         source=info.get("source"),
+                        position=playback_state.position or None,
+                        duration=playback_state.duration or None,
                     )
                     logger.info(f"History saved: {info['anime']} ep {info['episode']}")
                 except Exception as e:
@@ -420,9 +481,21 @@ async def control_playback(request: PlaybackControlRequest) -> PlaybackResponse:
                 msg = "No playback info available"
 
         elif action == "previous":
-            # Trigger previous episode via MPV IPC
-            _send_mpv_command(["script-message", "previous"])
-            msg = "Previous episode"
+            # Start the previous episode (mirrors 'next')
+            if _current_playback_info:
+                info = _current_playback_info
+                if info["episode"] > 1:
+                    await stop_playback_internal()
+                    await _play_episode_offset(info, -1)
+                    return PlaybackResponse(
+                        success=True,
+                        message=f"Starting episode {info['episode'] - 1}",
+                        state=PlaybackState(**playback_state.to_dict()),
+                    )
+                else:
+                    msg = "Already at first episode"
+            else:
+                msg = "No playback info available"
 
         else:
             raise HTTPException(status_code=400, detail=f"Unknown action: {action}")

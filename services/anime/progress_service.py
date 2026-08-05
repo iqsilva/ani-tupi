@@ -12,8 +12,6 @@ Key responsibilities:
 
 from dataclasses import dataclass
 
-from services.anime.anilist_discovery_service import AniListDiscoveryResult
-
 
 @dataclass(frozen=True)
 class EpisodeProgressInfo:
@@ -54,7 +52,7 @@ class ProgressContext:
 def get_episode_progress_info(
     episode_number: int,
     scraper_total: int,
-    anilist_discovery: AniListDiscoveryResult | None,
+    anilist_discovery=None,
 ) -> EpisodeProgressInfo:
     """Calculate episode progress information.
 
@@ -72,9 +70,9 @@ def get_episode_progress_info(
     Returns:
         EpisodeProgressInfo with calculated progress string
     """
-    # Extract AniList total episodes if available
+    # AniList integration removed — discovery result no longer used
     anilist_total: int | None = None
-    if anilist_discovery is not None and anilist_discovery.found:
+    if anilist_discovery is not None and getattr(anilist_discovery, "found", False):
         anilist_total = anilist_discovery.total_episodes
 
     # Calculate progress string

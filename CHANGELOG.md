@@ -1,6 +1,23 @@
 # CHANGELOG
 
 
+## Unreleased
+
+### Breaking Changes
+
+- **Removida toda a funcionalidade de mangá** — o projeto agora é focado exclusivamente em animes:
+  - Removidos o comando `manga-tupi`, a flag `ani-tupi --manga`/`-m` e a opção "📚 Mangá" do menu principal
+  - Removidos os módulos: `manga_tupi.py`, `commands/manga.py`, `manga_scrapers/`, `services/manga/`,
+    `services/manga_service.py`, `services/local_manga_service.py`, `services/anilist/manga_operations.py`,
+    `models/manga_context.py` e utilitários de mangá (`manga_reader`, `pdf_converter`, `range_parser`, preferências)
+  - Removidas as configurações `manga.*` e opções AniList de mangá (`manga_prefer_english_title`,
+    `manga_auto_sync`, `manga_progress_confirmation`) — variáveis `ANI_TUPI__MANGA__*` e a seção `manga`
+    em configs de usuário existentes passam a ser ignoradas
+  - Removida a dependência `pillow`
+  - Dados locais de mangá (histórico, preferências, capítulos baixados em `~/.manga_tupi`) não são mais
+    utilizados e podem ser apagados manualmente
+
+
 ## v0.11.4 (2026-04-25)
 
 ### Bug Fixes

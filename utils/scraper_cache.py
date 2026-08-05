@@ -11,7 +11,6 @@ from utils.cache import (
     clear_cache_all,
     clear_cache_by_prefix,
 )
-from utils.anilist_discovery import get_anilist_id_from_title
 from models.models import ScraperCacheData
 
 
@@ -32,13 +31,7 @@ def get_cache(anime_title: str) -> ScraperCacheData | None:
         return None
 
     try:
-        # Try to discover AniList ID for better cache lookup
-        anilist_id = get_anilist_id_from_title(anime_title)
-
-        if anilist_id:
-            cache_key = f"episodes:{anilist_id}"
-        else:
-            cache_key = f"episodes:{anime_title}"
+        cache_key = f"episodes:{anime_title}"
 
         # Get from unified cache system
         cache_obj = _get_unified_cache()
@@ -74,14 +67,7 @@ def set_cache(anime_title: str, episode_count: int, episode_urls: list[str]) -> 
 
     try:
         cache_obj = _get_unified_cache()
-
-        # Try to discover AniList ID for better cache key
-        anilist_id = get_anilist_id_from_title(anime_title)
-
-        if anilist_id:
-            cache_key = f"episodes:{anilist_id}"
-        else:
-            cache_key = f"episodes:{anime_title}"
+        cache_key = f"episodes:{anime_title}"
 
         # Save to unified cache system
         cache_obj.set(cache_key, episode_urls, ttl=settings.performance.default_ttl_hours * 3600)
@@ -102,13 +88,7 @@ def clear_cache(anime_title: str | None = None) -> None:
             # Clear all cache
             clear_cache_all()
         else:
-            # Try to discover AniList ID for precise clearing
-            anilist_id = get_anilist_id_from_title(anime_title)
-
-            if anilist_id:
-                clear_cache_by_prefix(f":{anilist_id}:")
-            else:
-                clear_cache_by_prefix(f":{anime_title}:")
+            clear_cache_by_prefix(f":{anime_title}:")
 
     except Exception:
         pass  # Silent fail

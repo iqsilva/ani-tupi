@@ -54,12 +54,8 @@ def patch_repository(mock_rep):
 
 @pytest.fixture
 def no_anilist():
-    """Patch AniList discovery to avoid external calls."""
-    with patch(
-        "utils.anilist_discovery.auto_discover_anilist_id",
-        side_effect=ConnectionError("No AniList"),
-    ):
-        yield
+    """AniList integration removed; fixture kept as no-op for test signatures."""
+    yield
 
 
 def test_incremental_search_stops_at_20_results(patch_repository, no_anilist):
@@ -770,11 +766,7 @@ def test_incremental_search_small_base_results_stops():
         # Return only 3 results from base search
         mock_rep.get_anime_titles_with_sources = Mock(return_value=["T1", "T2", "T3"])
 
-        with patch(
-            "utils.anilist_discovery.auto_discover_anilist_id",
-            side_effect=ConnectionError("No AniList"),
-        ):
-            state, results = incremental_search_anime("test anime series long")
+        state, results = incremental_search_anime("test anime series long")
 
         # Should stop after one search (base search returned <= 20)
         assert mock_rep.search_anime.call_count == 1

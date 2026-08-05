@@ -168,29 +168,10 @@ def switch_anime_source(
     except (OSError, KeyError, IndexError):
         pass  # No local history
 
-    # 8. If have anilist_id, always check AniList (source of truth)
-    # Use AniList as primary when available (you might have watched via web/mobile)
-    if anilist_id:
-        from services.anilist_service import anilist_client
-
-        if anilist_client.is_authenticated():
-            # Get media list entry for this anime
-            entry = anilist_client.get_media_list_entry(anilist_id)
-            if entry and entry.progress:
-                anilist_progress = entry.progress
-
-    # Use maximum progress available, preferring AniList when it's ahead
+    # Use maximum progress available
     max_progress = max(local_progress, anilist_progress)
     if max_progress > 0:
-        if anilist_progress > local_progress:
-            # AniList is ahead - user probably watched on web/mobile
-            progress_source = "AniList"
-        elif anilist_progress == local_progress and anilist_progress > 0:
-            # Both equal and from AniList source
-            progress_source = "AniList"
-        else:
-            # Local is ahead or AniList not available
-            progress_source = "Local"
+        progress_source = "Local"
 
     # 9. If user has progress, offer -1/0/+1 options
     if max_progress > 0 and max_progress <= len(episode_list):

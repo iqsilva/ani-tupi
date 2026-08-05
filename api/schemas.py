@@ -111,6 +111,8 @@ class HistoryEntrySchema(BaseModel):
     anilist_id: int | None = None
     timestamp: float
     urls: dict | None = None
+    position: float | None = None  # In-episode progress (seconds)
+    duration: float | None = None  # Episode duration (seconds)
 
 
 class HistoryListResponse(BaseModel):

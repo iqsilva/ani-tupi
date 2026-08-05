@@ -8,7 +8,7 @@ authors = [
     {name = "Levy Marques", email = "levy.vix@protonmail.com"}
 ]
 license = {text = "GPL-3.0"}
-keywords = ["anime", "manga", "cli", "streaming", "terminal"]
+keywords = ["anime", "cli", "streaming", "terminal"]
 classifiers = [
     "Development Status :: 4 - Beta",
     "Environment :: Console",
@@ -30,7 +30,6 @@ dependencies = [
     "python-mpv>=1.0.8",
     "loguru>=0.7.3",
     "httpx>=0.28.1",
-    "pillow>=12.1.0",
     "yt-dlp>=2026.1.31",
     "selenium>=4.0.0",
     "bs4>=0.0.2",
@@ -48,7 +47,6 @@ dependencies = [
 
 [project.scripts]
 ani-tupi = "main:cli"
-manga-tupi = "manga_tupi:main"
 
 [build-system]
 requires = ["hatchling"]

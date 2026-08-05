@@ -70,7 +70,7 @@ class TestSaveHistory:
         assert "Demon Slayer" in data
 
         entry = data["Demon Slayer"]
-        ts, ep_idx, anilist_id, source, total_eps, anime_urls = entry
+        ts, ep_idx, anilist_id, source, total_eps, anime_urls = entry[:6]
 
         assert before <= ts <= after
         assert ep_idx == 3
@@ -94,7 +94,7 @@ class TestSaveHistory:
 
         data = history_store.load({})
         entry = data["Attack on Titan"]
-        _, ep_idx, anilist_id, source, total_eps, anime_urls = entry
+        _, ep_idx, anilist_id, source, total_eps, anime_urls = entry[:6]
 
         assert ep_idx == 7
         assert anilist_id == 16498
@@ -176,22 +176,17 @@ class TestSaveHistoryFromEvent:
         """save_history_from_event stores the provided anilist_id."""
         from services.history_service import save_history_from_event
 
-        # Patch anilist_client so no HTTP calls fire
-        mock_anilist = MagicMock()
-        mock_anilist.is_authenticated.return_value = False
-
         with patch("services.history_service.rep") as mock_rep:
             mock_rep.get_episode_list.return_value = []
             mock_rep.anime_to_urls = {}
 
-            with patch("services.anilist_service.anilist_client", mock_anilist):
-                save_history_from_event(
-                    "Jujutsu Kaisen",
-                    episode_idx=4,
-                    action="watched",
-                    source="sushianimes",
-                    anilist_id=113415,
-                )
+            save_history_from_event(
+                "Jujutsu Kaisen",
+                episode_idx=4,
+                action="watched",
+                source="sushianimes",
+                anilist_id=113415,
+            )
 
         data = history_store.load({})
         assert "Jujutsu Kaisen" in data
@@ -244,15 +239,11 @@ class TestSaveHistoryFromEvent:
             mock_rep.anime_to_urls = {}
             mock_rep.anime_to_anilist_id = {}  # Not in repo
 
-            mock_anilist = MagicMock()
-            mock_anilist.is_authenticated.return_value = False
-
-            with patch("services.anilist_service.anilist_client", mock_anilist):
-                save_history_from_event(
-                    "Mob Psycho 100",
-                    episode_idx=5,
-                    action="watched",
-                )
+            save_history_from_event(
+                "Mob Psycho 100",
+                episode_idx=5,
+                action="watched",
+            )
 
         data = history_store.load({})
         entry = data["Mob Psycho 100"]

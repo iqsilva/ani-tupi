@@ -421,8 +421,26 @@ class EpisodeRepository:
         if not threads:
             return
 
+        # Bounded wait: a stalled scraper must not hang the whole search.
+        # Wait up to 25s total, then proceed with whatever sources responded.
+        import time as _time
+
+        deadline = _time.monotonic() + 25.0
         for th in threads:
-            th.join()
+            remaining = deadline - _time.monotonic()
+            if remaining > 0:
+                th.join(timeout=remaining)
+            if th.is_alive():
+                source_name = th.name.split(":")[1] if ":" in th.name else th.name
+                with self._failure_lock:
+                    self.last_search_failures[anime].append(
+                        (source_name, "timeout: source did not respond within 25s")
+                    )
+                logger.warning(
+                    "Episode search for '%s' from source '%s' timed out; continuing without it",
+                    anime,
+                    source_name,
+                )
 
     def get_last_search_failures(self, anime: str) -> list[tuple[str, str]]:
         """Return scraper failures from the most recent episode search for an anime."""

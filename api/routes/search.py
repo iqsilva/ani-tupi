@@ -20,10 +20,12 @@ router = APIRouter(prefix="/search", tags=["search"])
 async def search_anime(
     q: str = Query(..., min_length=1, description="Search query"),
     limit: int = Query(20, ge=1, le=100, description="Maximum results"),
+    source: str | None = Query(None, description="Only return results available on this source"),
 ) -> SearchResponse:
     """Search for anime across all registered sources.
 
-    Returns a list of anime with their available sources.
+    Returns a list of anime with their available sources. When `source` is
+    provided, only results that include that source are returned.
     """
     try:
         # Clear previous results
@@ -34,10 +36,12 @@ async def search_anime(
 
         # Build response
         results = []
-        for anime in search_results.results[:limit]:
+        for anime in search_results.results:
+            if source and not any(s == source for _, s, _ in anime.sources):
+                continue
             sources = [
-                AnimeSource(url=url, source=source, params=params or {})
-                for url, source, params in anime.sources
+                AnimeSource(url=url, source=src, params=params or {})
+                for url, src, params in anime.sources
             ]
             results.append(
                 AnimeSearchResultSchema(
@@ -46,6 +50,8 @@ async def search_anime(
                     sources=sources,
                 )
             )
+            if len(results) >= limit:
+                break
 
         return SearchResponse(
             query=q,

@@ -19,7 +19,6 @@ from services.anime.playback_service import (
     prepare_playback_from_search,
     prepare_playback_from_history,
     get_episode_url_and_source,
-    sync_progress_to_anilist,
     navigate_episodes,
     build_episode_sources,
     PlaybackContext,
@@ -184,59 +183,6 @@ def handle_post_playback_confirmation(
             total_episodes=num_episodes,
         )
 
-        # AniList sync
-        if anilist_id:
-            success = sync_progress_to_anilist(
-                anilist_id, episode_number, num_episodes, anime_title
-            )
-            if success:
-                logger.info("✅ Progresso salvo no AniList!")
-
-                # Delete local file after successful sync (if configured)
-                if is_local and file_path:
-                    from models.config import settings
-                    from services.local_anime_service import LocalAnimeService
-
-                    if settings.offline_sync.enable_file_cleanup:
-                        try:
-                            service = LocalAnimeService()
-                            deleted = service.delete_episode(anime_title, episode_number)
-                            if deleted:
-                                logger.info(
-                                    f"🗑️  Arquivo local deletado (episódio {episode_number})"
-                                )
-                        except Exception as e:
-                            logger.info(f"⚠️  Erro ao deletar arquivo: {e}")
-            else:
-                logger.info("⚠️  Não foi possível salvar no AniList")
-                logger.info("   Será sincronizado quando estiver online.")
-
-                # Queue for offline sync
-                from services.anime.offline_sync_service import add_to_queue
-
-                add_to_queue(
-                    anime_title=anime_title,
-                    episode_number=episode_number,
-                    anilist_id=anilist_id,
-                    error=None,
-                    is_local=is_local,
-                    file_path=file_path,
-                )
-        else:
-            # No AniList ID found - still handle local file deletion if configured
-            if is_local and file_path:
-                from models.config import settings
-                from services.local_anime_service import LocalAnimeService
-
-                if settings.offline_sync.delete_after_watch:
-                    try:
-                        service = LocalAnimeService()
-                        deleted = service.delete_episode(anime_title, episode_number)
-                        if deleted:
-                            logger.info(f"🗑️  Arquivo local deletado (episódio {episode_number})")
-                    except Exception as e:
-                        logger.info(f"⚠️  Erro ao deletar arquivo: {e}")
-
     return confirmed
 
 
@@ -327,12 +273,6 @@ def anime(args) -> None:
         if ctx is None:
             return
 
-    # Display AniList discovery info if found
-    if ctx.anilist_title:
-        show_info(f"Encontrado: {ctx.anilist_title}", title="AniList")
-    else:
-        show_warning("Não foi possível encontrar no AniList (continuando sem sincronização)")
-
     # Initialize video player for this session
     player = VideoPlayer()
 
@@ -361,19 +301,8 @@ def anime(args) -> None:
 
         # Format progress string
         from services.anime.progress_service import get_episode_progress_info
-        from services.anime.anilist_discovery_service import AniListDiscoveryResult
 
-        anilist_result = None
-        if ctx.anilist_id:
-            anilist_result = AniListDiscoveryResult(
-                anilist_id=ctx.anilist_id,
-                anilist_title=ctx.anilist_title,
-                total_episodes=ctx.total_episodes_anilist,
-                found=True,
-                authenticated=True,
-            )
-
-        progress_info = get_episode_progress_info(episode, ctx.num_episodes, anilist_result)
+        progress_info = get_episode_progress_info(episode, ctx.num_episodes, None)
 
         logger.info(f"▶️  Iniciando reprodução do episódio {progress_info.progress_str}...")
         if len(sources) > 1:

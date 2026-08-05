@@ -2,16 +2,12 @@
 
 Each module handles a specific user interaction flow:
 - anime.py: Anime search, selection, and playback
-- anilist.py: AniList integration (auth and menu)
-- manga.py: Manga search and reading
 - sources.py: Plugin/source management
 """
 
 from commands.anime import anime
-from commands.anilist import anilist_auth, anilist_menu
 from commands.config import config
-from commands.manga import manga
 from commands.update import update
 from commands.sources import manage_sources
 
-__all__ = ["anime", "anilist_auth", "anilist_menu", "config", "manga", "manage_sources", "update"]
+__all__ = ["anime", "config", "manage_sources", "update"]

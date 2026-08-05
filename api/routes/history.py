@@ -39,6 +39,8 @@ async def get_history(
                     anilist_id=he.anilist_id,
                     timestamp=he.timestamp,
                     urls=he.urls,
+                    position=he.position,
+                    duration=he.duration,
                 )
             )
 
@@ -74,6 +76,8 @@ async def get_history_entry(anime: str) -> HistoryEntrySchema:
             anilist_id=he.anilist_id,
             timestamp=he.timestamp,
             urls=he.urls,
+            position=he.position,
+            duration=he.duration,
         )
 
     except HTTPException:

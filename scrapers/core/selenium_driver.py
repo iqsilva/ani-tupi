@@ -72,8 +72,39 @@ class SeleniumWebDriver:
         user_agent = user_agent or random.choice(USER_AGENTS)
         options.add_argument(f"user-agent={user_agent}")
 
-        # Initialize driver (Selenium Manager auto-downloads chromedriver)
-        self.driver = webdriver.Chrome(options=options)
+        # Initialize driver with a startup watchdog: chromedriver/Chrome spawn can
+        # hang indefinitely (bad install, profile lock). Run it in a thread with a
+        # timeout, and quit the driver if it comes up after we've given up.
+        import threading
+
+        result: dict = {}
+        abandoned = threading.Event()
+
+        def _create_driver():
+            try:
+                driver = webdriver.Chrome(options=options)
+                if abandoned.is_set():
+                    # Watchdog already gave up; don't leak the browser process
+                    try:
+                        driver.quit()
+                    except Exception:
+                        pass
+                    return
+                result["driver"] = driver
+            except Exception as e:
+                result["error"] = e
+
+        creator = threading.Thread(target=_create_driver, daemon=True, name="selenium-startup")
+        creator.start()
+        creator.join(timeout=30)
+
+        if creator.is_alive():
+            abandoned.set()
+            raise TimeoutError("Chrome WebDriver startup timed out after 30s")
+        if "error" in result:
+            raise result["error"]
+
+        self.driver = result["driver"]
         self.driver.set_page_load_timeout(self.timeout)
 
         # Add request headers via CDP (Chrome DevTools Protocol)

@@ -235,7 +235,6 @@ main() {
     echo "  ani-tupi              - Assistir anime"
     echo "  ani-tupi --continue   - Continuar último anime"
     echo "  ani-tupi anilist     - Integração AniList"
-    echo "  manga-tupi            - Ler mangá"
     echo ""
     echo "Para começar, execute:"
     echo "  ani-tupi"

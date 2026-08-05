@@ -112,8 +112,7 @@ def anilist_main_menu() -> tuple[str, int] | None:
     menu_options = [
         "📈 Trending",
         "📅 Recentes (Local)",
-        "📂 Biblioteca Local",
-        "🔍 Buscar Anime",
+        " Buscar Anime",
     ]
 
     if is_logged_in:
@@ -150,10 +149,7 @@ def anilist_main_menu() -> tuple[str, int] | None:
     if selection == "📅 Recentes (Local)":
         _show_recent_history()  # Now loops internally
         return anilist_main_menu()
-    if selection == "📂 Biblioteca Local":
-        _show_local_library()  # Now loops internally
-        return anilist_main_menu()
-    if selection == "🔍 Buscar Anime":
+    if selection == " Buscar Anime":
         return _search_and_add_anime(is_logged_in)
     if selection == "🎬 Novos Episódios":
         _show_airing_episodes()  # Now loops internally
@@ -870,22 +866,6 @@ def _show_airing_episodes() -> None:
         )
 
         # After watching, loop back to show airing episodes list again
-
-
-def _show_local_library() -> None:
-    """Show local anime library menu with full playback flow.
-
-    Delegates to handle_local_library_playback() to ensure consistency
-    with the main menu flow, including:
-    - Post-playback confirmation ("Você assistiu até o final?")
-    - AniList sync with offline queue fallback
-    - Navigation menu (Next/Previous/Replay/Back)
-    - Playback loop for multiple episodes
-    """
-    from commands.local_anime import handle_local_library_playback
-
-    args = argparse.Namespace(debug=False)
-    handle_local_library_playback(args)
 
 
 def authenticate_flow() -> None:

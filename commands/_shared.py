@@ -1,4 +1,4 @@
-"""Shared post-playback navigation helpers used by anime and local_anime commands."""
+"""Shared post-playback navigation helpers used by anime commands."""
 
 # Navigation action labels (used for menu display and matching)
 NAV_NEXT = "▶️  Próximo"

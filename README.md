@@ -60,7 +60,7 @@ choco install python mpv zathura googlechrome git
 Instale o pacote Python com **uv** ou **pip** a partir do [PyPI](https://pypi.org/project/ani-tupi/). Você ainda precisa das [dependências de sistema](#-requisitos) (`mpv`, leitor de PDF, etc.) — elas não vêm com o pacote PyPI.
 
 ```bash
-# Recomendado: instala ani-tupi e manga-tupi como ferramentas globais
+# Recomendado: instala ani-tupi como ferramenta global
 uv tool install ani-tupi
 
 # Alternativa: uv em um venv
@@ -139,13 +139,10 @@ ani-tupi -q "dandadan"
 ani-tupi anilist auth      # Login (apenas uma vez)
 ani-tupi anilist           # Navegar listas + trending
 
-# 5. Ler mangá
-manga-tupi
-
-# 6. Modo debug (mostra logs detalhados)
+# 5. Modo debug (mostra logs detalhados)
 ani-tupi --debug
 
-# 7. Ajuda
+# 6. Ajuda
 ani-tupi --help
 ```
 
@@ -185,10 +182,6 @@ ani-tupi --clear-cache
 
 # Limpar cache de um anime específico
 ani-tupi --clear-cache "dandadan"
-
-# Abrir o fluxo de mangá pelo comando principal
-ani-tupi --manga
-ani-tupi -m
 
 # Ver versão local e comparar com a release remota
 ani-tupi --version
@@ -274,14 +267,8 @@ A integração com [AniList.co](https://anilist.co) permite sincronizar automati
 - 🔄 **Sincronização automática** - Progresso atualiza no AniList após cada episódio
 - 📝 **Adição automática à Watching** - Adiciona anime à sua lista ao começar a assistir
 
-### 📚 Manga
-- 📚 **Trending Manga** - Descubra os mangás mais populares do momento
-- 📖 **Reading** - Acesse sua lista "Lendo" do AniList
-- 🔄 **Sincronização de capítulos** - Atualiza progresso no AniList após confirmar leitura
-- 📋 **Status unificados** - Veja animes e mangás juntos nas listas
-
-### 💾 Recursos
-- **Mapeamento inteligente** - Lembra do título correto para cada anime/mangá
+### � Recursos
+- **Mapeamento inteligente** - Lembra do título correto para cada anime
 - **Cache inteligente** - Carrega listas instantaneamente
 - **Menu de conta** - Veja seu perfil e estatísticas
 
@@ -289,30 +276,6 @@ A integração com [AniList.co](https://anilist.co) permite sincronizar automati
 ```bash
 ani-tupi anilist auth      # Login (apenas uma vez)
 ani-tupi anilist           # Navegar listas + trending
-```
-
----
-
-## 📖 Ler Mangá
-
-Leia mangá do MangaDex direto do terminal com integração AniList!
-
-**Comando:** `manga-tupi`
-
-**Fluxo rápido:**
-1. Abra `manga-tupi`
-2. Digite nome do manga (fuzzy search automática)
-3. Escolha capítulo
-4. Leia no seu leitor PDF favorito
-5. Progresso sincroniza automaticamente com AniList
-
-**Leitores suportados:** Zathura (⭐ recomendado), Evince, Okular, MuPDF, macOS Preview, xdg-open
-
-**Configuração:**
-```bash
-export ANI_TUPI__MANGA__PDF_READER=zathura
-export ANI_TUPI__MANGA__OUTPUT_DIRECTORY=~/Mangas
-export ANI_TUPI__MANGA__CACHE_DURATION_HOURS=48
 ```
 
 ---

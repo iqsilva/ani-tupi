@@ -8,8 +8,7 @@ from utils.persistence import JSONStore
 from utils.title_utils import clean_title_for_display
 from utils.exceptions import PersistenceError
 from utils.logging import get_logger
-from utils.anilist_discovery import get_anilist_id_with_interactive_fallback
-from models.models import HistoryEntry, Status
+from models.models import HistoryEntry
 from services.anime.mappings import load_anilist_urls
 
 logger = get_logger(__name__)
@@ -44,38 +43,6 @@ def _load_persisted_history():
     anime = selected[: -titles[selected]]
     he = HistoryEntry.from_list(data[anime])
     return data, anime, he.episode_idx, he.anilist_id, he.source, he.urls or None
-
-
-def _resolve_anilist_progress(anilist_id, saved_source, anime):
-    """Resolve AniList progress. Returns (anilist_id, anilist_title, anilist_ep_idx)."""
-    from ui.components import loading
-
-    anilist_title = None
-    anilist_ep_idx = -1
-
-    if anilist_id:
-        from services.anilist_service import anilist_client
-
-        info = anilist_client.get_anime_by_id(anilist_id)
-        if info:
-            anilist_title = info.title.romaji
-        entry = anilist_client.get_media_list_entry(anilist_id)
-        if entry and entry.progress:
-            anilist_ep_idx = entry.progress - 1
-    elif saved_source == "local":
-        with loading(f"Buscando '{anime}' no AniList..."):
-            anilist_id = get_anilist_id_with_interactive_fallback(anime, strict_threshold=95)
-        if anilist_id:
-            from services.anilist_service import anilist_client
-
-            info = anilist_client.get_anime_by_id(anilist_id)
-            if info:
-                anilist_title = info.title.romaji
-            entry = anilist_client.get_media_list_entry(anilist_id)
-            if entry and entry.progress:
-                anilist_ep_idx = entry.progress - 1
-
-    return anilist_id, anilist_title, anilist_ep_idx
 
 
 def _validate_anime_sources(search_results):
@@ -246,11 +213,9 @@ def load_history() -> tuple[str, int, int | None, str | None] | None:
         _, anime, local_ep_idx, anilist_id, saved_source, saved_urls = entry
         original_anime_name = anime
 
-        anilist_id, anilist_title, anilist_ep_idx = _resolve_anilist_progress(
-            anilist_id, saved_source, anime
-        )
-        last_ep_idx = max(local_ep_idx, anilist_ep_idx)
-        progress_source = "AniList" if anilist_ep_idx > local_ep_idx else "Local"
+        anilist_title = None
+        last_ep_idx = local_ep_idx
+        progress_source = "Local"
 
         anime, episode_list, searched, was_found = _find_episodes(
             anime, anilist_id, anilist_title, saved_source, saved_urls
@@ -360,13 +325,16 @@ def save_history(
     source: str | None = None,
     total_episodes: int | None = None,
     anime_urls: dict[str, str] | None = None,
+    position: float | None = None,
+    duration: float | None = None,
 ) -> None:
     """Save watch history with timestamp, optional AniList ID, source, and total episodes.
 
-    Format: {"anime_name": [timestamp, episode_idx, anilist_id, source, total_episodes, anime_urls], ...}
+    Format: {"anime_name": [timestamp, episode_idx, anilist_id, source, total_episodes, anime_urls, position, duration], ...}
     - anilist_id can be None for anime not from AniList
     - source is the scraper name (e.g., "animefire", "sushianimes")
     - total_episodes is the known total count of episodes (auto-detected if not provided)
+    - position/duration store in-episode playback progress in seconds (optional)
     """
     if total_episodes is None:
         episode_list = rep.get_episode_list(anime)
@@ -393,6 +361,8 @@ def save_history(
             source=source,
             total_episodes=total_episodes,
             urls=anime_urls or {},
+            position=position,
+            duration=duration,
         )
         _history_store.set(anime, entry.to_list())
     except PersistenceError as e:
@@ -436,39 +406,6 @@ def save_history_from_event(
 
     save_history(anime_title, episode_idx, anilist_id, source, total_episodes)
     logger.info(f"Saved history for '{anime_title}' Ep {episode_idx + 1} (action: {action})")
-
-    if anilist_id and action == "watched":
-        from services.anilist_service import anilist_client
-
-        if anilist_client.is_authenticated():
-            try:
-                entry = anilist_client.get_media_list_entry(anilist_id)
-
-                if not entry:
-                    logger.info(f"Adding '{anime_title}' to AniList CURRENT list")
-                    anilist_client.add_to_list(anilist_id, "CURRENT")
-                else:
-                    if entry.status == "PLANNING":
-                        logger.info(f"Moving '{anime_title}' from PLANNING to CURRENT")
-                        anilist_client.add_to_list(anilist_id, "CURRENT")
-                    elif entry.status == "COMPLETED":
-                        logger.info(f"Changing '{anime_title}' to REPEATING")
-                        status_changed = anilist_client.change_status(anilist_id, Status.REPEATING)
-                        if not status_changed:
-                            logger.warning(
-                                f"Failed to change '{anime_title}' to REPEATING; skipping progress update"
-                            )
-                            return
-
-                episode_number = episode_idx + 1
-                success = anilist_client.update_progress(anilist_id, episode_number)
-
-                if success:
-                    logger.info(f"Synced progress to AniList: Ep {episode_number}")
-                else:
-                    logger.warning(f"Failed to sync progress to AniList for Ep {episode_number}")
-            except Exception as e:
-                logger.error(f"Error syncing with AniList: {e}")
 
 
 def reset_history(anime: str) -> None:

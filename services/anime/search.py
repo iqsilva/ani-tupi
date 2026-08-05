@@ -11,7 +11,6 @@ from dataclasses import dataclass, field
 
 from models.config import settings
 from models.models import AnimeTitleResolution
-from services.anime.title_resolution import AnimeTitleResolver
 from services.repository import rep
 from ui.components import loading, menu_navigate, menu_navigate_episodes
 from utils.scraper_cache import get_cache
@@ -470,23 +469,13 @@ def incremental_search_anime(
                 search_metadata = rep.get_search_metadata()
                 used_query = search_metadata.used_query or partial_query
 
-                # Try to get AniList match for ranking
                 ranking_query = used_query
-                try:
-                    from utils.anilist_discovery import auto_discover_anilist_id
 
-                    anilist_results = auto_discover_anilist_id(used_query)
-                    if anilist_results:
-                        ranking_query = anilist_results[0].title
-                        anilist_reference_title = ranking_query
-                except Exception as e:
-                    logger.debug(f"AniList indisponível para '{used_query}': {e}")
-
-                # Get anime titles with sources, ranked by AniList if available
+                # Get anime titles with sources
                 titles_with_sources = _get_ranked_titles_with_sources(
                     filter_by_query=used_query,
                     original_query=ranking_query,
-                    anilist_results=anilist_results,
+                    anilist_results=None,
                 )
 
                 if anilist_reference_title:
@@ -579,23 +568,13 @@ def incremental_search_anime(
                     search_metadata = rep.get_search_metadata()
                     used_query = search_metadata.used_query or partial_query
 
-                    # Try to get AniList match for ranking
                     ranking_query = used_query
-                    try:
-                        from utils.anilist_discovery import auto_discover_anilist_id
 
-                        anilist_results = auto_discover_anilist_id(used_query)
-                        if anilist_results:
-                            ranking_query = anilist_results[0].title
-                            anilist_reference_title = ranking_query
-                    except Exception as e:
-                        logger.debug(f"AniList indisponível para '{used_query}': {e}")
-
-                    # Get anime titles with sources, ranked by AniList if available
+                    # Get anime titles with sources
                     titles_with_sources = _get_ranked_titles_with_sources(
                         filter_by_query=used_query,
                         original_query=ranking_query,
-                        anilist_results=anilist_results,
+                        anilist_results=None,
                     )
 
                     if anilist_reference_title:
@@ -971,14 +950,7 @@ def _select_from_dual_search_results(
 
 
 def _resolve_search_query(query: str) -> AnimeTitleResolution | None:
-    """Resolve a failed manual query into a more canonical title."""
-    if not settings.search.enable_title_resolution:
-        return None
-
-    resolver = AnimeTitleResolver()
-    resolution = resolver.resolve(query)
-    if resolution and resolution.resolved_title.casefold() != query.strip().casefold():
-        return resolution
+    """Title resolution removed (Jikan/AniList integration dropped)."""
     return None
 
 
