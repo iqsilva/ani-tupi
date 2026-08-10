@@ -11,7 +11,7 @@ import time
 from pathlib import Path
 from datetime import datetime
 
-from models.config import get_data_path
+from models.config import get_data_path, settings
 from utils.logging import get_logger
 from utils.playback_hints import resolve_mpv_stream_options
 
@@ -19,12 +19,42 @@ logger = get_logger(__name__)
 
 # Mapping of quality presets to ytdl-format strings for MPV
 QUALITY_FORMATS: dict[str, str] = {
-    "1080": "bestvideo[height<=1080][vcodec^=avcl]+bestaudio/best[height<=1080]",
-    "720": "bestvideo[height<=720][vcodec^=avcl]+bestaudio/best[height<=720]",
-    "480": "bestvideo[height<=480][vcodec^=avcl]+bestaudio/best[height<=480]",
-    "360": "bestvideo[height<=360][vcodec^=avcl]+bestaudio/best[height<=360]",
-    "best": "bestvideo[height<=1080][vcodec^=avcl]+bestaudio/best",
+    "1080": "bestvideo[height<=?1080][vcodec^=avc1]+bestaudio/best[height<=1080]",
+    "720": "bestvideo[height<=?720][vcodec^=avc1]+bestaudio/best[height<=720]",
+    "480": "bestvideo[height<=?480][vcodec^=avc1]+bestaudio/best[height<=480]",
+    "360": "bestvideo[height<=?360][vcodec^=avc1]+bestaudio/best[height<=360]",
+    "best": "bestvideo[height<=?1080][vcodec^=avc1]+bestaudio/best",
 }
+
+
+def _build_buffer_cli_args() -> list[str]:
+    """Build MPV CLI buffering/cache args from PlaybackSettings."""
+    pb = settings.playback
+    return [
+        "--cache=yes",
+        f"--cache-secs={pb.cache_secs}",
+        f"--demuxer-max-bytes={pb.demuxer_max_bytes}",
+        f"--demuxer-max-back-bytes={pb.demuxer_max_back_bytes}",
+        f"--demuxer-readahead-secs={pb.demuxer_readahead_secs}",
+        f"--stream-buffer-size={pb.stream_buffer_size}",
+        f"--hwdec={pb.hwdec}",
+        f"--vd-lavc-threads={pb.vd_lavc_threads}",
+    ]
+
+
+def _build_buffer_kwargs() -> dict:
+    """Build python-mpv buffering/cache kwargs from PlaybackSettings."""
+    pb = settings.playback
+    return {
+        "cache": True,
+        "cache_secs": pb.cache_secs,
+        "demuxer_max_bytes": pb.demuxer_max_bytes,
+        "demuxer_max_back_bytes": pb.demuxer_max_back_bytes,
+        "demuxer_readahead_secs": pb.demuxer_readahead_secs,
+        "stream_buffer_size": pb.stream_buffer_size,
+        "hwdec": pb.hwdec,
+        "vd_lavc_threads": pb.vd_lavc_threads,
+    }
 
 
 class VideoPlaybackResult(NamedTuple):
@@ -296,13 +326,8 @@ class VideoPlayer:
                 log_handler=print,
                 ytdl=True,
                 ytdl_format=ytdl_format or "bestvideo[height<=1080]+bestaudio/best",
-                ytdl_raw_options="concurrent-fragments=5",
-                cache=True,
-                demuxer_max_bytes="400M",
-                demuxer_max_back_bytes="100M",
-                demuxer_readahead_secs=40,
-                stream_buffer_size="2M",
-                hwdec="no",
+                ytdl_raw_options=f"concurrent-fragments={settings.playback.concurrent_fragments}",
+                **_build_buffer_kwargs(),
                 input_default_bindings=True,
                 input_vo_keyboard=True,
                 input_conf=input_conf_path,
@@ -497,14 +522,10 @@ shift+t script-message toggle-sub-dub
             f"--input-conf={input_conf}",
             "--fullscreen=yes",
             "--osc=yes",
-            "--cache=yes",
-            "--demuxer-max-bytes=400M",
-            "--demuxer-max-back-bytes=100M",
-            "--demuxer-readahead-secs=40",
-            "--stream-buffer-size=2M",
-            "--hwdec=no",
+            *_build_buffer_cli_args(),
             "--ytdl=yes",
             f"--ytdl-format={ytdl_format}",
+            f"--ytdl-raw-options=concurrent-fragments={settings.playback.concurrent_fragments}",
             "--user-agent=Mozilla/5.0 (X11; Linux x86_64; rv:126.0) Gecko/20100101 Firefox/126.0",
         ]
 

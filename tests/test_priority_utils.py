@@ -38,6 +38,22 @@ class TestSortByPriority:
         result = sort_by_priority([], ["sub", "dub"])
         assert result == []
 
+    def test_preferred_source_ranks_first(self):
+        """Preferred source overrides priority order."""
+        items = [("url1", "dub"), ("url2", "sub"), ("url3", "other")]
+        priority = ["sub", "dub"]
+        result = sort_by_priority(items, priority, preferred_source="other")
+        assert result[0] == ("url3", "other")
+        assert result[1] == ("url2", "sub")
+        assert result[2] == ("url1", "dub")
+
+    def test_preferred_source_absent_keeps_priority(self):
+        """Absent preferred source leaves priority order intact."""
+        items = [("url1", "dub"), ("url2", "sub")]
+        priority = ["sub", "dub"]
+        result = sort_by_priority(items, priority, preferred_source="missing")
+        assert result == [("url2", "sub"), ("url1", "dub")]
+
     def test_empty_priority_order(self):
         """Test with empty priority order - all items sorted equally."""
         items = [("url1", "dub"), ("url2", "sub"), ("url3", "unknown")]

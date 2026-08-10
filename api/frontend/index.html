@@ -985,6 +985,7 @@
         <button class="back-btn" id="backToSearch">← Voltar</button>
         <h2 id="animeTitle"></h2>
         <p id="episodeCount"></p>
+        <div class="chip-row" id="episodeSourceChips" style="display: none;" aria-label="Fonte primária"></div>
         <div class="episode-jump" id="episodeJump" style="display: none;">
             <input type="number" id="episodeJumpInput" min="1" placeholder="Ir para episódio..." aria-label="Ir para episódio">
             <button id="episodeJumpBtn">Ir</button>
@@ -1397,10 +1398,40 @@
             }
         }
 
+        // Primary source selected for the current anime (null = automatic)
+        let selectedEpisodeSource = null;
+
+        function renderEpisodeSourceChips(sources) {
+            const container = document.getElementById('episodeSourceChips');
+            container.innerHTML = '';
+            if (!sources || sources.length < 2) {
+                container.style.display = 'none';
+                selectedEpisodeSource = sources && sources.length === 1 ? selectedEpisodeSource : null;
+                return;
+            }
+            container.style.display = '';
+
+            const makeChip = (labelText, value) => {
+                const chip = document.createElement('button');
+                chip.className = 'chip' + (selectedEpisodeSource === value ? ' selected' : '');
+                chip.textContent = labelText;
+                chip.addEventListener('click', () => {
+                    selectedEpisodeSource = value;
+                    renderEpisodeSourceChips(sources);
+                });
+                return chip;
+            };
+
+            container.appendChild(makeChip('Automático', null));
+            sources.forEach(s => container.appendChild(makeChip(s, s)));
+        }
+
         async function selectAnime(title) {
             currentAnime = title;
             document.getElementById('animeTitle').textContent = title;
             document.getElementById('episodeJump').style.display = 'none';
+            selectedEpisodeSource = null;
+            document.getElementById('episodeSourceChips').style.display = 'none';
 
             episodeGrid.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
             showPage('episodesPage');
@@ -1418,10 +1449,21 @@
                 }
 
                 let lastWatched = 0;
+                let savedSource = null;
                 if (histRes && histRes.ok) {
                     const hist = await histRes.json().catch(() => null);
-                    if (hist) lastWatched = hist.episode || 0;
+                    if (hist) {
+                        lastWatched = hist.episode || 0;
+                        savedSource = hist.source || null;
+                    }
                 }
+
+                // Preselect saved source from history if still available
+                const animeSources = data.sources || [];
+                selectedEpisodeSource = savedSource && animeSources.includes(savedSource)
+                    ? savedSource
+                    : null;
+                renderEpisodeSourceChips(animeSources);
 
                 document.getElementById('episodeCount').textContent = `${data.total} episódios`;
 
@@ -1492,13 +1534,16 @@
         });
 
         // Playback
-        async function playEpisode(anime, episode) {
+        async function playEpisode(anime, episode, source = undefined) {
+            const preferredSource = source !== undefined
+                ? source
+                : (anime === currentAnime ? selectedEpisodeSource : null);
             try {
                 setPlayerLoading(true);
                 fetch(`${API_BASE}/api/playback/start`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ anime, episode, quality: selectedQuality })
+                    body: JSON.stringify({ anime, episode, quality: selectedQuality, source: preferredSource })
                 }).then(async res => {
                     const data = await res.json().catch(() => null);
                     if (!res.ok) {
@@ -1957,7 +2002,7 @@
                 continueBtn.textContent = `▶ Continuar (Ep ${entry.episode})`;
                 continueBtn.addEventListener('click', (e) => {
                     e.stopPropagation();
-                    playEpisode(entry.anime, entry.episode);
+                    playEpisode(entry.anime, entry.episode, entry.source || null);
                 });
                 actions.appendChild(continueBtn);
 
@@ -1967,7 +2012,7 @@
                     nextBtn.textContent = `⏭ Ep ${entry.episode + 1}`;
                     nextBtn.addEventListener('click', (e) => {
                         e.stopPropagation();
-                        playEpisode(entry.anime, entry.episode + 1);
+                        playEpisode(entry.anime, entry.episode + 1, entry.source || null);
                     });
                     actions.appendChild(nextBtn);
                 }
@@ -1992,7 +2037,7 @@
                 });
                 card.appendChild(deleteBtn);
 
-                const activate = () => playEpisode(entry.anime, entry.episode);
+                const activate = () => playEpisode(entry.anime, entry.episode, entry.source || null);
                 card.addEventListener('click', activate);
                 card.addEventListener('keydown', (e) => {
                     if (e.key === 'Enter' || e.key === ' ') {

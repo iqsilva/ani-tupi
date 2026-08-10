@@ -57,7 +57,10 @@ class PlaybackStartRequest(BaseModel):
     anime: str
     episode: int = Field(ge=1, description="Episode number (1-indexed)")
     season: int | None = Field(default=None, description="Season number (optional)")
-    source: str | None = Field(default=None, description="Preferred source")
+    source: str | None = Field(
+        default=None,
+        description="Preferred (primary) source; tried first, others used as fallback",
+    )
     quality: str = Field(default="best", pattern="^(1080|720|480|360|best)$")
 
 

@@ -12,6 +12,7 @@ This is a thin coordinator that delegates all business logic to services.
 from pathlib import Path
 
 from commands._shared import build_nav_options, is_next, is_prev, is_replay
+from models.config import settings
 from services import anime_service
 from services.history_service import save_history
 from services.repository import rep
@@ -322,7 +323,7 @@ def anime(args) -> None:
             debug=args.debug,
             anilist_id=ctx.anilist_id,
             anilist_episodes=ctx.total_episodes_anilist,
-            max_quality=getattr(args, "quality", "best"),
+            max_quality=getattr(args, "quality", None) or settings.playback.default_quality,
         )
 
         playback_result = fallback_result.playback_result

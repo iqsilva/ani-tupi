@@ -152,3 +152,106 @@ class TestPlaybackCoordinator:
         result = coordinator.search_player([], "Anime Title", 1)
 
         assert result is None
+
+
+class TestPreferredSource:
+    """Test preferred (primary) source selection with fallback."""
+
+    @staticmethod
+    def _make_source(video_url=None):
+        def search(url, container, event):
+            if video_url:
+                container.append(video_url)
+
+        src = Mock()
+        src.search_player_src = search
+        return src
+
+    def _run(self, coro):
+        import asyncio
+
+        return asyncio.run(coro)
+
+    def test_preferred_source_tried_first(self, monkeypatch):
+        """Preferred source wins even when lower in global priority."""
+        from services import playback_coordinator as pc
+
+        monkeypatch.setattr(
+            pc.settings.plugins, "priority_order", ["animefire", "goyabu"], raising=False
+        )
+        sources = {
+            "animefire": self._make_source("http://video.animefire"),
+            "goyabu": self._make_source("http://video.goyabu"),
+        }
+        coordinator = PlaybackCoordinator(sources)
+        # Avoid cache interference
+        monkeypatch.setattr(
+            "utils.cache_manager.get_cache", lambda: (_ for _ in ()).throw(Exception())
+        )
+
+        url, source = self._run(
+            coordinator.search_player_with_source_async(
+                [("http://p1", "animefire"), ("http://p2", "goyabu")],
+                "Anime",
+                1,
+                preferred_source="goyabu",
+            )
+        )
+
+        assert url == "http://video.goyabu"
+        assert source == "goyabu"
+
+    def test_preferred_source_falls_back_on_failure(self, monkeypatch):
+        """Failing preferred source falls back to next by priority."""
+        from services import playback_coordinator as pc
+
+        monkeypatch.setattr(
+            pc.settings.plugins, "priority_order", ["animefire", "goyabu"], raising=False
+        )
+        sources = {
+            "animefire": self._make_source("http://video.animefire"),
+            "goyabu": self._make_source(None),  # fails
+        }
+        coordinator = PlaybackCoordinator(sources)
+        monkeypatch.setattr(
+            "utils.cache_manager.get_cache", lambda: (_ for _ in ()).throw(Exception())
+        )
+
+        url, source = self._run(
+            coordinator.search_player_with_source_async(
+                [("http://p1", "animefire"), ("http://p2", "goyabu")],
+                "Anime",
+                1,
+                preferred_source="goyabu",
+            )
+        )
+
+        assert url == "http://video.animefire"
+        assert source == "animefire"
+
+    def test_no_preference_uses_priority_order(self, monkeypatch):
+        """Without preference, global priority order decides."""
+        from services import playback_coordinator as pc
+
+        monkeypatch.setattr(
+            pc.settings.plugins, "priority_order", ["animefire", "goyabu"], raising=False
+        )
+        sources = {
+            "animefire": self._make_source("http://video.animefire"),
+            "goyabu": self._make_source("http://video.goyabu"),
+        }
+        coordinator = PlaybackCoordinator(sources)
+        monkeypatch.setattr(
+            "utils.cache_manager.get_cache", lambda: (_ for _ in ()).throw(Exception())
+        )
+
+        url, source = self._run(
+            coordinator.search_player_with_source_async(
+                [("http://p2", "goyabu"), ("http://p1", "animefire")],
+                "Anime",
+                1,
+            )
+        )
+
+        assert url == "http://video.animefire"
+        assert source == "animefire"

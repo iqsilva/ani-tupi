@@ -75,20 +75,27 @@ class PlaybackCoordinator:
         return None
 
     async def _search_player_impl(
-        self, sources_with_urls: list[tuple], anime: str, episode_num: int
-    ) -> str | None:
+        self,
+        sources_with_urls: list[tuple],
+        anime: str,
+        episode_num: int,
+        preferred_source: str | None = None,
+    ) -> tuple[str | None, str | None]:
         """Internal async implementation for searching video URLs.
 
         Cache video URLs to speed up rewatching (7-15s → 100ms!)
-        Respects configured priority order for source selection.
+        Respects configured priority order for source selection. When
+        preferred_source is given, it is tried first; other sources remain
+        as fallback in priority order.
 
         Args:
             sources_with_urls: List of (url, source) tuples for the episode
             anime: Anime title
             episode_num: Episode number (1-indexed)
+            preferred_source: Optional source name to try first
 
         Returns:
-            Video URL or None if not found
+            Tuple of (video URL or None, winning source name or None)
         """
 
         # Get anilist_id for cache key (if already discovered)
@@ -103,12 +110,17 @@ class PlaybackCoordinator:
 
             dc = get_dc()
             cache_key_full = f"video:{cache_key}:ep:{episode_num}"
-            cached_url = dc.get(cache_key_full)
-            if cached_url:
+            if preferred_source:
+                cache_key_full += f":src:{preferred_source}"
+            cached = dc.get(cache_key_full)
+            if cached:
                 logger.info(
                     f"   ℹ️  Usando vídeo em cache (válido por {settings.performance.video_url_cache_ttl_seconds // 60} min)"
                 )
-                return cached_url
+                if isinstance(cached, dict):
+                    return cached.get("url"), cached.get("source")
+                # Legacy cache entries stored the raw URL string
+                return cached, None
         except Exception:
             dc = None
             cache_key_full = None
@@ -117,14 +129,20 @@ class PlaybackCoordinator:
         async def search_all_sources():
             nonlocal sources_with_urls, cache_key, dc, cache_key_full
             container = []
+            winner: dict = {"source": None}
 
             # Show which sources are being tried
             sources_list = [source for _, source in sources_with_urls]
             if len(sources_list) > 1:
                 logger.info(f"   🔄 Tentando fontes: {', '.join(sources_list)}")
 
-            # Organize URLs by source following priority order
-            priority_order = settings.plugins.priority_order
+            # Organize URLs by source following priority order.
+            # A preferred source (user's primary choice) always ranks first.
+            priority_order = list(settings.plugins.priority_order)
+            if preferred_source:
+                priority_order = [preferred_source] + [
+                    s for s in priority_order if s != preferred_source
+                ]
             priority_map = {name: idx for idx, name in enumerate(priority_order)}
 
             # Group URLs by source
@@ -177,6 +195,7 @@ class PlaybackCoordinator:
                                 logger.info(f"   ✅ Vídeo encontrado em: {source}")
                                 logger.info(f"      URL: {display_url}")
                                 container.extend(result_container)
+                                winner["source"] = source
                             else:
                                 logger.info(f"   ❌ {source} falhou ao extrair vídeo")
                             return success
@@ -201,18 +220,18 @@ class PlaybackCoordinator:
             # Get video URL if found, otherwise return None
             video_url = container[0] if container else None
 
-            # CACHE SAVE: Save video URL to cache with TTL
+            # CACHE SAVE: Save video URL (and winning source) to cache with TTL
             if video_url and dc and cache_key_full:
                 try:
                     dc.set(
                         cache_key_full,
-                        video_url,
+                        {"url": video_url, "source": winner["source"]},
                         ttl=settings.performance.video_url_cache_ttl_seconds,
                     )
                 except Exception:
                     pass
 
-            return video_url
+            return video_url, winner["source"]
 
         return await search_all_sources()
 
@@ -239,12 +258,17 @@ class PlaybackCoordinator:
         except RuntimeError as e:
             if "no running event loop" not in str(e):
                 raise
-            return asyncio.run(
+            url, _ = asyncio.run(
                 self._search_player_impl(sources_with_urls, anime, episode_num)
             )
+            return url
 
     async def search_player_async(
-        self, sources_with_urls: list[tuple], anime: str, episode_num: int
+        self,
+        sources_with_urls: list[tuple],
+        anime: str,
+        episode_num: int,
+        preferred_source: str | None = None,
     ) -> str | None:
         """Async version of search_player for use in FastAPI routes.
 
@@ -252,15 +276,41 @@ class PlaybackCoordinator:
             sources_with_urls: List of (url, source) tuples for the episode
             anime: Anime title
             episode_num: Episode number (1-indexed)
+            preferred_source: Optional source name to try first (others as fallback)
 
         Returns:
             Video URL or None if not found
         """
+        url, _ = await self.search_player_with_source_async(
+            sources_with_urls, anime, episode_num, preferred_source
+        )
+        return url
+
+    async def search_player_with_source_async(
+        self,
+        sources_with_urls: list[tuple],
+        anime: str,
+        episode_num: int,
+        preferred_source: str | None = None,
+    ) -> tuple[str | None, str | None]:
+        """Async search returning both the video URL and the winning source.
+
+        Args:
+            sources_with_urls: List of (url, source) tuples for the episode
+            anime: Anime title
+            episode_num: Episode number (1-indexed)
+            preferred_source: Optional source name to try first (others as fallback)
+
+        Returns:
+            Tuple of (video URL or None, source name that produced it or None)
+        """
         if not sources_with_urls:
             logger.info(f"   ❌ Episódio {episode_num} não disponível nas fontes ativas.")
-            return None
+            return None, None
 
-        return await self._search_player_impl(sources_with_urls, anime, episode_num)
+        return await self._search_player_impl(
+            sources_with_urls, anime, episode_num, preferred_source
+        )
 
     def search_player_from_page(self, page_url: str, source_name: str) -> list[str]:
         """Extract candidate video URLs from an episode page for a specific source.

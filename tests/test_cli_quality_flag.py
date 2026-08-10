@@ -26,7 +26,7 @@ class TestQualityFormatsMapping:
 
     def test_best_quality_defaults_to_1080(self):
         """'best' preset should default to 1080p max."""
-        assert "height<=1080" in QUALITY_FORMATS["best"]
+        assert "height<=?1080" in QUALITY_FORMATS["best"]
 
 
 class TestCliQualityArgument:

@@ -333,6 +333,61 @@ class UpdateCheckSettings(BaseModel):
     )
 
 
+class PlaybackSettings(BaseModel):
+    """MPV playback and buffering configuration.
+
+    Defaults are tuned for low-power devices (e.g. Raspberry Pi 3):
+    hardware decoding via v4l2m2m-copy and conservative buffer sizes
+    to avoid memory pressure on 1 GB RAM systems.
+    """
+
+    hwdec: str = Field(
+        "auto-safe",
+        description="Hardware decoding mode for MPV: 'auto-safe' (recommended), 'v4l2m2m-copy' (Raspberry Pi), 'auto', 'no', 'vaapi', 'nvdec', etc.",
+    )
+    demuxer_max_bytes: str = Field(
+        "100M",
+        description="Maximum forward demuxer cache size (e.g. '100M'; keep low on devices with little RAM)",
+    )
+    demuxer_max_back_bytes: str = Field(
+        "25M",
+        description="Maximum backward demuxer cache size (e.g. '25M')",
+    )
+    demuxer_readahead_secs: int = Field(
+        60,
+        ge=1,
+        le=3600,
+        description="Seconds of stream to read ahead into the demuxer cache",
+    )
+    stream_buffer_size: str = Field(
+        "4M",
+        description="Network stream read buffer size (e.g. '2M', '4M')",
+    )
+    cache_secs: int = Field(
+        60,
+        ge=1,
+        le=3600,
+        description="Seconds of audio/video to cache when the demuxer cache is enabled",
+    )
+    vd_lavc_threads: int = Field(
+        0,
+        ge=0,
+        le=64,
+        description="Video decoder threads (0 = auto-detect CPU cores)",
+    )
+    concurrent_fragments: int = Field(
+        5,
+        ge=1,
+        le=16,
+        description="Parallel fragment downloads for yt-dlp based streams",
+    )
+    default_quality: str = Field(
+        "480",
+        pattern="^(1080|720|480|360|best)$",
+        description="Default video quality preset when none is specified",
+    )
+
+
 class ApiSettings(BaseModel):
     """Remote control API server settings."""
 
@@ -405,6 +460,7 @@ class AppSettings(BaseSettings):
     performance: PerformanceSettings = PerformanceSettings()  # type: ignore[call-arg]
     updates: UpdateCheckSettings = UpdateCheckSettings()  # type: ignore[call-arg]
     api: ApiSettings = ApiSettings()  # type: ignore[call-arg]
+    playback: PlaybackSettings = PlaybackSettings()  # type: ignore[call-arg]
 
 
 # Singleton instance - import and use throughout the app

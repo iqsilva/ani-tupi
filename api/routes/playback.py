@@ -220,16 +220,16 @@ async def start_playback(request: PlaybackStartRequest) -> PlaybackResponse:
                 detail=f"No sources available for episode {request.episode}",
             )
 
-        # Filter by preferred source if specified
-        if request.source:
-            sources_with_urls = [
-                (url, src) for url, src in sources_with_urls if src == request.source
-            ]
-            if not sources_with_urls:
-                raise HTTPException(
-                    status_code=404,
-                    detail=f"Source '{request.source}' not available for this episode",
+        # Reorder by preferred source if specified (preferred first, others as fallback)
+        preferred_source = request.source
+        if preferred_source:
+            available = {src for _, src in sources_with_urls}
+            if preferred_source not in available:
+                logger.info(
+                    f"Preferred source '{preferred_source}' unavailable for "
+                    f"episode {request.episode}; falling back to priority order"
                 )
+                preferred_source = None
 
         # Get video URL via playback coordinator (use async version) with a
         # global deadline so a chain of slow sources can't hang the request
@@ -237,9 +237,12 @@ async def start_playback(request: PlaybackStartRequest) -> PlaybackResponse:
         coordinator = PlaybackCoordinator(rep.sources)
         await _broadcast_status(f"Extraindo vídeo do episódio {request.episode}...")
         try:
-            video_url = await asyncio.wait_for(
-                coordinator.search_player_async(
-                    sources_with_urls, request.anime, request.episode
+            video_url, winning_source = await asyncio.wait_for(
+                coordinator.search_player_with_source_async(
+                    sources_with_urls,
+                    request.anime,
+                    request.episode,
+                    preferred_source=preferred_source,
                 ),
                 timeout=60,
             )
@@ -259,9 +262,16 @@ async def start_playback(request: PlaybackStartRequest) -> PlaybackResponse:
 
         await _broadcast_status("Iniciando player...")
 
-        # Get referrer from the source URL (needed to bypass Cloudflare)
-        source_name = sources_with_urls[0][1] if sources_with_urls else "unknown"
-        referrer = sources_with_urls[0][0] if sources_with_urls else None
+        # Use the source that actually produced the video URL; fall back to the
+        # first candidate if unknown (e.g. legacy cache hit)
+        source_name = winning_source or (
+            sources_with_urls[0][1] if sources_with_urls else "unknown"
+        )
+        # Referrer must match the winning source's page URL (Cloudflare bypass)
+        referrer = next(
+            (url for url, src in sources_with_urls if src == source_name),
+            sources_with_urls[0][0] if sources_with_urls else None,
+        )
 
         # Update state before starting playback
         playback_state.update(
@@ -280,7 +290,9 @@ async def start_playback(request: PlaybackStartRequest) -> PlaybackResponse:
         socket_path = str(Path(tempfile.gettempdir()) / "ani-tupi-api-mpv.sock")
         playback_state.mpv_socket_path = socket_path
 
-        # Store playback info for autoplay
+        # Store playback info for autoplay. The source preference (explicit
+        # user choice, else the source that actually worked) is persisted to
+        # history so the frontend can preselect it next time.
         global _current_playback_info
         _current_playback_info = {
             "anime": request.anime,
@@ -288,7 +300,7 @@ async def start_playback(request: PlaybackStartRequest) -> PlaybackResponse:
             "total_episodes": len(episodes),
             "quality": request.quality,
             "season": request.season,
-            "source": request.source,
+            "source": request.source or source_name,
         }
 
         # Get the current event loop to schedule callbacks from thread

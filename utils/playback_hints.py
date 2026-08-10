@@ -25,5 +25,5 @@ def resolve_mpv_stream_options(url: str, referrer: str | None) -> tuple[str | No
 
     effective_referrer = _ANIVIDEO_REFERER
     header_block = f"Referer: {effective_referrer}\\r\\nUser-Agent: {_DEFAULT_UA}\\r\\n"
-    demuxer_lavf_o = f"extension_picky=0,headers={header_block}"
+    demuxer_lavf_o = f"extension_picky=0,http_multiple=1,headers={header_block}"
     return effective_referrer, demuxer_lavf_o
