@@ -4,7 +4,7 @@ Obrigado por contribuir! Antes de mexer no código, leia esta seção sobre a
 **filosofia de fontes** — ela é o coração do projeto e guia praticamente todas
 as decisões de design. Qualquer mudança precisa preservar os princípios abaixo.
 
-Para regras de estilo, arquitetura em três camadas (commands → services →
+Para regras de estilo, arquitetura em três camadas (API routes → services →
 plugins), configuração via Pydantic e workflow de release, veja
 [`CLAUDE.md`](./CLAUDE.md).
 
@@ -52,23 +52,30 @@ priority_order = [
 ]
 ```
 
-Primeiro = maior prioridade. Fontes melhores ficam no topo. Ordenação aplicada
-via `services/priority_utils.py::sort_by_priority`. Configurável por ambiente —
-o usuário pode reordenar sem tocar em código.
+Primeiro = maior prioridade. Fontes melhores ficam no topo. Plugins instalados
+que não estão na lista são anexados automaticamente ao final (validator
+`append_missing_plugins` — ex.: `anroll`, `animesonlinecloud`). Ordenação
+aplicada via `services/priority_utils.py::sort_by_priority`. Configurável por
+ambiente e via API (`PUT /sources/priority`) — o usuário pode reordenar sem
+tocar em código.
 
-**2. Fallback rank-major** — `services/anime/playback_fallback.py`:
+**2. Fallback rank-major** — `services/playback_coordinator.py` (`PlaybackCoordinator`):
 
 Ao reproduzir, tentamos o candidato de **melhor qualidade (rank 0) de TODAS as
 fontes** antes de descer para o próximo rank. Ou seja: HD de todas as fontes
 primeiro, só depois SD. Isso prioriza qualidade em toda a lista antes de aceitar
-um stream pior de qualquer fonte. Extração é lazy e cacheada por fonte.
+um stream pior de qualquer fonte. Extração é lazy e cacheada por fonte. Uma
+fonte preferida do usuário (`preferred_source`) sempre é tentada primeiro; as
+demais seguem a ordem de prioridade como fallback.
 
 **3. Visibilidade das fontes por título** — dedup em `services/repository.py`:
 
 O usuário quer **ver quais fontes existem para o título buscado** para escolher o
 anime com as melhores fontes (mais velocidade, melhor legenda, melhor
-qualidade). A deduplicação por `normalize_title_for_dedup()` funde o mesmo anime
-de várias fontes numa entrada só, exibindo a lista de fontes:
+qualidade). A deduplicação por `normalize_title_for_dedup()`
+(`services/anime/title_normalization.py`, aplicada em
+`services/repository.py`) funde o mesmo anime de várias fontes numa entrada
+só, exibindo a lista de fontes:
 
 ```
 "Anime A Dublado [anitube, animesdigital, animefire]"
@@ -102,10 +109,20 @@ PR como esses três pontos foram preservados.
 ## Comandos de desenvolvimento
 
 ```bash
-uv run ruff check .      # Lint
-uv run ruff format .     # Format
-uv run pytest            # Testes
+just serve               # Inicia o servidor da API (uv run ani-tupi)
+just test                # uv run pytest
+just lint                # uv run ruff check .
+just format              # uv run ruff format .
+just clear-cache         # Limpa caches de busca/episódios
 ```
+
+Qualidade adicional: `uv run mypy .`, `uv run pyright`, `uv run deptry .`,
+`uv run vulture`. Hooks de pre-commit rodam via **prek** — nunca use
+`git commit --no-verify`.
+
+Testes: `tests/unit/` (rápidos e isolados), `tests/integration/` (inclui HTTP
+real); markers em `pytest.ini` (`unit`, `integration`, `e2e`, `slow`,
+`requires_selenium`, `requires_http`).
 
 Use sempre `uv`. Nunca edite `pyproject.toml` à mão para dependências — use
 `uv add` / `uv remove`. Commits seguem Conventional Commits (`feat:`, `fix:`, …).
