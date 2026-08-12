@@ -174,7 +174,7 @@ def are_season_markers_compatible(title_a: str, title_b: str) -> bool:
 def normalize_anime_title(title: str, is_english: bool = False):
     """Generate sensible title variations for searching.
 
-    For AniList titles with format "Romaji / English", extracts just the english part.
+    For bilingual titles with format "Romaji / English", extracts just the english part.
     Example: "Kimetsu no Yaiba: Hashira Geiko-hen / Demon Slayer: Hashira Training Arc"
              → ["demon slayer hashira training arc", "demon slayer hashira training", "demon slayer hashira", "demon slayer"]
 
@@ -184,7 +184,7 @@ def normalize_anime_title(title: str, is_english: bool = False):
 
     Returns variations in lowercase, from most specific to most generic.
     """
-    # 1. Handle AniList bilingual format "Romaji / English"
+    # 1. Handle bilingual format "Romaji / English"
     # Take only the english part (after the " / ")
     if " / " in title:
         parts = title.split(" / ")
@@ -246,7 +246,7 @@ def normalize_anime_title(title: str, is_english: bool = False):
     words = cleaned.split()
 
     # 6. Generate variations intelligently
-    # For AniList with progressive search: only use full query
+    # For progressive search: only use full query
     # Let progressive search handle the word reduction automatically
     variations = []
 

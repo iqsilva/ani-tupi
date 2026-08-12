@@ -61,7 +61,6 @@ class TestPlaybackCoordinator:
         coordinator = PlaybackCoordinator(sources)
 
         assert coordinator.sources == sources
-        assert len(coordinator.anime_to_anilist_id) == 0
 
     def test_detect_source_from_url_animefire(self):
         """Detect animefire source from URL."""

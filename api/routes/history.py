@@ -36,7 +36,6 @@ async def get_history(
                     episode=he.episode_idx + 1,  # Convert to 1-indexed
                     total_episodes=he.total_episodes,
                     source=he.source,
-                    anilist_id=he.anilist_id,
                     timestamp=he.timestamp,
                     urls=he.urls,
                     position=he.position,
@@ -73,7 +72,6 @@ async def get_history_entry(anime: str) -> HistoryEntrySchema:
             episode=he.episode_idx + 1,
             total_episodes=he.total_episodes,
             source=he.source,
-            anilist_id=he.anilist_id,
             timestamp=he.timestamp,
             urls=he.urls,
             position=he.position,

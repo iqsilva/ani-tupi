@@ -7,10 +7,10 @@ from models.config import settings
 
 
 class PlayerRepository:
-    """Manages video player state and AniList ID mappings.
+    """Manages video player state.
 
-    Single responsibility: track plugin state for video resolution,
-    maintain anime-to-AniList-ID mappings, and cache selected URLs.
+    Single responsibility: track plugin state for video resolution
+    and cache selected URLs.
     """
 
     _instance: "PlayerRepository | None" = None
@@ -21,7 +21,6 @@ class PlayerRepository:
             cls._instance = super().__new__(cls)
             # Initialize attributes on the new instance
             cls._instance._plugins = {}
-            cls._instance._anime_to_anilist_id = {}
             cls._instance._selected_urls = defaultdict(lambda: defaultdict(list))
         return cls._instance
 
@@ -51,34 +50,6 @@ class PlayerRepository:
             Sorted list of plugin names
         """
         return sorted(list(self._plugins.keys()))
-
-    def set_anime_to_anilist_id(self, anime: str, anilist_id: int) -> None:
-        """Map anime title to AniList ID.
-
-        Args:
-            anime: Anime title
-            anilist_id: AniList numeric ID
-        """
-        self._anime_to_anilist_id[anime] = anilist_id
-
-    def get_anime_anilist_id(self, anime: str) -> int | None:
-        """Get AniList ID for anime title.
-
-        Args:
-            anime: Anime title
-
-        Returns:
-            AniList ID or None if not mapped
-        """
-        return self._anime_to_anilist_id.get(anime)
-
-    def get_all_anime_ids(self) -> dict[str, int]:
-        """Get all anime-to-AniList-ID mappings.
-
-        Returns:
-            Dictionary mapping anime titles to AniList IDs
-        """
-        return dict(self._anime_to_anilist_id)
 
     def set_selected_urls(self, anime: str, episode_num: int, urls: list[tuple[str, str]]) -> None:
         """Store selected URLs for an episode.
@@ -123,10 +94,7 @@ class PlayerRepository:
             Cached video URL or None if not found/expired
         """
         cache = get_cache()
-        anilist_id = self.get_anime_anilist_id(anime)
-        # Use AniList ID as cache key if available for better stability
-        key_base = str(anilist_id) if anilist_id else anime.lower()
-        cache_key = f"video:{key_base}:ep:{episode_num}"
+        cache_key = f"video:{anime.lower()}:ep:{episode_num}"
         return cache.get(cache_key)
 
     def set_video_url(self, anime: str, episode_num: int, video_url: str) -> None:
@@ -138,9 +106,7 @@ class PlayerRepository:
             video_url: Video player URL to cache
         """
         cache = get_cache()
-        anilist_id = self.get_anime_anilist_id(anime)
-        key_base = str(anilist_id) if anilist_id else anime.lower()
-        cache_key = f"video:{key_base}:ep:{episode_num}"
+        cache_key = f"video:{anime.lower()}:ep:{episode_num}"
 
         ttl = settings.performance.video_url_cache_ttl_seconds
         cache.set(cache_key, video_url, ttl=ttl)

@@ -386,7 +386,53 @@ def get_cache() -> Cache:
         with _cache_lock:
             if _global_cache is None:
                 _global_cache = create_cache(settings.performance.cache_type)
+                _purge_legacy_anilist_state(_global_cache)
     return _global_cache
+
+
+def _purge_legacy_anilist_state(cache: Cache) -> None:
+    """One-time cleanup of legacy AniList-based cache keys and mapping file.
+
+    Older versions keyed video URL caches by AniList ID (e.g. ``video:12345:ep:1``)
+    and persisted mappings in ``anilist_mappings.json``. Both are obsolete.
+    """
+    import re
+
+    marker = "_legacy_anilist_purge_done"
+    try:
+        if cache.get(marker):
+            return
+
+        legacy_pattern = re.compile(r"^video:\d+:")
+
+        def _purge_keys(key_iter, deleter):
+            keys_to_delete = [k for k in key_iter if isinstance(k, str) and legacy_pattern.match(k)]
+            for key in keys_to_delete:
+                deleter(key)
+
+        if hasattr(cache, "iterkeys"):
+            _purge_keys(list(cache.iterkeys()), cache.delete)
+        elif hasattr(cache, "keys"):
+            _purge_keys(list(cache.keys()), cache.delete)
+        if hasattr(cache, "_disk") and hasattr(cache._disk, "_cache"):
+            _purge_keys(list(cache._disk._cache.iterkeys()), cache._disk._cache.delete)
+        if hasattr(cache, "_cache"):
+            _purge_keys(list(cache._cache.keys()), cache.delete)
+
+        # Remove obsolete AniList mapping file
+        try:
+            from models.config import get_data_path
+
+            mapping_file = get_data_path() / "anilist_mappings.json"
+            if mapping_file.exists():
+                mapping_file.unlink()
+                logger.info("Removed legacy anilist_mappings.json")
+        except OSError:
+            pass
+
+        cache.set(marker, True, ttl=10 * 365 * 24 * 3600)
+    except Exception as e:
+        logger.debug(f"Legacy AniList cache purge skipped: {e}")
 
 
 def clear_cache_all() -> None:

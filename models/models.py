@@ -83,14 +83,6 @@ class EpisodeData(BaseModel):
         return self
 
 
-class AniListSearchResult(BaseModel):
-    """AniList search result with score."""
-
-    anilist_id: int
-    score: int
-    title: str
-
-
 class VideoUrl(BaseModel):
     """Video playback URL with optional headers.
 
@@ -119,210 +111,6 @@ class VideoUrl(BaseModel):
             # Some sites have dynamic URLs without file extensions
             warnings.warn(f"Video URL may be invalid: {v}", stacklevel=2)
         return v
-
-
-# AniList API Models
-class AniListTitle(BaseModel):
-    """AniList title object with multiple language variants."""
-
-    romaji: str | None = Field(None, description="Romaji title")
-    english: str | None = Field(None, description="English title")
-    native: str | None = Field(None, description="Native title")
-
-
-class AniListAnimeStatistics(BaseModel):
-    """AniList anime statistics."""
-
-    count: int = Field(ge=0, description="Total anime count")
-    episodesWatched: int = Field(ge=0, description="Total episodes watched")
-    minutesWatched: int = Field(ge=0, description="Total minutes watched")
-
-
-class AniListStatistics(BaseModel):
-    """AniList user statistics."""
-
-    anime: AniListAnimeStatistics | None = Field(None, description="Anime statistics")
-
-
-class AniListViewerInfo(BaseModel):
-    """AniList viewer/user information.
-
-    Attributes:
-        id: User ID
-        name: Username
-        statistics: User statistics
-    """
-
-    id: int = Field(..., description="User ID")
-    name: str = Field(..., min_length=1, description="Username")
-    statistics: AniListStatistics | None = Field(None, description="User statistics")
-
-
-class AiringAnimeEntry(BaseModel):
-    """Anime from watching list with airing episode info.
-
-    Represents an anime that is in the user's watching list and has
-    new episodes airing. Used for the "Novos Episódios" (New Episodes) tab.
-
-    Attributes:
-        anilist_id: AniList anime ID for routing to playback
-        title: Formatted anime title for display
-        progress: User's current episode progress
-        next_episode_number: Episode number that aired/is airing
-        episodes_behind: Gap between next episode and user progress (for sorting)
-        airing_at: Unix timestamp of next episode air time (optional)
-        average_score: AniList score for context (0-100, optional)
-    """
-
-    anilist_id: int = Field(..., description="AniList anime ID")
-    title: str = Field(..., min_length=1, description="Formatted anime title")
-    progress: int = Field(..., ge=0, description="User's current episode progress")
-    next_episode_number: int = Field(..., ge=1, description="Episode number that aired")
-    episodes_behind: int = Field(..., ge=0, description="Episodes behind (next_episode - progress)")
-    airing_at: int | None = Field(None, description="Unix timestamp of next episode air time")
-    average_score: int | None = Field(None, ge=0, le=100, description="AniList average score")
-
-
-class AniListAnime(BaseModel):
-    """AniList anime media object.
-
-    Attributes:
-        id: AniList anime ID
-        title: Title object with multiple languages
-        episodes: Total episodes (None if unknown)
-        averageScore: Average score (0-100)
-        seasonYear: Year of release
-        season: Season (WINTER, SPRING, SUMMER, FALL)
-        type: Media type (ANIME, MANGA)
-        status: Media status (FINISHED, RELEASING, NOT_YET_RELEASED, CANCELLED, HIATUS)
-        startDate: Start date object with year, month, day
-    """
-
-    model_config = {"populate_by_name": True}
-
-    id: int = Field(..., description="AniList anime ID")
-    title: AniListTitle = Field(..., description="Title object")
-    episodes: int | None = Field(None, description="Total episodes")
-    averageScore: int | None = Field(None, ge=0, le=100, description="Average score")
-    seasonYear: int | None = Field(None, ge=1900, le=2100, description="Release year")
-    season: str | None = Field(None, description="Season (WINTER, SPRING, SUMMER, FALL)")
-    type: str | None = Field(None, description="Media type")
-    status: str | None = Field(
-        None,
-        description="Media status (FINISHED, RELEASING, NOT_YET_RELEASED, CANCELLED, HIATUS)",
-    )
-    startDate: dict[str, int | None] | None = Field(
-        None, description="Start date with year, month, day"
-    )
-
-
-class JikanAnimeEntry(BaseModel):
-    """Jikan/MyAnimeList anime search result."""
-
-    model_config = ConfigDict(populate_by_name=True)
-
-    mal_id: int = Field(..., description="MyAnimeList anime ID")
-    title: str = Field(..., min_length=1, description="Primary MAL title")
-    title_english: str | None = Field(None, alias="title_english", description="English title")
-    title_japanese: str | None = Field(None, alias="title_japanese", description="Japanese title")
-    titles: list[dict[str, str | None]] = Field(
-        default_factory=list,
-        description="Additional title variants returned by Jikan",
-    )
-    synonyms: list[str] = Field(default_factory=list, description="Title synonyms")
-
-
-class AnimeTitleResolution(BaseModel, frozen=True):
-    """Resolved title used to retry manual anime searches conservatively."""
-
-    original_query: str = Field(..., min_length=1, description="Original user query")
-    resolved_title: str = Field(..., min_length=1, description="Canonical title for re-search")
-    provider: str = Field(..., min_length=1, description="Provider name used for resolution")
-    confidence: int = Field(..., ge=0, le=100, description="Confidence score for the match")
-    aliases: tuple[str, ...] = Field(
-        default_factory=tuple,
-        description="Useful aliases returned by the provider",
-    )
-
-
-class AniListMediaListEntry(BaseModel):
-    """AniList media list entry.
-
-    Attributes:
-        id: List entry ID
-        status: List status (CURRENT, PLANNING, COMPLETED, etc.)
-        progress: Episode progress
-        score: User score
-        startedAt: Start date
-        completedAt: Completion date
-        media: Anime media object
-    """
-
-    id: int = Field(..., description="List entry ID")
-    status: str | None = Field(None, description="List status")
-    progress: int | None = Field(None, ge=0, description="Episode progress")
-    score: int | None = Field(None, ge=0, le=100, description="User score")
-    startedAt: dict[str, int] | None = Field(None, description="Start date (year, month, day)")
-    completedAt: dict[str, int] | None = Field(
-        None, description="Completion date (year, month, day)"
-    )
-    media: AniListAnime | None = Field(None, description="Anime media object")
-    createdAt: int | None = Field(None, description="Creation timestamp")
-
-
-class AniListActivity(BaseModel):
-    """AniList activity (list update).
-
-    Attributes:
-        id: Activity ID
-        status: List status
-        progress: Episode progress
-        createdAt: Creation timestamp
-        media: Anime media object
-    """
-
-    id: int = Field(..., description="Activity ID")
-    status: str | None = Field(None, description="List status")
-    progress: str | int | None = Field(None, description="Episode progress")
-    createdAt: int = Field(..., description="Creation timestamp")
-    media: AniListAnime | None = Field(None, description="Anime media object")
-
-
-class AniListRelationNode(BaseModel):
-    """AniList relation node (sequel, prequel, etc.).
-
-    Attributes:
-        id: AniList ID
-        type: Media type (ANIME, MANGA)
-        title: Title object
-        episodes: Total episodes
-        status: Media status (FINISHED, RELEASING, NOT_YET_RELEASED, CANCELLED, HIATUS)
-        startDate: Start date object with year, month, day
-    """
-
-    id: int = Field(..., description="AniList ID")
-    type: str = Field(..., description="Media type")
-    title: AniListTitle = Field(..., description="Title object")
-    episodes: int | None = Field(None, description="Total episodes")
-    status: str | None = Field(
-        None,
-        description="Media status (FINISHED, RELEASING, NOT_YET_RELEASED, CANCELLED, HIATUS)",
-    )
-    startDate: dict[str, int | None] | None = Field(
-        None, description="Start date with year, month, day"
-    )
-
-
-class AniListRelationEdge(BaseModel):
-    """AniList relation edge.
-
-    Attributes:
-        relationType: Type of relation (SEQUEL, PREQUEL, etc.)
-        node: Related anime node
-    """
-
-    relationType: str = Field(..., description="Relation type")
-    node: AniListRelationNode = Field(..., description="Related anime")
 
 
 # Episode and Search Models
@@ -609,52 +397,6 @@ class AnimeDownloadDatabase(BaseModel):
     )
 
 
-class OfflineSyncQueueEntry(BaseModel):
-    """Pending AniList progress update for retry.
-
-    Stores failed sync attempts to retry when network becomes available.
-
-    Attributes:
-        anime_title: Anime title for reference
-        episode_number: Episode watched (1-indexed)
-        anilist_id: AniList media ID for sync
-        timestamp: When sync was attempted
-        retry_count: Number of retry attempts
-        last_error: Most recent error message
-        is_local: Whether episode came from local library (enables file cleanup)
-        file_path: Path to local episode file (for cleanup after successful sync)
-    """
-
-    anime_title: str = Field(..., min_length=1, description="Anime title")
-    episode_number: int = Field(..., ge=1, description="Episode number watched")
-    anilist_id: int = Field(..., gt=0, description="AniList media ID")
-    timestamp: datetime = Field(default_factory=datetime.now, description="When sync was attempted")
-    retry_count: int = Field(default=0, ge=0, description="Number of retry attempts")
-    last_error: str | None = Field(None, description="Most recent error message")
-    is_local: bool = Field(default=False, description="From local library (enables file cleanup)")
-    file_path: str | None = Field(None, description="Path to local episode file")
-
-
-class OfflineSyncQueue(BaseModel):
-    """Database of pending offline sync operations.
-
-    Persisted to JSON for retry on app startup.
-
-    Attributes:
-        version: Schema version for migrations
-        entries: List of pending sync operations
-        last_updated: When queue was last updated
-    """
-
-    version: int = Field(default=1, description="Schema version for migrations")
-    entries: list[OfflineSyncQueueEntry] = Field(
-        default_factory=list, description="Pending sync operations"
-    )
-    last_updated: datetime = Field(
-        default_factory=datetime.now, description="Last update timestamp"
-    )
-
-
 class UpdateCheckState(BaseModel):
     """Persisted update-check state for cooldown behavior."""
 
@@ -694,13 +436,13 @@ class HistoryEntry:
     """Watch history entry. Serializes as list for JSON backward compat.
 
     JSON list format:
-    [timestamp, episode_idx, anilist_id, source, total_episodes, urls, position, duration]
+    [timestamp, episode_idx, _legacy, source, total_episodes, urls, position, duration]
+    - index 2 is a legacy slot (always None; previously an external ID)
     - position/duration are in-episode playback progress in seconds (optional)
     """
 
     timestamp: int
     episode_idx: int
-    anilist_id: int | None = None
     source: str | None = None
     total_episodes: int | None = None
     urls: dict[str, str] = field(default_factory=dict)
@@ -712,7 +454,6 @@ class HistoryEntry:
         return cls(
             timestamp=data[0],
             episode_idx=data[1],
-            anilist_id=data[2] if len(data) > 2 else None,
             source=data[3] if len(data) > 3 else None,
             total_episodes=data[4] if len(data) > 4 and data[4] else None,
             urls=data[5] if len(data) > 5 and isinstance(data[5], dict) else {},
@@ -724,7 +465,7 @@ class HistoryEntry:
         return [
             self.timestamp,
             self.episode_idx,
-            self.anilist_id,
+            None,  # legacy slot kept for format compatibility
             self.source,
             self.total_episodes,
             self.urls,

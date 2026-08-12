@@ -506,7 +506,6 @@ class SearchRepository:
         self,
         filter_by_query: str | None = None,
         original_query: str | None = None,
-        anilist_results: list | None = None,
     ) -> list[str]:
         """Get anime titles with source indicators, ranked by relevance.
 
@@ -525,14 +524,7 @@ class SearchRepository:
             sources_str = ", ".join(sorted(sources)) if sources else "cached"
             result.append((f"{title} [{sources_str}]", title))
 
-        if anilist_results:
-            result = [
-                item[0]
-                for item in self._rank_search_results_with_reference(
-                    result, anilist_results[0].title
-                )
-            ]
-        elif original_query and " / " in original_query:
+        if original_query and " / " in original_query:
             result = [
                 item[0] for item in self._rank_search_results_with_reference(result, original_query)
             ]

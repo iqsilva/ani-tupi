@@ -317,8 +317,8 @@ class TestEdgeCases:
 class TestComplexScenarios:
     """Test real-world complex scenarios."""
 
-    def test_anilist_bilingual_style_first_part(self):
-        """AniList bilingual titles handled correctly."""
+    def test_bilingual_style_first_part(self):
+        """Bilingual titles handled correctly."""
         result = normalize_title_for_dedup("Kimetsu no Yaiba")
         assert result == "kimetsu no yaiba"
 

@@ -93,11 +93,10 @@ class Repository:
         self,
         filter_by_query: str | None = None,
         original_query: str | None = None,
-        anilist_results: list | None = None,
     ) -> list[str]:
         """Get anime titles with sources."""
         return self._search_repo.get_anime_titles_with_sources(
-            filter_by_query, original_query, anilist_results
+            filter_by_query, original_query
         )
 
     # Episode Methods
@@ -295,23 +294,6 @@ class Repository:
     def norm_titles(self):
         """Normalized titles."""
         return self._search_repo.norm_titles
-
-    @property
-    def anime_to_anilist_id(self):
-        """Anime to AniList ID mapping."""
-        if self._playback_coordinator is None and self._search_repo.sources:
-            self._playback_coordinator = PlaybackCoordinator(self._search_repo.sources)
-        if self._playback_coordinator:
-            return self._playback_coordinator.anime_to_anilist_id
-        return {}
-
-    @anime_to_anilist_id.setter
-    def anime_to_anilist_id(self, value):
-        """Set anime to AniList ID mapping."""
-        if self._playback_coordinator is None and self._search_repo.sources:
-            self._playback_coordinator = PlaybackCoordinator(self._search_repo.sources)
-        if self._playback_coordinator:
-            self._playback_coordinator.anime_to_anilist_id = value
 
     # Legacy internal methods (kept for compatibility)
     def _build_search_results(self, query: str):

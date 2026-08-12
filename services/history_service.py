@@ -18,17 +18,15 @@ _history_store = JSONStore(HISTORY_PATH / "history.json")
 def save_history(
     anime: str,
     episode: int,
-    anilist_id: int | None = None,
     source: str | None = None,
     total_episodes: int | None = None,
     anime_urls: dict[str, str] | None = None,
     position: float | None = None,
     duration: float | None = None,
 ) -> None:
-    """Save watch history with timestamp, optional AniList ID, source, and total episodes.
+    """Save watch history with timestamp, source, and total episodes.
 
-    Format: {"anime_name": [timestamp, episode_idx, anilist_id, source, total_episodes, anime_urls, position, duration], ...}
-    - anilist_id can be None for anime not from AniList
+    Format: {"anime_name": [timestamp, episode_idx, None, source, total_episodes, anime_urls, position, duration], ...}
     - source is the scraper name (e.g., "animefire", "sushianimes")
     - total_episodes is the known total count of episodes (auto-detected if not provided)
     - position/duration store in-episode playback progress in seconds (optional)
@@ -54,7 +52,6 @@ def save_history(
         entry = HistoryEntry(
             timestamp=int(time.time()),
             episode_idx=episode,
-            anilist_id=anilist_id,
             source=source,
             total_episodes=total_episodes,
             urls=anime_urls or {},
@@ -71,9 +68,8 @@ def save_history_from_event(
     episode_idx: int,
     action: str = "watched",
     source: str | None = None,
-    anilist_id: int | None = None,
 ) -> None:
-    """Save watch history from IPC keybinding event and sync with AniList.
+    """Save watch history from IPC keybinding event.
 
     This function is called when the user triggers episode navigation via
     keybindings (Shift+N, Shift+M, etc.) during MPV playback.
@@ -84,24 +80,13 @@ def save_history_from_event(
         action: Action type - "watched" (marked as watched), "started" (began watching),
                 "skipped" (skipped episode)
         source: Scraper source name (e.g., "animefire")
-        anilist_id: AniList ID for syncing (optional, will try to get from repository if not provided)
     """
     total_episodes = None
     episode_list = rep.get_episode_list(anime_title)
     if episode_list:
         total_episodes = len(episode_list)
 
-    if anilist_id is None:
-        anilist_id = rep.anime_to_anilist_id.get(anime_title)
-        if anilist_id is None:
-            try:
-                history_data = _history_store.load({})
-                if anime_title in history_data:
-                    anilist_id = HistoryEntry.from_list(history_data[anime_title]).anilist_id
-            except Exception:
-                pass
-
-    save_history(anime_title, episode_idx, anilist_id, source, total_episodes)
+    save_history(anime_title, episode_idx, source, total_episodes)
     logger.info(f"Saved history for '{anime_title}' Ep {episode_idx + 1} (action: {action})")
 
 

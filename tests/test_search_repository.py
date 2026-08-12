@@ -3,7 +3,6 @@
 from unittest.mock import Mock, patch
 from services.search_repository import SearchRepository
 from models.models import AnimeMetadata
-from models.models import AniListSearchResult
 
 
 class MockPlugin:
@@ -228,8 +227,8 @@ class TestSearchRepository:
 
         assert titles[0].startswith("kami no shizuku")
 
-    def test_get_anime_titles_with_sources_uses_canonical_anilist_title(self):
-        """Translated AniList titles should still rank by the canonical anime name."""
+    def test_get_anime_titles_with_sources_uses_canonical_bilingual_title(self):
+        """Translated bilingual titles should still rank by the canonical anime name."""
         repo = SearchRepository()
 
         repo.add_anime("gorilla no kami", "http://url1.com", "animesdigital", {})
@@ -241,20 +240,15 @@ class TestSearchRepository:
 
         assert titles[0].startswith("kami no shizuku")
 
-    def test_get_anime_titles_with_sources_prefers_anilist_reference_when_provided(self):
-        """AniList reference should drive ranking when available."""
+    def test_get_anime_titles_with_sources_prefers_bilingual_reference_when_provided(self):
+        """Bilingual reference should drive ranking when available."""
         repo = SearchRepository()
 
         repo.add_anime("gorilla no kami", "http://url1.com", "animesdigital", {})
         repo.add_anime("kami no shizuku", "http://url2.com", "animefire", {})
 
         titles = repo.get_anime_titles_with_sources(
-            original_query="kami no",
-            anilist_results=[
-                AniListSearchResult(
-                    anilist_id=1, score=100, title="Kami no Shizuku / The Drops of God"
-                )
-            ],
+            original_query="Kami no Shizuku / The Drops of God"
         )
 
         assert titles[0].startswith("kami no shizuku")
@@ -269,14 +263,7 @@ class TestSearchRepository:
         )
 
         titles = repo.get_anime_titles_with_sources(
-            original_query="Dr. STONE: SCIENCE FUTURE Part 3",
-            anilist_results=[
-                AniListSearchResult(
-                    anilist_id=2,
-                    score=100,
-                    title="Dr. STONE: SCIENCE FUTURE Part 3 / Dr. STONE SCIENCE FUTURE Cour 3",
-                )
-            ],
+            original_query="Dr. STONE: SCIENCE FUTURE Part 3 / Dr. STONE SCIENCE FUTURE Cour 3",
         )
 
         assert titles[0].startswith("dr stone science future part 3 [animefire]")
@@ -289,14 +276,7 @@ class TestSearchRepository:
         repo.add_anime("dr stone science future part 3", "http://url2.com", "animefire", {})
 
         titles = repo.get_anime_titles_with_sources(
-            original_query="Dr. STONE: SCIENCE FUTURE Part 3",
-            anilist_results=[
-                AniListSearchResult(
-                    anilist_id=2,
-                    score=100,
-                    title="Dr. STONE: SCIENCE FUTURE Part 3 / Dr. STONE SCIENCE FUTURE Cour 3",
-                )
-            ],
+            original_query="Dr. STONE: SCIENCE FUTURE Part 3 / Dr. STONE SCIENCE FUTURE Cour 3",
         )
 
         assert titles[0].startswith("dr stone science future part 3")
@@ -322,12 +302,7 @@ class TestSearchRepository:
         repo.add_anime("kami no shizuku 2", "http://url2.com", "animesdigital", {})
 
         titles = repo.get_anime_titles_with_sources(
-            original_query="Kami no Shizuku 2",
-            anilist_results=[
-                AniListSearchResult(
-                    anilist_id=1, score=100, title="Kami no Shizuku 2 / The Drops of God 2"
-                )
-            ],
+            original_query="Kami no Shizuku 2 / The Drops of God 2",
         )
 
         assert titles[0].startswith("kami no shizuku 2")

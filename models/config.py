@@ -7,7 +7,6 @@ Centralized settings for ani-tupi including:
 - OS-specific data paths
 
 Configuration can be overridden via environment variables:
-    ANI_TUPI__ANILIST__CLIENT_ID=12345
     ANI_TUPI__CACHE__DURATION_HOURS=12
     ANI_TUPI__SEARCH__PROGRESSIVE_SEARCH_MIN_WORDS=2
 """
@@ -75,16 +74,6 @@ class CacheSettings(BaseModel):
     cache_dir: Path = Field(
         default_factory=lambda: get_data_path() / "cache",
         description="Path to cache directory (unified backends)",
-    )
-    anilist_auto_discover: bool = Field(
-        True,
-        description="Deprecated (AniList integration removed)",
-    )
-    anilist_fuzzy_threshold: int = Field(
-        90,
-        ge=70,
-        le=100,
-        description="Deprecated (AniList integration removed)",
     )
     episodes_cache_enabled: bool = Field(
         False,
@@ -275,7 +264,6 @@ class PerformanceSettings(BaseModel):
             "search": 5,  # 5 minutes for search results
             "episodes": 30,  # 30 minutes for episode lists
             "video": 15,  # 15 minutes for video URLs (expire quickly)
-            "anilist_meta": 720,  # 30 days for AniList metadata
         },
         description="Source-specific TTL in hours",
     )
@@ -419,7 +407,6 @@ class AppSettings(BaseSettings):
     """Root application settings with environment variable support.
 
     Environment variables use the prefix ANI_TUPI__ with nested delimiters:
-    - ANI_TUPI__ANILIST__CLIENT_ID=12345
     - ANI_TUPI__CACHE__DURATION_HOURS=12
     - ANI_TUPI__SEARCH__PROGRESSIVE_SEARCH_MIN_WORDS=2
 
@@ -427,7 +414,7 @@ class AppSettings(BaseSettings):
     """
 
     model_config = SettingsConfigDict(
-        env_nested_delimiter="__",  # ANI_TUPI__ANILIST__CLIENT_ID
+        env_nested_delimiter="__",  # e.g. ANI_TUPI__CACHE__DURATION_HOURS
         env_prefix="ANI_TUPI__",
         case_sensitive=False,
         env_file=".env",

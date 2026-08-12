@@ -94,7 +94,7 @@ ani-tupi --clear-cache "anime name"
 2. **Services** (business logic) - Coordinate plugins, cache, APIs, and persistence
 3. **Plugins** (implementations) - Scrapers, readers, storage backends
 
-Services orchestrate. They decide: "Should I search cache first?" "Should I sync to AniList?" "Which plugin should I use?"
+Services orchestrate. They decide: "Should I search cache first?" "Which plugin should I use?"
 
 Commands ask services questions. Services ask plugins for data. Plugins never ask anything—they're pure adapters.
 
@@ -279,7 +279,7 @@ def handle_new_command(args):
 
 **Testing**:
 ```bash
-uv run pytest tests/test_anilist_authentication.py -v
+uv run pytest tests/ -v
 ```
 
 ---
@@ -304,7 +304,7 @@ uv sync --upgrade                        # Update all
 
 **Branch naming**:
 - Do **not** use the `cursor/` prefix for feature branches — it interferes with version-bump commits from the release bot.
-- Prefer descriptive names with conventional prefixes, e.g. `feat/anilist-sync`, `fix/scraper-timeout`, `chore/consolidate-pyright-config`.
+- Prefer descriptive names with conventional prefixes, e.g. `feat/history-sync`, `fix/scraper-timeout`, `chore/consolidate-pyright-config`.
 
 **How to Use**:
 
@@ -363,13 +363,13 @@ The release bot commits the version bump and CHANGELOG directly to remote, so th
 
 ### The Rule
 - **Start with real code**: Every test should exercise actual functions and services
-- **Only mock externals**: HTTP calls, database connections, external APIs (AniList)
+- **Only mock externals**: HTTP calls, database connections, external APIs
 - **Use temp directories instead of mocking**: Never mock file operations—use `temp_dir` fixture
 - **Never mock internal services**: If you're mocking a service layer or plugin, you're not testing integration
 
 ### Test Approach
 - **Integration tests** with real services, plugins, and storage (NEVER mock these)
-- **Mock external APIs only**: AniList GraphQL, external video providers, HTTP requests
+- **Mock external APIs only**: external video providers, HTTP requests
 - **Mock destructive operations**: Never delete real files—use temporary directories with auto-cleanup
 - **Real plugin loading**: Load actual scrapers from `scrapers/plugins/` directory
 - **Real storage**: Use temporary directories for cache/downloads (auto-cleanup via pytest fixtures)

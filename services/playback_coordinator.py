@@ -45,7 +45,6 @@ class PlaybackCoordinator:
             sources: Dict of {source_name: plugin} pairs
         """
         self.sources = sources
-        self.anime_to_anilist_id = {}  # For cache key optimization
 
     def _detect_source_from_url(self, url: str) -> str | None:
         """Detect which scraper source a URL belongs to based on domain.
@@ -98,11 +97,8 @@ class PlaybackCoordinator:
             Tuple of (video URL or None, winning source name or None)
         """
 
-        # Get anilist_id for cache key (if already discovered)
-        anilist_id = self.anime_to_anilist_id.get(anime)
-
-        # Use anilist_id if available, fallback to anime title
-        cache_key = anilist_id if anilist_id else anime
+        # Cache key based on anime title
+        cache_key = anime
 
         # CACHE CHECK: Try to get video URL from cache first
         try:

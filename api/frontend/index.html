@@ -678,11 +678,7 @@
             min-width: 70px;
             height: 100px;
             border-radius: 8px;
-            object-fit: cover;
             background: var(--bg-secondary);
-        }
-
-        .history-cover.placeholder {
             display: flex;
             align-items: center;
             justify-content: center;
@@ -1889,47 +1885,7 @@
             return 'agora mesmo';
         }
 
-        // AniList cover art (cached in localStorage)
-        const COVER_CACHE_KEY = 'anitupi_covers';
-        const COVER_CACHE_TTL = 7 * 24 * 3600 * 1000; // 7 days
-
-        function getCoverCache() {
-            try {
-                return JSON.parse(localStorage.getItem(COVER_CACHE_KEY)) || {};
-            } catch { return {}; }
-        }
-
-        async function fetchCovers(anilistIds) {
-            const cache = getCoverCache();
-            const now = Date.now();
-            const missing = anilistIds.filter(id => !cache[id] || now - cache[id].at > COVER_CACHE_TTL);
-
-            if (missing.length > 0) {
-                try {
-                    const query = `query($ids:[Int]){Page(perPage:${missing.length}){media(id_in:$ids,type:ANIME){id coverImage{medium}}}}`;
-                    const res = await fetch('https://graphql.anilist.co', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
-                        body: JSON.stringify({ query, variables: { ids: missing } })
-                    });
-                    const data = await res.json();
-                    for (const media of data?.data?.Page?.media || []) {
-                        cache[media.id] = { url: media.coverImage?.medium || null, at: now };
-                    }
-                    try { localStorage.setItem(COVER_CACHE_KEY, JSON.stringify(cache)); } catch {}
-                } catch (err) {
-                    console.error('Failed to fetch covers:', err);
-                }
-            }
-
-            const result = {};
-            for (const id of anilistIds) {
-                if (cache[id]?.url) result[id] = cache[id].url;
-            }
-            return result;
-        }
-
-        function renderHistoryEntries(entries, covers) {
+        function renderHistoryEntries(entries) {
             historyList.innerHTML = '';
 
             entries.forEach(entry => {
@@ -1938,7 +1894,6 @@
                 const progressPct = entry.duration > 0 && entry.position > 0
                     ? Math.min(100, Math.round(entry.position / entry.duration * 100))
                     : null;
-                const coverUrl = entry.anilist_id ? covers[entry.anilist_id] : null;
 
                 const card = document.createElement('div');
                 card.className = 'history-card';
@@ -1946,9 +1901,7 @@
                 card.setAttribute('tabindex', '0');
                 card.setAttribute('aria-label', `${entry.anime}, episódio ${entry.episode}. Continuar assistindo`);
 
-                const cover = coverUrl
-                    ? Object.assign(document.createElement('img'), { className: 'history-cover', src: coverUrl, alt: '', loading: 'lazy' })
-                    : Object.assign(document.createElement('div'), { className: 'history-cover placeholder', textContent: '🎬' });
+                const cover = Object.assign(document.createElement('div'), { className: 'history-cover', textContent: '🎬' });
                 card.appendChild(cover);
 
                 const info = document.createElement('div');
@@ -2075,16 +2028,7 @@
                     return;
                 }
 
-                // Render immediately without covers, then re-render with covers
-                renderHistoryEntries(data.entries, {});
-
-                const ids = [...new Set(data.entries.map(e => e.anilist_id).filter(Boolean))];
-                if (ids.length > 0) {
-                    const covers = await fetchCovers(ids);
-                    if (Object.keys(covers).length > 0) {
-                        renderHistoryEntries(data.entries, covers);
-                    }
-                }
+                renderHistoryEntries(data.entries);
 
             } catch (err) {
                 if (!historyLoaded) {

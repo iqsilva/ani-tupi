@@ -163,8 +163,6 @@ class VideoPlayer:
         source: str,
         use_ipc: bool = True,
         debug: bool = False,
-        anilist_id: int | None = None,
-        anilist_episodes: int | None = None,
         referrer: str | None = None,
         max_quality: str = "best",
     ) -> VideoPlaybackResult:
@@ -178,8 +176,6 @@ class VideoPlayer:
             source: Name of scraper source (e.g., "animefire")
             use_ipc: Enable IPC socket for keybinding events (default True)
             debug: Skip playback and return simulated result
-            anilist_id: AniList ID for syncing progress (optional)
-            anilist_episodes: Total episodes from AniList (optional, for display)
             max_quality: Maximum video quality preset ("1080", "720", "480", "360", "best")
 
         Returns:
@@ -207,11 +203,9 @@ class VideoPlayer:
             "anime_title": anime_title,
             "episode_number": episode_number,
             "total_episodes": total_episodes,
-            "anilist_episodes": anilist_episodes,
             "source": source,
             "url": url,
             "referrer": referrer,
-            "anilist_id": anilist_id,
         }
 
         try:
@@ -636,7 +630,6 @@ shift+t script-message toggle-sub-dub
                                         anime_title = episode_context.get("anime_title")
                                         episode_number = episode_context.get("episode_number", 1)
                                         source = episode_context.get("source")
-                                        anilist_id = episode_context.get("anilist_id")
 
                                         if not anime_title:
                                             continue
@@ -647,16 +640,13 @@ shift+t script-message toggle-sub-dub
                                             episode_idx=episode_idx,
                                             action="watched",
                                             source=source,
-                                            anilist_id=anilist_id,
                                         )
 
                                         next_episode_number = episode_number + 1
                                         scraper_total = episode_context.get("total_episodes")
-                                        anilist_total = episode_context.get("anilist_episodes")
                                         progress_str = _format_episode_progress(
                                             next_episode_number,
                                             scraper_total,
-                                            anilist_total,
                                         )
                                         self._send_mpv_command(
                                             sock,
@@ -714,11 +704,9 @@ shift+t script-message toggle-sub-dub
                                         prev_episode_number = max(1, episode_number - 1)
                                         if prev_episode_number < episode_number:
                                             scraper_total = episode_context.get("total_episodes")
-                                            anilist_total = episode_context.get("anilist_episodes")
                                             progress_str = _format_episode_progress(
                                                 prev_episode_number,
                                                 scraper_total,
-                                                anilist_total,
                                             )
                                             self._send_mpv_command(
                                                 sock,
@@ -878,7 +866,6 @@ shift+t script-message toggle-sub-dub
                 anime_title = episode_context.get("anime_title")
                 episode_number = episode_context.get("episode_number", 1)
                 source = episode_context.get("source")
-                anilist_id = episode_context.get("anilist_id")
 
                 if anime_title:
                     episode_idx = episode_number - 1
@@ -887,7 +874,6 @@ shift+t script-message toggle-sub-dub
                         episode_idx=episode_idx,
                         action="watched",
                         source=source,
-                        anilist_id=anilist_id,
                     )
                 logger.info(
                     f"▶️  Auto-play ativo: marcando Episódio {episode_number} como assistido"
@@ -954,15 +940,11 @@ shift+t script-message toggle-sub-dub
 def _format_episode_progress(
     episode_num: int,
     scraper_total: int | None | str = None,
-    anilist_total: int | None = None,
 ) -> str:
-    """Format episode progress with scraper and AniList episode counts."""
+    """Format episode progress with scraper episode count."""
     if scraper_total is None:
         scraper_total = "?"
-    result = f"{episode_num} / {scraper_total}"
-    if anilist_total and anilist_total != scraper_total:
-        result += f" (total: {anilist_total})"
-    return result
+    return f"{episode_num} / {scraper_total}"
 
 
 # Global functions for backward compatibility (will use a default instance)
@@ -992,8 +974,6 @@ def play_episode(
     source: str,
     use_ipc: bool = True,
     debug: bool = False,
-    anilist_id: int | None = None,
-    anilist_episodes: int | None = None,
     referrer: str | None = None,
 ) -> VideoPlaybackResult:
     """Play a single episode with optional IPC support."""
@@ -1005,7 +985,5 @@ def play_episode(
         source=source,
         use_ipc=use_ipc,
         debug=debug,
-        anilist_id=anilist_id,
-        anilist_episodes=anilist_episodes,
         referrer=referrer,
     )
