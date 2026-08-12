@@ -129,3 +129,12 @@ def start_server(host: str | None = None, port: int | None = None) -> None:
         log_level="info",
         access_log=True,
     )
+
+
+def main() -> None:
+    """Console-script entrypoint: start the API server."""
+    start_server()
+
+
+if __name__ == "__main__":
+    main()

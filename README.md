@@ -1,72 +1,56 @@
 # 🎬 ani-tupi
 
-Assista anime e leia mangá direto do terminal sem anúncios! Interface CLI em português brasileiro com integração AniList.
+Assista anime sem anúncios! API + interface web (PWA) em português brasileiro.
 
 [![PyPI](https://img.shields.io/pypi/v/ani-tupi)](https://pypi.org/project/ani-tupi/)
 [![Python](https://img.shields.io/pypi/pyversions/ani-tupi)](https://pypi.org/project/ani-tupi/)
 
-> Estava cansado de anúncios, o ani-cli não tinha conteúdo em português brasileiro e não havia leitor de mangá decente no terminal, então criei esta ferramenta.
-
-## 📺 Demo no YouTube
-[![Demo](https://img.youtube.com/vi/eug6gKLTD3I/maxresdefault.jpg)](https://youtu.be/eug6gKLTD3I)
+> Estava cansado de anúncios e o ani-cli não tinha conteúdo em português brasileiro, então criei esta ferramenta.
 
 ## 📋 Requisitos
 
 - **Python 3.12+** (obrigatório)
 - **mpv** (player de vídeo)
-- **Zathura** (leitor de PDF para mangá - recomendado)
-- **Chromium** (ou Google Chrome — necessário para os scrapers de mangá que usam Selenium)
-- **git** (opcional — só necessário para clonar o repositório ou usar `install.sh`)
+- **Chromium** (ou Google Chrome — necessário para scrapers que usam Selenium)
 
 ### Instalando dependências
 
 #### Linux (Arch)
 ```bash
-# Instalar dependências do sistema
-sudo pacman -S python mpv zathura chromium git
+sudo pacman -S python mpv chromium
 ```
 
 #### Linux (Ubuntu/Debian)
 ```bash
-# Instalar dependências do sistema
-sudo apt install python3 mpv zathura chromium-browser git
+sudo apt install python3 mpv chromium-browser
 ```
 
 #### Linux (Fedora)
 ```bash
-# Instalar dependências do sistema
-sudo dnf install python3 mpv zathura chromium git
+sudo dnf install python3 mpv chromium
 ```
 
 #### macOS
 ```bash
-# Instalar dependências do sistema
-brew install python@3.12 mpv zathura chromium git
+brew install python@3.12 mpv chromium
 ```
 
 #### Windows
 Recomendamos usar [Chocolatey](https://chocolatey.org/install):
 ```powershell
 # Como administrador
-choco install python mpv zathura googlechrome git
+choco install python mpv googlechrome
 ```
 
-**Nota:** Zathura é primariamente para Linux. No Windows, o sistema detectará automaticamente outros leitores de PDF instalados (Adobe Reader, SumatraPDF, etc).
-
-## 🚀 Instalação Rápida
+## 🚀 Instalação
 
 ### Via [PyPI](https://pypi.org/project/ani-tupi/) (Recomendado)
 
-Instale o pacote Python com **uv** ou **pip** a partir do [PyPI](https://pypi.org/project/ani-tupi/). Você ainda precisa das [dependências de sistema](#-requisitos) (`mpv`, leitor de PDF, etc.) — elas não vêm com o pacote PyPI.
+Você ainda precisa das [dependências de sistema](#-requisitos) (`mpv`, etc.) — elas não vêm com o pacote PyPI.
 
 ```bash
 # Recomendado: instala ani-tupi como ferramenta global
 uv tool install ani-tupi
-
-# Alternativa: uv em um venv
-uv venv
-source .venv/bin/activate   # Windows: .venv\Scripts\activate
-uv pip install ani-tupi
 
 # Alternativa: pip (dentro de um venv)
 pip install ani-tupi
@@ -76,258 +60,71 @@ Atualizar para a versão mais recente:
 
 ```bash
 uv tool install --upgrade ani-tupi
-# ou, dentro do venv:
-uv pip install --upgrade ani-tupi
-# ou: pip install --upgrade ani-tupi
 ```
 
-### Via Homebrew (macOS e Linux)
+## ⚡ Uso
+
+Inicie o servidor:
 
 ```bash
-brew tap levyvix/ani-tupi
-brew install ani-tupi
-```
-
-Atualizar:
-
-```bash
-brew upgrade ani-tupi
-```
-
-> Requer `mpv` instalado: `brew install mpv`
-
-### Instalação com Um Comando (Alternativa)
-
-Script completo com clone do repositório — útil se você prefere o bootstrap automático ou está contribuindo com o código:
-
-```bash
-curl -sSL https://raw.githubusercontent.com/levyvix/ani-tupi/master/install.sh | bash
-```
-
-**O instalador faz automaticamente:**
-- ✅ Detecta seu sistema (Linux, macOS, WSL)
-- ✅ Verifica dependências (git, Python 3.12+)
-- ✅ Instala UV se necessário
-- ✅ Clona o repositório
-- ✅ Instala ani-tupi como CLI global
-- ✅ Configura o PATH automaticamente
-
-**Requisitos do instalador:**
-- `curl` - para baixar o script
-- `git` - para clonar o repositório
-- `Python 3.12+` - será detectado automaticamente
-
----
-
-## ⚡ Primeiros Passos - Comandos Essenciais
-
-Após instalar, estes são seus primeiros comandos:
-
-```bash
-# 1. Buscar e assistir anime
 ani-tupi
-
-# 2. Continuar último anime (salvo no histórico)
-ani-tupi --continue-watching
-ani-tupi -c
-
-# 3. Buscar anime específico
-ani-tupi --query "dandadan"
-ani-tupi -q "dandadan"
-
-# 4. Configurar AniList (sincronização automática)
-ani-tupi anilist auth      # Login (apenas uma vez)
-ani-tupi anilist           # Navegar listas + trending
-
-# 5. Modo debug (mostra logs detalhados)
-ani-tupi --debug
-
-# 6. Ajuda
-ani-tupi --help
 ```
 
-### Mais exemplos de uso da CLI
+Depois acesse a interface web em `http://localhost:8000` (a porta padrão pode ser alterada nas configurações).
 
-```bash
-# Buscar um anime e abrir o seletor de episódios
-ani-tupi -q "one piece"
+- 📱 A interface é uma PWA — pode ser instalada no celular/desktop
+- 📖 Documentação da API: `http://localhost:8000/api/docs`
 
-# Buscar e ir direto para um episódio específico
-ani-tupi -q "one piece" -e 1100
+### Principais recursos
 
-# Escolher uma temporada específica
-ani-tupi -q "jujutsu kaisen" -S 2
+- 🔍 **Busca** em múltiplas fontes brasileiras simultaneamente
+- ▶️ **Reprodução via mpv** controlada pela interface web (play/pause, seek, próximo episódio)
+- 🕘 **Histórico** — continue de onde parou
+- ⚙️ **Fontes configuráveis** — priorize ou desative fontes pela interface
 
-# Ir direto para episódio de uma temporada específica
-ani-tupi -q "jujutsu kaisen" -S 2 -e 5
+### Configuração
 
-# Continuar de onde parou
-ani-tupi -c
-
-# Continuar o último anime, mas trocar para outro episódio
-ani-tupi -c -e 12
-
-# Continuar o último anime, mas trocar de temporada
-ani-tupi -c -S 2
-
-# Sortear um anime da sua lista do AniList e reproduzir
-ani-tupi --random
-ani-tupi -r
-
-# Listar fontes de anime disponíveis
-ani-tupi --list-sources
-
-# Limpar todo o cache
-ani-tupi --clear-cache
-
-# Limpar cache de um anime específico
-ani-tupi --clear-cache "dandadan"
-
-# Ver versão local e comparar com a release remota
-ani-tupi --version
-
-# Verificar atualização pela CLI
-ani-tupi update
-```
-
-## ⚙️ Configurar pela CLI
-
-Agora você pode configurar o `ani-tupi` sem editar `models/config.py`:
-
-```bash
-ani-tupi config
-```
-
-No menu `ani-tupi config`:
-- cada categoria representa uma classe de settings (`AnilistSettings`, `CacheSettings`, etc.)
-- você escolhe a chave com `valor atual + descrição` do que ela controla
-- antes de editar, a CLI mostra a documentação daquela configuração
-- você informa o novo valor e confirma salvamento
-- as alterações são persistidas no usuário em `~/.config/ani-tupi/settings.json`
-
-### Precedência de configuração
-
-O carregamento segue esta ordem:
+Configurações são carregadas nesta ordem de precedência:
 
 1. Variáveis de ambiente (`ANI_TUPI__...`)
-2. Configuração salva via `ani-tupi config`
+2. Overrides salvos pelo usuário (`~/.config/ani-tupi/settings.json`)
 3. Valores padrão da aplicação
 
-Se uma chave tiver variável de ambiente ativa, o menu mostra aviso de precedência.
-
-**💡 Dica para melhores resultados de busca:**
-Tente usar o nome do anime em japonês ou romaji para maior precisão. Por exemplo:
-- Em vez de "Attack on Titan", tente "Shingeki no Kyojin"
-- Em vez de "My Hero Academia", tente "Boku no Hero Academia"
-- Em vez de "Demon Slayer", tente "Kimetsu no Yaiba"
-- Em vez de "Jujutsu Kaisen", mantenha como está (já é o título original)
-
----
-
-### Atalhos Durante Reprodução
-
-| Atalho | Ação |
-|--------|------|
-| `Shift+N` | Próximo episódio |
-| `Shift+P` | Episódio anterior |
-| `Shift+A` | Ativar auto-play |
-
----
-
-## ✨ Features
-
-### 🎬 Novos Episódios (AniList)
-- Mostra animes com episódio novo e quanto você está atrasado
-- Ordena por urgência e permite abrir para assistir direto
-- Mantém títulos recém-finalizados por 60 dias
-
-### 🏠 Biblioteca Local (Offline)
-- Baixe episódios e organize por anime
-- Suporta range de download (`5`, `1-12`, `5-`, `-12`)
-- Paralelismo configurável para acelerar downloads
-
-**Configuração rápida:**
-```bash
-export ANI_TUPI__ANIME__DOWNLOAD_DIRECTORY="~/Videos/Anime"
-export ANI_TUPI__ANIME__MAX_PARALLEL_DOWNLOADS=4
-export ANI_TUPI__ANIME__VIDEO_FORMAT="mp4"
-```
-
----
-
-## ✨ Integração com AniList (Recomendado!)
-
-A integração com [AniList.co](https://anilist.co) permite sincronizar automaticamente seu progresso ao assistir anime e ler mangá.
-
-### 📺 Anime
-- 📈 **Trending** - Descubra os animes mais populares do momento
-- 📺 **Watching** - Continue de onde parou (lista AniList)
-- 📋 **Planning** - Veja animes que você planeja assistir
-- ✅ **Completed** - Histórico de animes completos
-- 🔄 **Sincronização automática** - Progresso atualiza no AniList após cada episódio
-- 📝 **Adição automática à Watching** - Adiciona anime à sua lista ao começar a assistir
-
-### � Recursos
-- **Mapeamento inteligente** - Lembra do título correto para cada anime
-- **Cache inteligente** - Carrega listas instantaneamente
-- **Menu de conta** - Veja seu perfil e estatísticas
-
-**Setup rápido:**
-```bash
-ani-tupi anilist auth      # Login (apenas uma vez)
-ani-tupi anilist           # Navegar listas + trending
-```
-
----
-
-### Troubleshooting
-
-**Token expirou:**
-```bash
-ani-tupi anilist auth  # Faça login novamente
-```
-
-**Sincronização lenta:**
-```bash
-ani-tupi --debug  # Ver logs detalhados
-```
-
----
-
-### Modo Desenvolvimento
-
-Se está desenvolvendo (sem instalação global):
+Exemplo:
 
 ```bash
-uv run ani-tupi              # Executar
-uv run main.py --debug       # Com debug
-uv run main.py -q "naruto"   # Buscar direto
+export ANI_TUPI__API__PORT=8080
 ```
 
 ## 🔧 Para Desenvolvedores
 
-### Comandos Úteis
+### Modo desenvolvimento
 
 ```bash
-# Instalar/Reinstalar CLI global (PyPI)
-uv tool install --upgrade ani-tupi
-
-# Instalar a partir do checkout local (desenvolvimento)
-python3 install-cli.py
-# ou: uv tool install --force .
-
-# Desinstalar CLI global
-uv tool uninstall ani-tupi
-
-# Instalar dependências (desenvolvimento)
+# Instalar dependências
 uv sync
 
-# Adicionar nova dependência
-uv add nome-do-pacote
+# Rodar o servidor
+just serve
+# ou: uv run uvicorn api.server:app --host 0.0.0.0 --port 8000
 
-# Adicionar dependência de desenvolvimento
-uv add --dev nome-do-pacote
+# Rodar testes
+just test
+
+# Lint / formatação
+just lint
+just format
 ```
+
+### Comandos úteis (justfile)
+
+| Comando | Descrição |
+|---------|-----------|
+| `just serve` | Inicia o servidor da API |
+| `just test` | Roda a suíte de testes |
+| `just clear-cache` | Limpa cache de busca e episódios |
+| `just clear-history` | Limpa histórico de reprodução |
+| `just clear-all` | Limpa tudo (cache + histórico) |
 
 ### Publicação PyPI (mantenedores)
 
@@ -344,12 +141,6 @@ Variável de repositório:
 |----------|-------|--------|
 | `PYPI_PUBLISH_ENABLED` | `true` | Habilita upload para PyPI no workflow de release |
 
-Fluxo recomendado:
-
-1. Criar token em [test.pypi.org](https://test.pypi.org/manage/account/token/) e salvar como `TESTPYPI_API_TOKEN`
-2. Disparar **Actions → Publish TestPyPI** (`workflow_dispatch`) e confirmar instalação
-3. Após validação, configurar `PYPI_API_TOKEN` e definir `PYPI_PUBLISH_ENABLED=true`
-
 ### Por que UV?
 
 [UV](https://github.com/astral-sh/uv) é um gerenciador de pacotes Python extremamente rápido:
@@ -357,12 +148,8 @@ Fluxo recomendado:
 - 🔒 Lock file determinístico (`uv.lock`)
 - 📦 Gerenciamento de venv automático
 - 🌍 Multiplataforma (Linux, macOS, Windows)
-- 🚀 Instalação zero-config
 
 ## 🐛 Problemas Conhecidos
-
-### "FileNotFoundError" ao salvar histórico
-Corrigido na versão 0.1.0+. Atualize para a versão mais recente.
 
 ### MPV não abre
 Verifique se o mpv está instalado:
@@ -394,10 +181,9 @@ GPL-3.0 - veja o arquivo [LICENSE](LICENSE) para detalhes.
 **Este projeto é fornecido exclusivamente para fins educacionais e de pesquisa.**
 
 ani-tupi foi desenvolvido como uma ferramenta didática para demonstrar:
-- Arquitetura de aplicações em Python (MVCP)
+- Arquitetura de aplicações em Python
 - Web scraping e parsing de HTML
-- Integração com APIs GraphQL
-- Desenvolvimento de TUIs em Python
+- APIs REST/WebSocket com FastAPI
 - Sistemas de plugins extensíveis
 - Gestão de cache e requisições assíncronas
 
@@ -437,7 +223,7 @@ Este projeto se beneficia do princípio de "Fair Use" (uso justo), que permite u
 ### Orientações de Uso
 
 Este projeto é destinado para:
-- ✅ **Aprendizado**: Estude como construir web scrapers e TUIs
+- ✅ **Aprendizado**: Estude como construir web scrapers e APIs
 - ✅ **Pesquisa**: Analise técnicas de integração com APIs
 - ✅ **Educação**: Use como referência em cursos de Python
 - ✅ **Desenvolvimento**: Base para seus próprios projetos educacionais

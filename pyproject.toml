@@ -1,17 +1,17 @@
 [project]
 name = "ani-tupi"
 version = "2.6.4"
-description = "Assista anime e leia mangá direto do terminal sem anúncios"
+description = "Assista anime sem anúncios via API + interface web"
 readme = "README.md"
 requires-python = ">=3.12"
 authors = [
     {name = "Levy Marques", email = "levy.vix@protonmail.com"}
 ]
 license = {text = "GPL-3.0"}
-keywords = ["anime", "cli", "streaming", "terminal"]
+keywords = ["anime", "streaming", "api", "web"]
 classifiers = [
     "Development Status :: 4 - Beta",
-    "Environment :: Console",
+    "Environment :: Web Environment",
     "Intended Audience :: End Users/Desktop",
     "License :: OSI Approved :: GNU General Public License v3 (GPLv3)",
     "Operating System :: OS Independent",
@@ -21,9 +21,6 @@ classifiers = [
 ]
 
 dependencies = [
-    "tqdm>=4.67.0",
-    "rich>=14.2.0",
-    "inquirerpy>=0.3.4",
     "pydantic>=2.10.0",
     "pydantic-settings>=2.7.0",
     "diskcache>=5.6.3",
@@ -46,7 +43,7 @@ dependencies = [
 "Forked From" = "https://github.com/eduardonery1/ani-tupi"
 
 [project.scripts]
-ani-tupi = "main:cli"
+ani-tupi = "api.server:main"
 
 [build-system]
 requires = ["hatchling"]

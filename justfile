@@ -1,19 +1,11 @@
 # ani-tupi justfile - Common development tasks
 
-# Run ani-tupi with query
 push:
   git pull --rebase && git push
 
-@query query:
-    uv run ani-tupi --query "{{query}}"
-
-# Run ani-tupi anilist menu
-@anilist:
-    uv run ani-tupi anilist
-
-# Run ani-tupi with continue watching
-@continue:
-    uv run ani-tupi --continue-watching
+# Run the API server
+@serve:
+    uv run ani-tupi
 
 # Clear anime search cache (query cache only)
 @clear-search-cache:
@@ -22,8 +14,8 @@ push:
 
 # Clear anime search cache (query cache and episode cache)
 @clear-cache:
-    uv run ani-tupi --clear-cache
-    uv run scripts/clean_caches.py
+    just clear-search-cache
+    uv run python -c "from utils.cache_manager import clear_cache_all; from utils.scraper_cache import clear_cache; clear_cache_all(); clear_cache(); print('✅ Episode cache cleared!')"
 
 # Clear entire cache directory (also clears state)
 @clear-cache-full:
@@ -54,10 +46,6 @@ push:
 # Format code
 @format:
     uv run ruff format .
-
-# Install as global CLI
-@install:
-    python3 install-cli.py
 
 # Show help
 @help:
