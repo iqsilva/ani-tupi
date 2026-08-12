@@ -30,59 +30,44 @@
 
 **Immutable Data Flow**: Data flows forward only. Services don't modify input; they return transformed copies. This makes debugging trivial: follow the data, not the mutations.
 
-**Plugin Everything**: Scrapers, PDF readers, storage backends—all pluggable. New source? Create one file. Done.
+**Plugin Everything**: Scrapers and storage backends—all pluggable. New source? Create one file. Done.
 
 **User Configuration Over Code**: Settings live in environment variables (via Pydantic config), not config files that break. Users can tune everything without touching code.
 
 ---
 
-## CLI Usage Guide
+## Usage Guide
 
-### Basic Anime Playback
+ani-tupi is a **FastAPI server + PWA web frontend** (no CLI flags). Entry point: `api/server.py:main` (`ani-tupi` console script).
 
-```bash
-# Search and select anime interactively
-ani-tupi -q "anime name"
-
-# Search and jump to specific episode
-ani-tupi -q "anime name" -e 5
-```
-
-### Advanced Options
+### Running
 
 ```bash
-# Select specific season (for anime with multiple seasons)
-ani-tupi -q "anime name" -S 2
-
-# Select specific season and episode
-ani-tupi -q "anime name" -S 2 -e 5
-
-# Continue from where you left off
-ani-tupi -c
-
-# Continue from specific episode (overrides history)
-ani-tupi -c -e 5
-
-# Continue from history but override to different season
-ani-tupi -c -S 2
-
-# List available sources
-ani-tupi --list-sources
-
-# Clear cache (all or specific anime)
-ani-tupi --clear-cache
-ani-tupi --clear-cache "anime name"
+just serve            # Start the API server (uv run ani-tupi)
+just test             # uv run pytest
+just lint             # uv run ruff check .
+just format           # uv run ruff format .
 ```
 
-### Season and Episode Usage
+### Cache & State Management (justfile)
 
-- `-S 2` → Seleciona estação 2 (para anime com múltiplas estações)
-- `-S 2 -e 5` → Estação 2, episódio 5 (pula menus)
-- `-e 5` → Episódio 5 (navegação via menu para próximo/anterior disponível)
-- `-e 1` → Início (episódio 1)
-- `-e 100` → Erro se > total de episódios disponíveis
+```bash
+just clear-search-cache   # Query cache only (~/.local/state/ani-tupi/cache)
+just clear-cache          # Search + episode caches
+just clear-cache-full     # Entire cache directories
+just clear-history        # Watch history (~/.local/state/ani-tupi/history.json)
+just clear-all            # Everything
+```
 
-**Nota sobre estações**: Se um anime tem apenas uma estação, o menu de seleção é automaticamente pulado.
+### API Surface (`api/routes/`)
+
+- `search.py` — `GET /search`, `GET /search/episodes`, `GET /search/seasons`
+- `playback.py` — `GET /playback/state`, `POST /playback/start|control|autoplay`, `WS /playback/ws` (controls MPV via IPC)
+- `history.py` — `GET/DELETE /history`, `GET/DELETE /history/{anime}`
+- `sources.py` — `GET /sources`, `PUT /sources/priority`, `POST /sources/{source}/enable|disable`
+- `settings.py` — `GET/PUT /settings` (user preferences)
+
+The PWA frontend lives in `api/frontend/` (index.html, manifest.json, sw.js) and is served by the FastAPI app. Shared playback state is managed by `PlaybackStateManager` in `api/state.py`; request/response schemas in `api/schemas.py`.
 
 ---
 
@@ -90,15 +75,29 @@ ani-tupi --clear-cache "anime name"
 
 ### The Three-Tier System
 
-1. **Commands** (CLI entry points) - Parse user intent
-2. **Services** (business logic) - Coordinate plugins, cache, APIs, and persistence
-3. **Plugins** (implementations) - Scrapers, readers, storage backends
+1. **API Routes** (`api/routes/`) - Parse user intent (HTTP/WebSocket endpoints)
+2. **Services** (`services/`) - Coordinate plugins, cache, APIs, and persistence
+3. **Plugins** (`scrapers/plugins/`) - Scrapers, pure adapters
 
 Services orchestrate. They decide: "Should I search cache first?" "Which plugin should I use?"
 
-Commands ask services questions. Services ask plugins for data. Plugins never ask anything—they're pure adapters.
+Routes ask services questions. Services ask plugins for data. Plugins never ask anything—they're pure adapters.
 
-**To extend**: Add a new feature? Build a service. Add a new data source? Build a plugin. Add a new command? Wire up a service call.
+**To extend**: Add a new feature? Build a service. Add a new data source? Build a plugin. Add a new endpoint? Wire up a service call in a route.
+
+### Services Layer (`services/`)
+
+- `repository.py` — `Repository` singleton (`anime_repository`): multi-source search + dedup
+- `search_repository.py`, `episode_repository.py`, `player_repository.py`, `history_service.py` — focused repositories
+- `playback_coordinator.py` — `PlaybackCoordinator`, `safe_plugin_call` (resilient plugin invocation)
+- `plugin_registry.py` — `PluginRegistry`: which plugins exist/are enabled, priority ordering (`priority_utils.py`)
+- `anime/title_normalization.py` — title dedup logic
+
+### Scrapers (`scrapers/`)
+
+- `loader.py` — auto-discovers plugins
+- `core/` — shared infra: `blogger_resolver.py`, `selenium_driver.py` (some sources need Selenium; see `requires_selenium` pytest marker)
+- `plugins/` — 9 sources: animefire, animesdigital, animesonlinecc, animesonlinecloud, anitube, anroll, dattebayo, goyabu, sushianimes (+ shared `utils.py`)
 
 ### Pattern: Centralized Configuration
 
@@ -106,9 +105,11 @@ All settings flow through `models/config.py` (Pydantic v2):
 
 ```python
 from models.config import settings
-cache_ttl = settings.cache_duration_hours
-player = settings.performance
+cache_ttl = settings.cache.duration_hours
+api_port = settings.api.port
 ```
+
+Settings groups (`AppSettings`): `cache`, `search`, `plugins`, `performance`, `download`, `update_check`, `playback`, `api`.
 
 Why? Environment variables override defaults (`ANI_TUPI__CACHE__DURATION_HOURS=48`), no scattered `.env` files, type validation on boot, configuration is self-documenting.
 
@@ -132,10 +133,9 @@ Why protocol, not ABC?
 Don't import plugins directly. Use the repository:
 
 ```python
-from services.repository import get_scrapers
+from services.repository import anime_repository
 
-for scraper in get_scrapers():
-    results.extend(scraper.search(query))
+results = anime_repository.search_anime(query)
 ```
 
 Why? Scrapers are loaded dynamically. The repository tracks which ones exist, which ones are enabled.
@@ -200,20 +200,15 @@ Why? Replacing MPV = swap one class. Testing doesn't require external tools (moc
 
 ## Data Structures
 
-All data validated with Pydantic (`models/models.py`):
+All data validated with Pydantic (`models/models.py`). Key models:
 
-```python
-class AnimeMetadata(BaseModel):
-    title: str
-    url: str
-    cover: str | None = None
+- **Scraping**: `AnimeMetadata`, `EpisodeData`, `VideoUrl`, `EpisodeContext`
+- **Search**: `SearchMetadata`, `AnimeSearchResult` (frozen), `SearchResults` (frozen)
+- **Cache**: `ScraperCacheData`, `CacheStats`
+- **Downloads**: `DownloadedEpisode`, `DownloadResult`, `AnimeDownloadHistory`, `AnimeDownloadDatabase`
+- **Misc**: `Status`, `UpdateCheckState`, `UpdateCheckResult`, `HistoryEntry`
 
-class EpisodeData(BaseModel):
-    number: int
-    title: str
-    video_url: str
-    aired: date | None = None
-```
+API request/response schemas live separately in `api/schemas.py` (e.g., `SearchResponse`, `PlaybackState`, `HistoryEntrySchema`, `WSMessage`).
 
 Why Pydantic? Validation on entry (fail fast if scraper returns garbage), type hints everywhere, serialization to JSON for cache/history.
 
@@ -256,31 +251,28 @@ class TrendingService:
         pass
 ```
 
-2. In the command layer (`commands/anime.py`), instantiate and use:
+2. In a route (`api/routes/`), instantiate and use:
 ```python
-service = TrendingService(get_scrapers(), cache, api_client)
+service = TrendingService(...)
 trending = service.get_trending("pt-br")
 ```
 
-Services own the business logic. Commands own the CLI flow.
+Services own the business logic. Routes own the HTTP flow.
 
-### Add a New Command
+### Add a New API Route
 
-1. Create `commands/newcommand.py`:
+1. Create `api/routes/newfeature.py`:
 ```python
-def handle_new_command(args):
-    service = SomeService()
-    result = service.do_something()
-    render_menu(result)
+from fastapi import APIRouter
+
+router = APIRouter(prefix="/newfeature", tags=["newfeature"])
+
+@router.get("")
+async def get_newfeature():
+    return SomeService().do_something()
 ```
 
-2. Wire it in `main.py` argument parser, route to the function.
----
-
-**Testing**:
-```bash
-uv run pytest tests/ -v
-```
+2. Register the router in `api/server.py` (`create_app()`). Define schemas in `api/schemas.py`.
 
 ---
 
@@ -293,7 +285,11 @@ uv run ruff check .                      # Lint
 uv run ruff format .                     # Format
 uv run pytest                            # Test
 uv run pytest -v --cov=. --cov-report=html  # Coverage
+uv run mypy . && uv run pyright          # Type checking
+uv run deptry . && uv run vulture        # Dep/dead-code checks
 ```
+
+Pre-commit hooks run via **prek**.
 
 **Manage**:
 ```bash
@@ -374,6 +370,13 @@ The release bot commits the version bump and CHANGELOG directly to remote, so th
 - **Real plugin loading**: Load actual scrapers from `scrapers/plugins/` directory
 - **Real storage**: Use temporary directories for cache/downloads (auto-cleanup via pytest fixtures)
 
+### Test Layout & Markers
+
+- `tests/unit/` — fast, isolated tests (scrapers, services, utils)
+- `tests/integration/` — cross-layer tests, including real-HTTP scraper tests
+- Root `tests/` — repository/coordinator tests, shared `conftest.py`
+- Markers (`pytest.ini`): `unit`, `integration`, `e2e`, `slow`, `requires_selenium`, `requires_http`
+
 
 ### Refactoring Pattern
 Old (excessive mocks):
@@ -420,10 +423,16 @@ This keeps the conversation focused and prevents context bloat while maintaining
 
 1. **Always use `uv`**.
 2. **Config in `models/config.py`**—not scattered imports.
-3. **Business logic in services**—not commands or UI.
+3. **Business logic in services**—not routes or UI.
 4. **Don't import plugins directly**—use the repository.
 5. **Immutable data**—return new objects, never mutate input.
-6. **Avoid circular imports**: commands → services → models/utils.
+6. **Avoid circular imports**: api → services → scrapers/models/utils.
+
+### Utilities (`utils/`)
+
+- `cache_manager.py`, `scraper_cache.py`, `cache.py` — cache layers
+- `video_player.py` — MPV adapter (IPC); `mpv_scripts/skip.lua` — skip-intro script
+- `playback_hints.py`, `episode_range_parser.py`, `title_utils.py`, `persistence.py`, `logging.py`, `exceptions.py`
 7. **Persist data** in `~/.local/state/ani-tupi/` (XDG standard).
 8. **No hardcoded values**—use config or Pydantic models.
 
