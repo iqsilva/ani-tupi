@@ -22,7 +22,8 @@ async def get_sources() -> SourcesResponse:
 
         sources = []
         for i, source in enumerate(priority_order):
-            # Check if source is actually registered
+            # priority_order is sanitized on load (stale plugin names dropped),
+            # so anything here is installed: registered (active) or disabled.
             if source in active_sources or source in disabled:
                 sources.append(
                     SourceInfo(

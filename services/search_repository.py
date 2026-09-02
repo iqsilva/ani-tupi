@@ -388,6 +388,10 @@ class SearchRepository:
             self.clear_search_results()
             for anime_title, sources_list in cached_data.items():
                 for url, source, params in sources_list:
+                    # Skip entries from sources that are no longer installed
+                    # (e.g. cached before a plugin was removed from the project)
+                    if source not in self.sources:
+                        continue
                     self.add_anime(anime_title, url, source, params)
             total_ms = int((time.time() - search_start) * 1000)
             self._last_search_metadata = {
