@@ -11,7 +11,7 @@ Assista anime sem anúncios! API + interface web (PWA) em português brasileiro.
 
 - **Python 3.12+** (obrigatório)
 - **mpv** (player de vídeo)
-- **Browsers do Scrapling** (necessário para scrapers dinâmicos — instale com `just scrapling-install` ou `uv run scrapling install`)
+- **Browsers do Scrapling** (opcional — necessário apenas para as fontes anroll/animesdigital; instale com `just scrapling-install`. Indisponível em ARM/Raspberry Pi: as demais fontes funcionam normalmente)
 
 ### Instalando dependências
 

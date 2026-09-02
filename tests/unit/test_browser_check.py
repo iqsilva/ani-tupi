@@ -33,6 +33,7 @@ def test_warns_when_chromium_missing():
 
 def test_silent_when_browsers_present():
     with (
+        patch.object(browser_check, "_fetchers_extra_installed", return_value=True),
         patch.object(browser_check, "_camoufox_installed", return_value=True),
         patch.object(browser_check, "_playwright_chromium_installed", return_value=True),
         patch.object(browser_check.logger, "warning") as mock_warn,
@@ -43,10 +44,12 @@ def test_silent_when_browsers_present():
 
 
 def test_result_is_cached():
-    with patch.object(
-        browser_check, "_camoufox_installed", return_value=True
-    ) as mock_camoufox, patch.object(
-        browser_check, "_playwright_chromium_installed", return_value=True
+    with (
+        patch.object(browser_check, "_fetchers_extra_installed", return_value=True),
+        patch.object(
+            browser_check, "_camoufox_installed", return_value=True
+        ) as mock_camoufox,
+        patch.object(browser_check, "_playwright_chromium_installed", return_value=True),
     ):
         browser_check.browsers_available()
         browser_check.browsers_available()

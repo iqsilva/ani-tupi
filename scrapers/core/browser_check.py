@@ -15,8 +15,20 @@ logger = get_logger(__name__)
 
 INSTALL_HINT = (
     "Browsers do Scrapling não encontrados. As fontes 'anroll' e 'animesdigital' "
-    "precisam deles. Execute: just scrapling-install (ou: uv run scrapling install)"
+    "precisam deles. Execute: uv sync --extra dynamic && just scrapling-install "
+    "(indisponível em ARM/Raspberry Pi — as demais fontes funcionam normalmente)"
 )
+
+
+def _fetchers_extra_installed() -> bool:
+    """Check if the optional 'dynamic' extra (camoufox/playwright) is installed."""
+    try:
+        import camoufox  # noqa: F401
+        import playwright  # noqa: F401
+
+        return True
+    except ImportError:
+        return False
 
 
 def _camoufox_installed() -> bool:
@@ -47,6 +59,8 @@ def _playwright_chromium_installed() -> bool:
 @functools.cache
 def browsers_available() -> bool:
     """Return True if the dynamic-fetcher browsers are installed (cached)."""
+    if not _fetchers_extra_installed():
+        return False
     return _camoufox_installed() and _playwright_chromium_installed()
 
 

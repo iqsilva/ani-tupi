@@ -102,9 +102,10 @@ class TestAnRollSearchAnimeAndPlayer:
         assert results[0].url == "https://anroll.io/anime/mao/"
         assert results[0].source == "anroll"
 
+    @patch("scrapers.core.browser_check.browsers_available", return_value=True)
     @patch("scrapers.plugins.anroll.store_player_source")
     @patch("scrapling.fetchers.StealthyFetcher.fetch")
-    def test_search_player_src_extracts_video_url(self, mock_fetch, mock_store):
+    def test_search_player_src_extracts_video_url(self, mock_fetch, mock_store, _mock_avail):
         mock_store.return_value = True
         event = MagicMock()
         event.is_set.return_value = False
