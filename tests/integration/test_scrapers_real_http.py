@@ -15,10 +15,10 @@ import subprocess
 import threading
 from unittest.mock import patch
 
-import httpx
 import pytest
 
 from models.models import AnimeMetadata
+from scrapers.core.http import FetchError, fetch
 from scrapers.plugins.animefire import AnimeFire
 from scrapers.plugins.animesonlinecc import AnimesOnlineCC
 from scrapers.plugins.anitube import AniTube
@@ -51,14 +51,11 @@ def _search_anime_or_skip(scraper, query: str) -> list[AnimeMetadata]:
     """Run search; skip (not fail) when the site blocks this environment."""
     try:
         results = scraper.search_anime(query)
-    except httpx.HTTPStatusError as exc:
-        if exc.response.status_code in _BLOCK_STATUS_CODES:
+    except FetchError as exc:
+        if exc.status in _BLOCK_STATUS_CODES:
             pytest.skip(
-                f"{scraper.name} returned HTTP {exc.response.status_code} "
-                f"from this environment: {exc.request.url}"
+                f"{scraper.name} returned HTTP {exc.status} from this environment: {exc.url}"
             )
-        raise
-    except httpx.HTTPError as exc:
         pytest.skip(f"{scraper.name} unreachable from this environment: {exc}")
 
     if not results:
@@ -107,20 +104,20 @@ def _assert_video_url_reachable(video_url: str, referrer: str | None = None) -> 
         headers["Referer"] = referrer
 
     try:
-        response = httpx.get(
+        response = fetch(
             video_url,
             headers=headers,
             timeout=30,
-            follow_redirects=True,
+            raise_for_status=False,
         )
-    except httpx.HTTPError as exc:
+    except FetchError as exc:
         pytest.skip(
             "Video CDN unreachable from this environment "
             f"(scraper URL extraction already verified): {exc}"
         )
 
-    assert response.status_code in (200, 206), (
-        f"Video CDN returned HTTP {response.status_code} for {video_url}"
+    assert response.status in (200, 206), (
+        f"Video CDN returned HTTP {response.status} for {video_url}"
     )
 
 

@@ -17,7 +17,7 @@ import subprocess
 import sys
 from urllib.parse import parse_qs, unquote, urlparse
 
-import httpx
+from scrapers.core.http import FetchError, fetch, fetch_json
 
 BASE = "https://animesonline.cloud"
 API = BASE + "/wp-json/dooplayer/v2/{post}/{typ}/{nume}"
@@ -33,11 +33,10 @@ TIMEOUT = 20
 _OPT_RE = re.compile(r"data-type='([^']+)' data-post='(\d+)' data-nume='([^']+)'")
 
 
-def _player_options(client: httpx.Client, episode_url: str) -> list[tuple[str, str, str]]:
+def _player_options(episode_url: str) -> list[tuple[str, str, str]]:
     """Retorna [(type, post, nume)] das abas de player da página."""
-    r = client.get(episode_url, headers={**HEADERS, "Referer": episode_url})
-    r.raise_for_status()
-    return _OPT_RE.findall(r.text)
+    r = fetch(episode_url, headers={**HEADERS, "Referer": episode_url}, timeout=TIMEOUT)
+    return _OPT_RE.findall(r.html_content)
 
 
 def _resolve_source(embed_url: str) -> str | None:
@@ -50,13 +49,13 @@ def _resolve_source(embed_url: str) -> str | None:
     return unquote(source) or None
 
 
-def extract_video(client: httpx.Client, episode_url: str) -> str | None:
+def extract_video(episode_url: str) -> str | None:
     """Devolve a melhor URL de vídeo (mp4/HLS) do episódio, ou None."""
-    for typ, post, nume in _player_options(client, episode_url):
+    for typ, post, nume in _player_options(episode_url):
         api = API.format(post=post, typ=typ, nume=nume)
         try:
-            data = client.get(api, headers=HEADERS).json()
-        except (httpx.HTTPError, ValueError):
+            data = fetch_json(api, headers=HEADERS, timeout=TIMEOUT)
+        except (FetchError, ValueError):
             continue
         if data.get("type") == "mp4":
             if url := _resolve_source(data.get("embed_url", "")):
@@ -75,20 +74,19 @@ def main(argv: list[str]) -> int:
         print(__doc__)
         return 1
 
-    with httpx.Client(timeout=TIMEOUT, follow_redirects=True) as client:
-        for ep in urls:
-            try:
-                video = extract_video(client, ep)
-            except httpx.HTTPError as e:
-                print(f"[erro] {ep}: {e}", file=sys.stderr)
-                continue
-            if not video:
-                print(f"[sem fonte mp4] {ep}", file=sys.stderr)
-                continue
-            kind = "HLS" if ".m3u8" in video else "MP4"
-            print(f"[{kind}] {ep}\n       {video}")
-            if play:
-                play_mpv(video)
+    for ep in urls:
+        try:
+            video = extract_video(ep)
+        except FetchError as e:
+            print(f"[erro] {ep}: {e}", file=sys.stderr)
+            continue
+        if not video:
+            print(f"[sem fonte mp4] {ep}", file=sys.stderr)
+            continue
+        kind = "HLS" if ".m3u8" in video else "MP4"
+        print(f"[{kind}] {ep}\n       {video}")
+        if play:
+            play_mpv(video)
     return 0
 
 

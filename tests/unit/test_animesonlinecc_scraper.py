@@ -29,11 +29,10 @@ PLAYER_HTML = """
 """
 
 
-def _html_response(html: str) -> MagicMock:
-    response = MagicMock()
-    response.text = html
-    response.raise_for_status = MagicMock()
-    return response
+def _html_response(html: str):
+    from scrapling.parser import Selector
+
+    return Selector(html)
 
 
 def _event(is_set: bool = False) -> MagicMock:
@@ -46,7 +45,7 @@ class TestAnimesOnlineCCScraper:
     def setup_method(self):
         self.scraper = AnimesOnlineCC()
 
-    @patch("scrapers.plugins.animesonlinecc.httpx.get")
+    @patch("scrapers.plugins.animesonlinecc.fetch")
     def test_search_anime_returns_results(self, mock_get):
         mock_get.return_value = _html_response(SEARCH_HTML)
 
@@ -56,7 +55,7 @@ class TestAnimesOnlineCCScraper:
         assert results[0].title == "Mao"
         assert "animesonlinecc.to/anime/mao" in results[0].url
 
-    @patch("scrapers.plugins.animesonlinecc.httpx.get")
+    @patch("scrapers.plugins.animesonlinecc.fetch")
     def test_search_anime_empty_returns_empty_list(self, mock_get):
         mock_get.return_value = _html_response("<html></html>")
 
@@ -65,7 +64,7 @@ class TestAnimesOnlineCCScraper:
         assert results == []
 
     @patch("scrapers.plugins.animesonlinecc.rep")
-    @patch("scrapers.plugins.animesonlinecc.httpx.get")
+    @patch("scrapers.plugins.animesonlinecc.fetch")
     def test_search_episodes_adds_episode_list(self, mock_get, mock_rep):
         mock_get.return_value = _html_response(EPISODES_HTML)
 
@@ -78,7 +77,7 @@ class TestAnimesOnlineCCScraper:
         assert len(urls) == 2
 
     @patch("scrapers.plugins.animesonlinecc.rep")
-    @patch("scrapers.plugins.animesonlinecc.httpx.get")
+    @patch("scrapers.plugins.animesonlinecc.fetch")
     def test_search_episodes_no_episodes_does_not_call_rep(self, mock_get, mock_rep):
         mock_get.return_value = _html_response("<html></html>")
 
@@ -87,7 +86,7 @@ class TestAnimesOnlineCCScraper:
         mock_rep.add_episode_list.assert_not_called()
 
     @patch("scrapers.plugins.animesonlinecc.resolve_blogger_token")
-    @patch("scrapers.plugins.animesonlinecc.httpx.get")
+    @patch("scrapers.plugins.animesonlinecc.fetch")
     def test_search_player_src_extracts_video_url(self, mock_get, mock_resolve):
         mock_get.return_value = _html_response(PLAYER_HTML)
         mock_resolve.return_value = "https://video.example.com/mao.mp4"
@@ -101,7 +100,7 @@ class TestAnimesOnlineCCScraper:
         assert container == ["https://video.example.com/mao.mp4"]
         mock_resolve.assert_called_once_with("ABC123")
 
-    @patch("scrapers.plugins.animesonlinecc.httpx.get")
+    @patch("scrapers.plugins.animesonlinecc.fetch")
     def test_search_player_src_no_source_raises(self, mock_get):
         mock_get.return_value = _html_response("<html></html>")
         container = []

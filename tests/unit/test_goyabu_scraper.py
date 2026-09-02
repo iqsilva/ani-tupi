@@ -35,11 +35,10 @@ var playersData = [{"url": "https://www.blogger.com/video.g?token=XYZ789"}];
 """
 
 
-def _html_response(html: str) -> MagicMock:
-    response = MagicMock()
-    response.text = html
-    response.raise_for_status = MagicMock()
-    return response
+def _html_response(html: str):
+    from scrapling.parser import Selector
+
+    return Selector(html)
 
 
 def _event(is_set: bool = False) -> MagicMock:
@@ -52,7 +51,7 @@ class TestGoyabuScraper:
     def setup_method(self):
         self.scraper = Goyabu()
 
-    @patch("scrapers.plugins.goyabu.httpx.get")
+    @patch("scrapers.plugins.goyabu.fetch")
     def test_search_anime_returns_results(self, mock_get):
         mock_get.return_value = _html_response(SEARCH_HTML)
 
@@ -62,7 +61,7 @@ class TestGoyabuScraper:
         assert results[0].title == "Mao"
         assert results[0].url == "https://goyabu.io/anime/mao/"
 
-    @patch("scrapers.plugins.goyabu.httpx.get")
+    @patch("scrapers.plugins.goyabu.fetch")
     def test_search_anime_empty_returns_empty_list(self, mock_get):
         mock_get.return_value = _html_response("<html></html>")
 
@@ -71,7 +70,7 @@ class TestGoyabuScraper:
         assert results == []
 
     @patch("scrapers.plugins.goyabu.rep")
-    @patch("scrapers.plugins.goyabu.httpx.get")
+    @patch("scrapers.plugins.goyabu.fetch")
     def test_search_episodes_adds_episode_list(self, mock_get, mock_rep):
         mock_get.return_value = _html_response(EPISODES_JS)
 
@@ -84,7 +83,7 @@ class TestGoyabuScraper:
         assert len(urls) == 2
 
     @patch("scrapers.plugins.goyabu.rep")
-    @patch("scrapers.plugins.goyabu.httpx.get")
+    @patch("scrapers.plugins.goyabu.fetch")
     def test_search_episodes_no_episodes_does_not_call_rep(self, mock_get, mock_rep):
         mock_get.return_value = _html_response("<html></html>")
 
@@ -93,7 +92,7 @@ class TestGoyabuScraper:
         mock_rep.add_episode_list.assert_not_called()
 
     @patch("scrapers.plugins.goyabu.resolve_blogger_token")
-    @patch("scrapers.plugins.goyabu.httpx.get")
+    @patch("scrapers.plugins.goyabu.fetch")
     def test_search_player_src_extracts_video_url(self, mock_get, mock_resolve):
         mock_get.return_value = _html_response(PLAYER_HTML)
         mock_resolve.return_value = "https://video.example.com/mao.mp4"
@@ -105,7 +104,7 @@ class TestGoyabuScraper:
         assert container == ["https://video.example.com/mao.mp4"]
         mock_resolve.assert_called_once_with("XYZ789")
 
-    @patch("scrapers.plugins.goyabu.httpx.get")
+    @patch("scrapers.plugins.goyabu.fetch")
     def test_search_player_src_no_source_raises(self, mock_get):
         mock_get.return_value = _html_response("<html></html>")
         container = []

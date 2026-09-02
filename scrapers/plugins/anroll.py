@@ -1,13 +1,14 @@
 from utils.logging import get_logger
 import re
-import time
 import urllib.parse
 
-import httpx
-from bs4 import BeautifulSoup
-
-from scrapers.core.selenium_driver import SeleniumWebDriver
-from scrapers.plugins.utils import DEFAULT_HEADERS, load_plugin, store_player_source
+from scrapers.plugins.utils import (
+    DEFAULT_HEADERS,
+    FetchError,
+    fetch,
+    load_plugin,
+    store_player_source,
+)
 from models.models import AnimeMetadata
 from services.repository import rep
 
@@ -30,42 +31,36 @@ class AnRoll:
         results = []
         try:
             url = f"{BASE_URL}/?s={urllib.parse.quote(query)}"
-            response = httpx.get(
-                url, headers=HEADERS, timeout=REQUEST_TIMEOUT, follow_redirects=True
-            )
-            response.raise_for_status()
-            soup = BeautifulSoup(response.text, "html.parser")
-            for article in soup.select("article.anime-card"):
-                a = article.find("a", href=True)
+            page = fetch(url, headers=HEADERS, timeout=REQUEST_TIMEOUT)
+            for article in page.css("article.anime-card", auto_save=True):
+                a = article.css("a[href]").first
                 if not a:
                     continue
-                href = str(a.get("href", ""))
+                href = str(a.attrib.get("href", ""))
                 if "/anime/" not in href or "episodio" in href:
                     continue
-                img = a.find("img")
-                title = img.get("alt", "").strip() if img else a.get_text(strip=True)
+                img = a.css("img").first
+                title = (
+                    (img.attrib.get("alt") or "").strip() if img else a.get_all_text(strip=True)
+                )
                 title = _TITLE_DUB_HD_RE.sub("", title).strip()
                 title = _TITLE_YEAR_RE.sub("", title).strip()
                 title = _TITLE_LEG_RE.sub("", title).strip()
                 if title and href:
                     results.append(AnimeMetadata(title=title, url=href, source=self.name))
-        except httpx.HTTPError as e:
+        except FetchError as e:
             logger.debug("anroll search_anime falhou: %s", e)
         return results
 
     def search_episodes(self, anime: str, url: str, params: dict | None) -> None:
         _ = params
         try:
-            response = httpx.get(
-                url, headers=HEADERS, timeout=REQUEST_TIMEOUT, follow_redirects=True
-            )
-            response.raise_for_status()
-            soup = BeautifulSoup(response.text, "html.parser")
+            soup = fetch(url, headers=HEADERS, timeout=REQUEST_TIMEOUT)
             titles = []
             urls = []
-            for a in soup.select("a.ep-text-item"):
-                href = str(a.get("href", ""))
-                ep_num = a.get("data-ep", "")
+            for a in soup.css("a.ep-text-item"):
+                href = str(a.attrib.get("href", ""))
+                ep_num = a.attrib.get("data-ep", "")
                 if not href or not ep_num:
                     continue
                 if not href.startswith("http"):
@@ -79,15 +74,15 @@ class AnRoll:
                     titles, urls = self._episodes_from_sidebar(first_ep_url)
             if titles and urls:
                 rep.add_episode_list(anime, titles, urls, self.name)
-        except httpx.HTTPError as e:
+        except FetchError as e:
             logger.debug("anroll search_episodes falhou: %s", e)
 
-    def _find_first_episode_url(self, soup: BeautifulSoup) -> str | None:
+    def _find_first_episode_url(self, soup) -> str | None:
         """Return the 'Primeiro Episódio' link from the anime page."""
-        for anchor in soup.find_all("a", href=True):
-            if "Primeiro" not in anchor.get_text(strip=True):
+        for anchor in soup.css("a[href]"):
+            if "Primeiro" not in anchor.get_all_text(strip=True):
                 continue
-            href = str(anchor["href"])
+            href = str(anchor.attrib["href"])
             if re.search(r"/\d+/?$", href):
                 return href if href.startswith("http") else f"{BASE_URL}{href}"
         return None
@@ -99,30 +94,23 @@ class AnRoll:
         fallback treated last_id - first_id as episode count, inflating lists to
         thousands. The sidebar on any episode page lists all episodes in order.
         """
-        response = httpx.get(
-            first_ep_url,
-            headers=HEADERS,
-            timeout=REQUEST_TIMEOUT,
-            follow_redirects=True,
-        )
-        response.raise_for_status()
-        soup = BeautifulSoup(response.text, "html.parser")
+        soup = fetch(first_ep_url, headers=HEADERS, timeout=REQUEST_TIMEOUT)
 
-        sidebar = soup.select_one(".ep-list-box")
+        sidebar = soup.css(".ep-list-box").first
         if sidebar is None:
             return [], []
 
         titles: list[str] = []
         urls: list[str] = []
         seen: set[str] = set()
-        for anchor in sidebar.find_all("a", href=True):
-            href = str(anchor["href"])
+        for anchor in sidebar.css("a[href]"):
+            href = str(anchor.attrib["href"])
             if not re.match(rf"{re.escape(BASE_URL)}/\d+/?$", href):
                 continue
             if href in seen:
                 continue
             seen.add(href)
-            ep_num = anchor.get("data-ep") or len(urls) + 1
+            ep_num = anchor.attrib.get("data-ep") or len(urls) + 1
             try:
                 label = f"Ep.{int(ep_num):03d}"
             except ValueError:
@@ -136,43 +124,53 @@ class AnRoll:
         # The anidrive player serves a "Bot Detected" placeholder (pro.mp4) unless
         # the page is loaded inside the trusted anroll parent (passing the Cloudflare
         # challenge sets the cookies that unlock the real googlevideo sources).
-        # The real URL is also bound to the requesting User-Agent, so Selenium must
+        # The real URL is also bound to the requesting User-Agent, so the browser must
         # use the SAME UA the video player (mpv) will replay it with.
-        from selenium.webdriver.common.by import By
+        from scrapling.fetchers import StealthyFetcher
 
-        try:
-            with SeleniumWebDriver(user_agent=HEADERS["User-Agent"]) as driver:
-                driver.driver.get(url)
-                time.sleep(5)  # allow Cloudflare challenge + iframe to load
+        captured: dict[str, str] = {}
 
-                iframe = None
-                for f in driver.driver.find_elements(By.TAG_NAME, "iframe"):
-                    if "anidrive" in (f.get_attribute("src") or ""):
-                        iframe = f
-                        break
-                if iframe is None:
-                    raise ValueError("Anroll: anidrive iframe not found on episode page")
-                driver.driver.switch_to.frame(iframe)
+        _JW_SOURCES_JS = """
+            () => {
+                try {
+                    var pl = jwplayer().getPlaylist();
+                    if (pl && pl[0] && pl[0].sources)
+                        return pl[0].sources.map(function(s){ return s.file; });
+                } catch(e) { return null; }
+                return null;
+            }
+        """
 
-                video_url = None
-                for _ in range(40):
-                    if event.is_set():
-                        return
-                    sources = driver.driver.execute_script("""
-                        try {
-                            var pl = jwplayer().getPlaylist();
-                            if (pl && pl[0] && pl[0].sources)
-                                return pl[0].sources.map(function(s){ return s.file; });
-                        } catch(e) { return null; }
-                        return null;
-                    """)
+        def _poll_jwplayer(page):
+            for _ in range(40):
+                if event.is_set():
+                    return page
+                for frame in page.frames:
+                    if "anidrive" not in (frame.url or ""):
+                        continue
+                    try:
+                        sources = frame.evaluate(_JW_SOURCES_JS)
+                    except Exception:
+                        sources = None
                     if sources:
                         real = [s for s in sources if s and "pro.mp4" not in s]
                         if real:
-                            video_url = real[0]
-                            break
-                    time.sleep(0.5)
+                            captured["url"] = real[0]
+                            return page
+                page.wait_for_timeout(500)
+            return page
 
+        try:
+            StealthyFetcher.fetch(
+                url,
+                headless=True,
+                solve_cloudflare=True,
+                useragent=HEADERS["User-Agent"],
+                page_action=_poll_jwplayer,
+                timeout=90000,
+            )
+
+            video_url = captured.get("url")
             if not video_url:
                 raise ValueError("Anroll: real video source not resolved (bot detected)")
 

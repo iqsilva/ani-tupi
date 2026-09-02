@@ -3,11 +3,8 @@ import re
 from utils.logging import get_logger
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
-import httpx
-from bs4 import BeautifulSoup
-
 from scrapers.core.blogger_resolver import resolve_blogger_token
-from scrapers.plugins.utils import load_plugin, store_player_source
+from scrapers.plugins.utils import fetch, load_plugin, store_player_source
 from models.models import AnimeMetadata
 from services.repository import rep
 
@@ -55,19 +52,19 @@ class AnimeFire:
             logger.debug(f"AnimeFire blogger resolve failed: {e}")
             return url
 
-    def _parse_search_page(self, tree: BeautifulSoup) -> list[AnimeMetadata]:
+    def _parse_search_page(self, tree) -> list[AnimeMetadata]:
         target_class = "col-6 col-sm-4 col-md-3 col-lg-2 mb-1 minWDanime divCardUltimosEps"
         titles_urls = []
         selector = f"div.{target_class.replace(' ', '.')}"
 
-        for div in tree.select(selector):
-            article = div.select_one("article a")
+        for div in tree.css(selector, auto_save=True):
+            article = div.css("article a").first
             if article is not None:
-                href = article.get("href")
+                href = article.attrib.get("href")
                 if href:
                     titles_urls.append(href)
 
-        titles = [str(h3.text) for h3 in tree.select("h3.animeTitle")]
+        titles = [h3.get_all_text(strip=True) for h3 in tree.css("h3.animeTitle")]
         results = []
         for title, page_url in zip(titles, titles_urls, strict=False):
             if page_url:
@@ -76,24 +73,20 @@ class AnimeFire:
 
     def search_anime(self, query: str) -> list[AnimeMetadata]:
         url = "https://animefire.plus/pesquisar/" + "-".join(query.split())
-        response = httpx.get(url, timeout=20, follow_redirects=True, headers=SEARCH_HEADERS)
-        response.raise_for_status()
-        tree = BeautifulSoup(response.text, "html.parser")
+        tree = fetch(url, timeout=20, headers=SEARCH_HEADERS)
         return self._parse_search_page(tree)
 
     def search_episodes(self, anime: str, url: str, params: dict | None) -> None:
         _ = params
         try:
-            response = httpx.get(url, timeout=20, follow_redirects=True)
-            response.raise_for_status()
-            tree = BeautifulSoup(response.text, "html.parser")
+            tree = fetch(url, timeout=20)
 
-            ep_links = tree.select("a.lEp")
+            ep_links = tree.css("a.lEp")
             if not ep_links:
                 logger.debug(f"AnimeFire: no episodes found for '{anime}' at {url}")
                 return
 
-            episode_links = [a.get("href") for a in ep_links if a.get("href")]
+            episode_links = [a.attrib.get("href") for a in ep_links if a.attrib.get("href")]
             if not episode_links:
                 logger.debug(f"AnimeFire: no valid hrefs for '{anime}' at {url}")
                 return
@@ -109,21 +102,18 @@ class AnimeFire:
 
     def search_player_src(self, url: str, container: list, event) -> None:
         try:
-            # data-video-src is in static HTML — no Selenium needed
-            response = httpx.get(url, timeout=20, follow_redirects=True)
-            response.raise_for_status()
-            page = BeautifulSoup(response.text, "html.parser")
+            # data-video-src is in static HTML — no browser needed
+            page = fetch(url, timeout=20)
 
             # AnimeFire uses Video.js player with data-video-src attribute
             # The attribute contains an API endpoint that returns JSON with video URLs
-            video = page.select_one("video")
+            video = page.css("video").first
             if video:
-                api_url = video.get("data-video-src")
+                api_url = video.attrib.get("data-video-src")
                 if api_url:
                     try:
-                        response = httpx.get(api_url, timeout=20, follow_redirects=True)
-                        response.raise_for_status()
-                        video_data = json.loads(response.text)
+                        response = fetch(api_url, timeout=20)
+                        video_data = response.json()
 
                         if isinstance(video_data, dict) and "data" in video_data:
                             videos = video_data["data"]
@@ -152,23 +142,23 @@ class AnimeFire:
                         logger.debug(f"AnimeFire API fetch failed for '{url}': {e}")
 
                 # Fallback: try standard src attribute
-                src = self._resolve_if_blogger(video.get("src"))
+                src = self._resolve_if_blogger(video.attrib.get("src"))
                 if src:
                     if store_player_source(container, event, src):
                         return
 
             # Try to find source tag inside video
-            source = page.select_one("video source")
+            source = page.css("video source").first
             if source:
-                src = self._resolve_if_blogger(source.get("src"))
+                src = self._resolve_if_blogger(source.attrib.get("src"))
                 if src:
                     if store_player_source(container, event, src):
                         return
 
             # Try to find iframe
-            iframe = page.select_one("iframe")
+            iframe = page.css("iframe").first
             if iframe:
-                src = self._resolve_if_blogger(iframe.get("src"))
+                src = self._resolve_if_blogger(iframe.attrib.get("src"))
                 if src:
                     if store_player_source(container, event, src):
                         return

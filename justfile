@@ -37,6 +37,10 @@ push:
 @test:
     uv run pytest
 
+# Install Scrapling browser dependencies (needed for dynamic scrapers)
+@scrapling-install:
+    uv run scrapling install
+
 # Run linter
 @lint:
     uv run ruff check .

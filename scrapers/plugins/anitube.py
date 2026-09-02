@@ -1,12 +1,11 @@
 from utils.logging import get_logger
 import urllib.parse
 
-import httpx
-from bs4 import BeautifulSoup
-
 from scrapers.plugins.utils import (
     DEFAULT_HEADERS,
+    FetchError,
     extract_anivideo_hls,
+    fetch,
     load_plugin,
     store_player_source,
 )
@@ -28,10 +27,9 @@ class AniTube:
         def _do_search(q: str) -> None:
             try:
                 url = f"{self.base_url}/wp-json/wp/v2/posts?search={urllib.parse.quote(q)}&per_page=20"
-                response = httpx.get(url, headers=HEADERS, timeout=30, follow_redirects=True)
-                response.raise_for_status()
+                response = fetch(url, headers=HEADERS, timeout=30)
                 posts = response.json()
-            except httpx.HTTPError as e:
+            except FetchError as e:
                 logger.debug(f"AniTube search request failed for '{q}': {e}")
                 return
             for post in posts:
@@ -61,30 +59,28 @@ class AniTube:
             separator = "&" if "?" in url else "?"
             episodes_url = f"{url}{separator}ord=1"
 
-            response = httpx.get(episodes_url, headers=HEADERS, timeout=30, follow_redirects=True)
-            response.raise_for_status()
-            page = BeautifulSoup(response.text, "html.parser")
+            response = fetch(episodes_url, headers=HEADERS, timeout=30)
+            page = response
 
-            episode_links = page.select("a[title*='Episódio']")
+            episode_links = page.css("a[title*='Episódio']")
             titles = []
             urls = []
             for a in episode_links:
-                href = a.get("href")
-                title = a.get("title")
+                href = a.attrib.get("href")
+                title = a.attrib.get("title")
                 if href and title and href.startswith("http"):
                     titles.append(title.strip())
                     urls.append(href)
 
             rep.add_episode_list(anime, titles, urls, self.name)
-        except httpx.HTTPError as e:
+        except FetchError as e:
             logger.debug(f"AniTube episode fetch failed for '{anime}': {e}")
             return
 
     def search_player_src(self, url: str, container: list, event) -> None:
         try:
-            response = httpx.get(url, headers=HEADERS, timeout=30, follow_redirects=True)
-            response.raise_for_status()
-            html = response.text
+            response = fetch(url, headers=HEADERS, timeout=30)
+            html = response.html_content
 
             if hls_url := extract_anivideo_hls(html):
                 store_player_source(container, event, hls_url)
@@ -93,7 +89,7 @@ class AniTube:
                 return
 
             raise Exception("No playable video source found in AniTube episode page")
-        except httpx.HTTPError as e:
+        except FetchError as e:
             raise Exception(f"Could not extract video from AniTube: {e}") from e
 
 

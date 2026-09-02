@@ -2,11 +2,14 @@ from utils.logging import get_logger
 import re
 import urllib.parse
 
-import httpx
-from bs4 import BeautifulSoup
-
 from scrapers.core.blogger_resolver import resolve_blogger_token
-from scrapers.plugins.utils import DEFAULT_HEADERS, load_plugin, store_player_source
+from scrapers.plugins.utils import (
+    DEFAULT_HEADERS,
+    FetchError,
+    fetch,
+    load_plugin,
+    store_player_source,
+)
 from models.models import AnimeMetadata
 from services.repository import rep
 
@@ -28,34 +31,34 @@ class AnimesOnlineCC:
         results = []
         try:
             url = f"{BASE_URL}/search/{urllib.parse.quote(query)}"
-            r = httpx.get(url, headers=HEADERS, timeout=REQUEST_TIMEOUT, follow_redirects=True)
-            r.raise_for_status()
-            soup = BeautifulSoup(r.text, "html.parser")
-            for article in soup.select("article"):
-                a = article.find("a", href=re.compile(r"/anime/"))
+            page = fetch(url, headers=HEADERS, timeout=REQUEST_TIMEOUT)
+            for article in page.css("article", auto_save=True):
+                a = article.css("a[href*='/anime/']").first
                 if not a:
                     continue
-                title_el = article.find(["h2", "h3"])
-                title = title_el.get_text(strip=True) if title_el else a.get_text(strip=True)
-                link = a.get("href", "")
+                title_el = article.css("h2, h3").first
+                title = (
+                    title_el.get_all_text(strip=True)
+                    if title_el
+                    else a.get_all_text(strip=True)
+                )
+                link = a.attrib.get("href", "")
                 if title and link:
                     results.append(AnimeMetadata(title=title, url=link, source=self.name))
-        except httpx.HTTPError as e:
+        except FetchError as e:
             logger.debug(f"AnimesOnlineCC search request failed for '{query}': {e}")
         return results
 
     def search_episodes(self, anime: str, url: str, params: dict | None) -> None:
         _ = params
         try:
-            r = httpx.get(url, headers=HEADERS, timeout=REQUEST_TIMEOUT, follow_redirects=True)
-            r.raise_for_status()
-            soup = BeautifulSoup(r.text, "html.parser")
+            page = fetch(url, headers=HEADERS, timeout=REQUEST_TIMEOUT)
 
             seen = set()
             titles = []
             urls = []
-            for a in soup.find_all("a", href=re.compile(r"/episodio/")):
-                ep_url = str(a.get("href", ""))
+            for a in page.css("a[href*='/episodio/']"):
+                ep_url = str(a.attrib.get("href", ""))
                 if ep_url.startswith("//"):
                     ep_url = "https:" + ep_url
                 num_match = _EPISODE_NUM_RE.search(ep_url)
@@ -63,27 +66,25 @@ class AnimesOnlineCC:
                 if not ep_url.startswith("http") or not num_match or ep_url in seen:
                     continue
                 seen.add(ep_url)
-                title = a.get_text(strip=True) or f"Episódio {num_match.group(1)}"
+                title = a.get_all_text(strip=True) or f"Episódio {num_match.group(1)}"
                 titles.append(title)
                 urls.append(ep_url)
 
             if titles and urls:
                 rep.add_episode_list(anime, titles, urls, self.name)
-        except httpx.HTTPError as e:
+        except FetchError as e:
             logger.debug(f"AnimesOnlineCC episode fetch failed for '{anime}': {e}")
 
     def search_player_src(self, url: str, container: list, event) -> None:
         try:
-            r = httpx.get(url, headers=HEADERS, timeout=REQUEST_TIMEOUT, follow_redirects=True)
-            r.raise_for_status()
-            soup = BeautifulSoup(r.text, "html.parser")
+            page = fetch(url, headers=HEADERS, timeout=REQUEST_TIMEOUT)
 
-            iframes = soup.find_all("iframe", src=re.compile(r"blogger\.com/video\.g"))
+            iframes = page.css("iframe[src*='blogger.com/video.g']")
             if not iframes:
                 raise ValueError("No blogger iframe found in AnimesOnlineCC episode page")
 
             for iframe in iframes:
-                src = iframe.get("src", "")
+                src = iframe.attrib.get("src", "")
                 m = _TOKEN_RE.search(src)
                 if not m:
                     continue

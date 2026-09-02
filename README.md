@@ -11,7 +11,7 @@ Assista anime sem anúncios! API + interface web (PWA) em português brasileiro.
 
 - **Python 3.12+** (obrigatório)
 - **mpv** (player de vídeo)
-- **Chromium** (ou Google Chrome — necessário para scrapers que usam Selenium)
+- **Browsers do Scrapling** (necessário para scrapers dinâmicos — instale com `just scrapling-install` ou `uv run scrapling install`)
 
 ### Instalando dependências
 

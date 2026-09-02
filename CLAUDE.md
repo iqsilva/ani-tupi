@@ -96,7 +96,7 @@ Routes ask services questions. Services ask plugins for data. Plugins never ask 
 ### Scrapers (`scrapers/`)
 
 - `loader.py` — auto-discovers plugins
-- `core/` — shared infra: `blogger_resolver.py`, `selenium_driver.py` (some sources need Selenium; see `requires_selenium` pytest marker)
+- `core/` — shared infra: `http.py` (Scrapling fetch shim: `fetch`/`post`/`fetch_json` + `FetchError`), `blogger_resolver.py`. Dynamic sources (anroll, animesdigital slug fallback) use Scrapling's `StealthyFetcher`/`DynamicFetcher` — run `just scrapling-install` once to download browsers
 - `plugins/` — 9 sources: animefire, animesdigital, animesonlinecc, animesonlinecloud, anitube, anroll, dattebayo, goyabu, sushianimes (+ shared `utils.py`)
 
 ### Pattern: Centralized Configuration
@@ -375,7 +375,7 @@ The release bot commits the version bump and CHANGELOG directly to remote, so th
 - `tests/unit/` — fast, isolated tests (scrapers, services, utils)
 - `tests/integration/` — cross-layer tests, including real-HTTP scraper tests
 - Root `tests/` — repository/coordinator tests, shared `conftest.py`
-- Markers (`pytest.ini`): `unit`, `integration`, `e2e`, `slow`, `requires_selenium`, `requires_http`
+- Markers (`pytest.ini`): `unit`, `integration`, `e2e`, `slow`, `requires_browser`, `requires_http`
 
 
 ### Refactoring Pattern
@@ -389,9 +389,9 @@ with patch.object(scraper, 'search') as mock_search:
 
 New (real integration):
 ```python
-# Use real repository with real scrapers, mock only external API
-with patch.object(httpx.Client, "get") as mock_http:  # External API mock only
-    mock_http.return_value = Mock(status_code=200, json=lambda: {...})
+# Use real repository with real scrapers, mock only the HTTP transport
+with patch("scrapers.plugins.<plugin>.fetch") as mock_fetch:  # External fetch mock only
+    mock_fetch.return_value = Selector("<html>...</html>")  # scrapling.parser.Selector
     result = repository.search_anime("query")  # Real scrapers, real business logic
 ```
 

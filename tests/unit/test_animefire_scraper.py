@@ -1,7 +1,7 @@
 """Tests for AnimeFire scraper."""
 
 import json
-from unittest.mock import MagicMock, call, patch
+from unittest.mock import MagicMock, patch
 
 from scrapers.plugins.animefire import AnimeFire
 
@@ -59,14 +59,18 @@ VIDEO_JSON = {
 
 
 class _Response:
-    def __init__(self, text):
-        self.text = text
+    """Builds a Scrapling-like page for HTML, or a JSON-capable mock."""
 
-    def raise_for_status(self):
-        return None
+    def __new__(cls, text):
+        from scrapling.parser import Selector
 
-    def json(self):
-        return json.loads(self.text)
+        stripped = text.lstrip()
+        if stripped.startswith("{") or stripped.startswith("["):
+            mock = MagicMock()
+            mock.json.return_value = json.loads(text)
+            mock.html_content = text
+            return mock
+        return Selector(text)
 
 
 def _event():
@@ -79,7 +83,7 @@ class TestAnimeFireScraper:
     def setup_method(self):
         self.scraper = AnimeFire()
 
-    @patch("scrapers.plugins.animefire.httpx.get")
+    @patch("scrapers.plugins.animefire.fetch")
     def test_search_player_src_uses_json_endpoint(self, mock_get):
         # First call: episode page HTML; second call: video JSON API
         mock_get.side_effect = [
@@ -93,16 +97,13 @@ class TestAnimeFireScraper:
         self.scraper.search_player_src("https://animefire.io/animes/mao/9", container, event)
 
         assert container == ["https://lightspeedst.net/s8/mp4/mao/hd/9.mp4?token=hd&expires=1"]
-        assert mock_get.call_args_list == [
-            call("https://animefire.io/animes/mao/9", timeout=20, follow_redirects=True),
-            call(
-                "https://animefire.io/video/mao/9?tempsubs=0&1780178669",
-                timeout=20,
-                follow_redirects=True,
-            ),
+        called_urls = [c.args[0] for c in mock_get.call_args_list]
+        assert called_urls == [
+            "https://animefire.io/animes/mao/9",
+            "https://animefire.io/video/mao/9?tempsubs=0&1780178669",
         ]
 
-    @patch("scrapers.plugins.animefire.httpx.get")
+    @patch("scrapers.plugins.animefire.fetch")
     def test_search_anime_returns_results(self, mock_get):
         mock_get.return_value = _Response(SEARCH_HTML)
 
@@ -113,7 +114,7 @@ class TestAnimeFireScraper:
         assert results[0].url == "https://animefire.plus/animes/mao"
         mock_get.assert_called_once()
 
-    @patch("scrapers.plugins.animefire.httpx.get")
+    @patch("scrapers.plugins.animefire.fetch")
     def test_search_anime_returns_empty_without_cards(self, mock_get):
         mock_get.return_value = _Response("<html></html>")
 
@@ -122,7 +123,7 @@ class TestAnimeFireScraper:
         assert results == []
 
     @patch("scrapers.plugins.animefire.rep")
-    @patch("scrapers.plugins.animefire.httpx.get")
+    @patch("scrapers.plugins.animefire.fetch")
     def test_search_episodes_adds_episode_list(self, mock_get, mock_rep):
         mock_get.return_value = _Response(EPISODES_HTML)
 
@@ -138,7 +139,7 @@ class TestAnimeFireScraper:
         ]
 
     @patch("scrapers.plugins.animefire.rep")
-    @patch("scrapers.plugins.animefire.httpx.get")
+    @patch("scrapers.plugins.animefire.fetch")
     def test_search_episodes_empty_page_does_not_call_rep(self, mock_get, mock_rep):
         mock_get.return_value = _Response("<html></html>")
 
@@ -146,7 +147,7 @@ class TestAnimeFireScraper:
 
         mock_rep.add_episode_list.assert_not_called()
 
-    @patch("scrapers.plugins.animefire.httpx.get")
+    @patch("scrapers.plugins.animefire.fetch")
     def test_search_player_src_fallbacks_to_video_src(self, mock_get):
         mock_get.return_value = _Response(VIDEO_SRC_HTML)
         container = []
@@ -156,7 +157,7 @@ class TestAnimeFireScraper:
 
         assert container == ["https://cdn.example.com/mao/9.mp4"]
 
-    @patch("scrapers.plugins.animefire.httpx.get")
+    @patch("scrapers.plugins.animefire.fetch")
     def test_search_player_src_fallbacks_to_iframe(self, mock_get):
         mock_get.return_value = _Response(IFRAME_HTML)
         container = []

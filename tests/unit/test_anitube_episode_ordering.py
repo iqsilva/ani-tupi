@@ -22,13 +22,11 @@ https://api.anivideo.net/videohls.php?d=https://cdn.example.com/mao/9.mp4
 """
 
 
-def _response(html: str, status_code: int = 200, headers: dict | None = None) -> MagicMock:
-    mock = MagicMock()
-    mock.text = html
-    mock.status_code = status_code
-    mock.headers = headers or {}
-    mock.raise_for_status = MagicMock()
-    return mock
+def _response(html: str, status_code: int = 200, headers: dict | None = None):
+    from scrapling.parser import Selector
+
+    page = Selector(html)
+    return page
 
 
 class TestAnitubeEpisodeOrdering:
@@ -39,7 +37,7 @@ class TestAnitubeEpisodeOrdering:
         scraper = AniTube()
 
         with (
-            patch("scrapers.plugins.anitube.httpx.get") as mock_get,
+            patch("scrapers.plugins.anitube.fetch") as mock_get,
             patch("scrapers.plugins.anitube.rep"),
         ):
             mock_get.return_value = _response("<html></html>")
@@ -58,7 +56,7 @@ class TestAnitubeEpisodeOrdering:
         scraper = AniTube()
 
         with (
-            patch("scrapers.plugins.anitube.httpx.get") as mock_get,
+            patch("scrapers.plugins.anitube.fetch") as mock_get,
             patch("scrapers.plugins.anitube.rep"),
         ):
             mock_get.return_value = _response("<html></html>")
@@ -77,7 +75,7 @@ class TestAnitubeEpisodeOrdering:
         scraper = AniTube()
 
         with (
-            patch("scrapers.plugins.anitube.httpx.get") as mock_get,
+            patch("scrapers.plugins.anitube.fetch") as mock_get,
             patch("scrapers.plugins.anitube.rep") as mock_rep,
         ):
             mock_get.return_value = _response(
@@ -109,7 +107,7 @@ class TestAnitubeEpisodeOrdering:
         scraper = AniTube()
 
         with (
-            patch("scrapers.plugins.anitube.httpx.get") as mock_get,
+            patch("scrapers.plugins.anitube.fetch") as mock_get,
             patch("scrapers.plugins.anitube.rep") as mock_rep,
         ):
             mock_get.return_value = _response(
@@ -136,7 +134,7 @@ class TestAnitubeSearchAnimeAndPlayer:
     def setup_method(self):
         self.scraper = AniTube()
 
-    @patch("scrapers.plugins.anitube.httpx.get")
+    @patch("scrapers.plugins.anitube.fetch")
     def test_search_anime_returns_results(self, mock_get):
         mock_response = MagicMock()
         mock_response.raise_for_status = MagicMock()
@@ -150,7 +148,7 @@ class TestAnitubeSearchAnimeAndPlayer:
         assert any(r.title == "Mao" for r in results)
         assert all(r.source == "anitube" for r in results)
 
-    @patch("scrapers.plugins.anitube.httpx.get")
+    @patch("scrapers.plugins.anitube.fetch")
     def test_search_player_src_extracts_hls_url(self, mock_get):
         hls_html = (
             "<html><body><script>"
@@ -167,7 +165,7 @@ class TestAnitubeSearchAnimeAndPlayer:
         assert len(container) == 1
         assert container[0].endswith(".m3u8") or "cdn.example.com" in container[0]
 
-    @patch("scrapers.plugins.anitube.httpx.get")
+    @patch("scrapers.plugins.anitube.fetch")
     def test_search_player_src_collects_hls_candidate(self, mock_get):
         episode_html = """
         <html><body>

@@ -15,8 +15,7 @@ Fluxo:
 import subprocess
 import sys
 
-import httpx
-
+from scrapers.core.http import FetchError
 from scrapers.plugins.dattebayo import (
     resolve_signed_video_url,
     sign_video_url,
@@ -28,18 +27,17 @@ TIMEOUT = 20
 
 
 def extract_video(
-    client: httpx.Client,
     episode_url: str,
     *,
     quality: str = "fullhd",
 ) -> str:
     """Devolve a URL assinada do episódio na qualidade pedida."""
     if quality == "fullhd":
-        return resolve_signed_video_url(client, episode_url, qualities=("fullhd",))
+        return resolve_signed_video_url(episode_url, qualities=("fullhd",))
 
     video_id = extract_video_id(episode_url)
     unsigned = unsigned_video_url(video_id, quality=quality)
-    return sign_video_url(client, unsigned, referer=episode_url)
+    return sign_video_url(unsigned, referer=episode_url)
 
 
 def play_mpv(url: str, *, referer: str) -> None:
@@ -67,20 +65,19 @@ def main(argv: list[str]) -> int:
         print(__doc__)
         return 1
 
-    with httpx.Client(timeout=TIMEOUT, follow_redirects=True) as client:
-        for episode_url in args:
-            try:
-                video = extract_video(client, episode_url, quality=quality)
-            except (httpx.HTTPError, ValueError) as exc:
-                print(f"[erro] {episode_url}: {exc}", file=sys.stderr)
-                continue
+    for episode_url in args:
+        try:
+            video = extract_video(episode_url, quality=quality)
+        except (FetchError, ValueError) as exc:
+            print(f"[erro] {episode_url}: {exc}", file=sys.stderr)
+            continue
 
-            label = quality.upper()
-            if quality == "fullhd":
-                label = "FULLHD"
-            print(f"[{label}] {episode_url}\n       {video}")
-            if play:
-                play_mpv(video, referer=episode_url)
+        label = quality.upper()
+        if quality == "fullhd":
+            label = "FULLHD"
+        print(f"[{label}] {episode_url}\n       {video}")
+        if play:
+            play_mpv(video, referer=episode_url)
 
     return 0
 
