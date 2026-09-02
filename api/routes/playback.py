@@ -255,9 +255,13 @@ async def start_playback(request: PlaybackStartRequest) -> PlaybackResponse:
 
         if not video_url:
             await _broadcast_status("Falha ao extrair vídeo das fontes", error=True)
+            tried = ", ".join(sorted({src for _, src in sources_with_urls}))
             raise HTTPException(
-                status_code=500,
-                detail="Failed to extract video URL from sources",
+                status_code=502,
+                detail=(
+                    f"Nenhuma fonte conseguiu extrair o vídeo do episódio "
+                    f"{request.episode} (tentadas: {tried})."
+                ),
             )
 
         await _broadcast_status("Iniciando player...")

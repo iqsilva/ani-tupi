@@ -25,7 +25,10 @@ def safe_plugin_call(plugin_func, url, container: list, event: Event) -> bool:
     try:
         plugin_func(url, container, event)
         return bool(container)
-    except Exception:
+    except Exception as exc:
+        plugin_name = getattr(plugin_func, "__module__", "plugin")
+        logger.warning(f"   ⚠️  {plugin_name}.search_player_src falhou: {type(exc).__name__}: {exc}")
+        logger.debug("Plugin exception details:", exc_info=True)
         return False
 
 
@@ -209,8 +212,11 @@ class PlaybackCoordinator:
                         # This source timed out, try next
                         logger.info(f"   ⏱️  {source} timeout (> {timeout}s)")
                         continue
-                    except Exception:
+                    except Exception as exc:
                         # This source failed, try next
+                        logger.warning(
+                            f"   ⚠️  {source} erro inesperado: {type(exc).__name__}: {exc}"
+                        )
                         continue
 
             # Get video URL if found, otherwise return None
