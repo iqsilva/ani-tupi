@@ -37,8 +37,10 @@ push:
 @test:
     uv run pytest
 
-# Install Scrapling browser dependencies (needed for dynamic scrapers)
+# Install Scrapling browser dependencies (needed for dynamic scrapers: anroll, animesdigital)
+# Not available on ARM/Raspberry Pi — other sources work without it
 @scrapling-install:
+    uv sync --extra dynamic
     uv run scrapling install
 
 # Run linter

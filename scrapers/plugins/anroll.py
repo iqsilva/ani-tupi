@@ -126,6 +126,11 @@ class AnRoll:
         # challenge sets the cookies that unlock the real googlevideo sources).
         # The real URL is also bound to the requesting User-Agent, so the browser must
         # use the SAME UA the video player (mpv) will replay it with.
+        from scrapers.core.browser_check import INSTALL_HINT, browsers_available
+
+        if not browsers_available():
+            raise RuntimeError(f"Anroll indisponível: {INSTALL_HINT}")
+
         from scrapling.fetchers import StealthyFetcher
 
         captured: dict[str, str] = {}

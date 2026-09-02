@@ -230,6 +230,12 @@ class AnimesDigital:
         return all_anime
 
     def _collect_slug_results(self, query: str) -> dict:
+        from scrapers.core.browser_check import browsers_available
+
+        if not browsers_available():
+            logger.debug("Slug fallback pulado: browsers do Scrapling não instalados")
+            return {}
+
         from scrapling.fetchers import DynamicFetcher
 
         all_anime: dict = {}
