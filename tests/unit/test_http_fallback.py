@@ -195,7 +195,8 @@ def test_curl_cffi_request_wraps_errors():
 def test_mpv_uses_resolver_user_agent():
     from utils.playback_hints import resolve_mpv_stream_options
 
-    _, demuxer = resolve_mpv_stream_options(
-        "https://cdn.imagesskill.com/x/index.m3u8", None
+    referrer, demuxer = resolve_mpv_stream_options(
+        "https://cdn.example.com/x/index.m3u8", "https://ref"
     )
-    assert http.RESOLVER_USER_AGENT in demuxer
+    assert referrer == "https://ref"
+    assert demuxer is None

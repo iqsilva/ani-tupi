@@ -1,6 +1,6 @@
 """Startup check for Scrapling browser dependencies.
 
-Only the anroll and animesdigital plugins require the browsers installed
+Only the animesdigital plugin requires the browsers installed
 via `scrapling install`. This check emits a friendly warning instead of
 letting those plugins fail with an obscure error at fetch time.
 """
@@ -14,7 +14,7 @@ from utils.logging import get_logger
 logger = get_logger(__name__)
 
 INSTALL_HINT = (
-    "Browsers do Scrapling não encontrados. As fontes 'anroll' e 'animesdigital' "
+    "Browsers do Scrapling não encontrados. A fonte 'animesdigital' "
     "precisam deles. Execute: uv sync --extra dynamic && just scrapling-install "
     "(indisponível em ARM/Raspberry Pi — as demais fontes funcionam normalmente)"
 )

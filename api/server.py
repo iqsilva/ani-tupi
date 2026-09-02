@@ -24,7 +24,7 @@ async def lifespan(app: FastAPI):
     # Startup
     logger.info("🚀 Starting ani-tupi API server...")
 
-    # Warn early if Scrapling browsers (anroll/animesdigital) are missing
+    # Warn early if Scrapling browsers (animesdigital) are missing
     from scrapers.core.browser_check import warn_if_browsers_missing
 
     warn_if_browsers_missing()

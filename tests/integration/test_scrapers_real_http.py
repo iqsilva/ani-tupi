@@ -6,7 +6,7 @@ Run: uv run pytest tests/integration/test_scrapers_real_http.py -v
 These tests hit real sites. They are the project's contract that scrapers still
 work against production HTML/APIs.
 
-MPV playback test (test_plays_in_mpv) only exists for AnimeFire — other scrapers
+MPV playback test (test_plays_in_mpv) only exists for Goyabu — other scrapers
 use Blogger/session-bound CDN URLs that are not directly playable by mpv.
 """
 
@@ -19,7 +19,6 @@ import pytest
 
 from models.models import AnimeMetadata
 from scrapers.core.http import FetchError, fetch
-from scrapers.plugins.animefire import AnimeFire
 from scrapers.plugins.animesonlinecc import AnimesOnlineCC
 from scrapers.plugins.anitube import AniTube
 from scrapers.plugins.animesdigital import AnimesDigital
@@ -155,7 +154,6 @@ def _assert_mpv_plays(video_url: str, referrer: str | None = None) -> None:
 
 
 _SCRAPER_MODULE = {
-    "AnimeFire": "animefire",
     "AnimesOnlineCC": "animesonlinecc",
     "AniTube": "anitube",
     "Goyabu": "goyabu",
@@ -175,59 +173,6 @@ def _capture_episodes(scraper, anime_url: str, anime_name: str) -> list[str]:
         scraper.search_episodes(anime_name, anime_url, None)
 
     return captured_urls
-
-
-# ---------------------------------------------------------------------------
-# AnimeFire
-# ---------------------------------------------------------------------------
-
-
-@pytest.fixture(scope="class")
-def animefire_search_results() -> list[AnimeMetadata]:
-    return _search_anime_or_skip(AnimeFire(), QUERY)
-
-
-@pytest.fixture(scope="class")
-def animefire_episode_target(animefire_search_results) -> AnimeMetadata:
-    return _pick_anime_for_episode_tests(animefire_search_results, QUERY)
-
-
-@pytest.fixture(scope="class")
-def animefire_episode_urls(animefire_episode_target) -> list[str]:
-    scraper = AnimeFire()
-    urls = _capture_episodes(scraper, animefire_episode_target.url, animefire_episode_target.title)
-    return _require_episode_urls(urls, animefire_episode_target.url, "animefire")
-
-
-class TestAnimeFireRealHTTP:
-    @pytest.fixture(autouse=True)
-    def _setup(self, animefire_search_results):
-        self.scraper = AnimeFire()
-        self.search_results = animefire_search_results
-
-    def test_search_anime_returns_results(self):
-        for result in self.search_results:
-            assert result.title, "result has no title"
-            assert result.url.startswith("http"), f"invalid url: {result.url}"
-
-    def test_search_episodes_returns_urls(self, animefire_episode_target):
-        urls = _capture_episodes(
-            self.scraper, animefire_episode_target.url, animefire_episode_target.title
-        )
-        _require_episode_urls(urls, animefire_episode_target.url, "animefire")
-        assert all(url.startswith("http") for url in urls)
-
-    def test_search_player_src_returns_video_url(self, animefire_episode_urls):
-        container = _run_player_src(self.scraper, animefire_episode_urls[0])
-        assert container, (
-            f"search_player_src returned empty container for {animefire_episode_urls[0]}"
-        )
-        assert container[0].startswith("http"), f"invalid video url: {container[0]}"
-
-    def test_plays_in_mpv(self, animefire_episode_urls):
-        container = _run_player_src(self.scraper, animefire_episode_urls[0])
-        assert container
-        _assert_mpv_plays(container[0], referrer=animefire_episode_urls[0])
 
 
 # ---------------------------------------------------------------------------
@@ -328,6 +273,18 @@ class TestGoyabuRealHTTP:
         container = _run_player_src(self.scraper, urls[0])
         assert container, f"empty container for {urls[0]}"
         assert container[0].startswith("http")
+
+    def test_plays_in_mpv(self):
+        results = _search_anime_or_skip(self.scraper, QUERY)
+        anime = _pick_anime_for_episode_tests(results, QUERY)
+        urls = _require_episode_urls(
+            _capture_episodes(self.scraper, anime.url, anime.title),
+            anime.url,
+            self.scraper.name,
+        )
+        container = _run_player_src(self.scraper, urls[0])
+        assert container
+        _assert_mpv_plays(container[0], referrer=urls[0])
 
 
 # ---------------------------------------------------------------------------
