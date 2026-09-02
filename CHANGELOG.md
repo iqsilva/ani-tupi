@@ -5,6 +5,22 @@
 
 ### Breaking Changes
 
+- **Removidas 5 fontes de anime**: `dattebayo`, `sushianimes`, `animefire`, `animesonlinecloud` e `anroll`.
+  Fontes ativas: `anitube`, `goyabu`, `animesonlinecc` e `animesdigital`:
+  - Deletados os plugins, testes dedicados e o script `scripts/extract_dattebayo.py`
+  - Novo default de `plugins.priority_order`; nomes obsoletos persistidos em configs de usuário
+    são descartados automaticamente no carregamento
+  - Resultados de busca em cache de fontes removidas são ignorados no replay
+  - Removidos helpers mortos (`extract_blogger_from_bg_mp4`, branch imagesskill em `playback_hints`)
+
+- **Migração de httpx+BeautifulSoup+Selenium para Scrapling** em todos os scrapers:
+  - Novo shim de transporte `scrapers/core/http.py` (`fetch`/`post`/`fetch_json` + `FetchError`) —
+    plugins não dependem mais de biblioteca HTTP específica
+  - `Fetcher` do Scrapling com TLS impersonation e `stealthy_headers` no caminho principal
+  - Selenium removido (`scrapers/core/selenium_driver.py` deletado); animesdigital usa
+    `DynamicFetcher` (Playwright) via extra opcional `dynamic` (`just scrapling-install`)
+  - Dependências `httpx` (agora só fallback), `beautifulsoup4` e `selenium` removidas do core
+
 - **Removida toda a funcionalidade de mangá** — o projeto agora é focado exclusivamente em animes:
   - Removidos o comando `manga-tupi`, a flag `ani-tupi --manga`/`-m` e a opção "📚 Mangá" do menu principal
   - Removidos os módulos: `manga_tupi.py`, `commands/manga.py`, `manga_scrapers/`, `services/manga/`,
@@ -16,6 +32,29 @@
   - Removida a dependência `pillow`
   - Dados locais de mangá (histórico, preferências, capítulos baixados em `~/.manga_tupi`) não são mais
     utilizados e podem ser apagados manualmente
+
+### Features
+
+- **Transporte em 3 camadas com fallback para ARM** (Raspberry Pi 32-bit/armv7l, onde
+  playwright não tem wheels): `Fetcher` do Scrapling → `curl_cffi` direto com TLS
+  impersonation (`chrome124`) → `httpx` puro como último recurso; seleção automática no startup
+- **Checagem de browsers no startup**: aviso claro quando os browsers do Scrapling
+  (necessários apenas para animesdigital) não estão instalados
+
+### Bug Fixes
+
+- **playback**: User-Agent único (`RESOLVER_USER_AGENT`) pinado entre a resolução de URLs e o
+  mpv — URLs do googlevideo (fontes hospedadas no Blogger, ex.: goyabu) são vinculadas ao UA
+  que as resolveu e falhavam com UAs divergentes
+- **playback**: exceções reais dos plugins agora aparecem nos logs (antes eram engolidas
+  silenciosamente) e o esgotamento de fontes retorna 502 com as fontes tentadas, em vez de 500
+- **scrapling**: parser alimentado com bytes no caminho de fallback — lxml rejeita strings com
+  declaração de encoding XML (quebrava respostas com `<?xml ... encoding=...?>`)
+
+### Documentation
+
+- README: instruções de instalação em ARM 32-bit (curl_cffi via PyPI oficial) e nota sobre
+  browsers do Scrapling opcionais
 
 
 ## v0.11.4 (2026-04-25)
