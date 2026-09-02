@@ -3,11 +3,14 @@ from utils.logging import get_logger
 import re
 import urllib.parse
 
-import httpx
-from bs4 import BeautifulSoup
-
 from scrapers.core.blogger_resolver import resolve_blogger_token
-from scrapers.plugins.utils import DEFAULT_HEADERS, load_plugin, store_player_source
+from scrapers.plugins.utils import (
+    DEFAULT_HEADERS,
+    FetchError,
+    fetch,
+    load_plugin,
+    store_player_source,
+)
 from models.models import AnimeMetadata
 from services.repository import rep
 
@@ -30,33 +33,26 @@ class Goyabu:
         results = []
         try:
             url = f"{BASE_URL}/?s={urllib.parse.quote(query)}"
-            response = httpx.get(
-                url, headers=HEADERS, timeout=REQUEST_TIMEOUT, follow_redirects=True
-            )
-            response.raise_for_status()
-            soup = BeautifulSoup(response.text, "html.parser")
-            for article in soup.select("article.boxAN"):
-                a = article.select_one("a[href*='/anime/']")
-                title_el = article.select_one("div.title")
+            page = fetch(url, headers=HEADERS, timeout=REQUEST_TIMEOUT)
+            for article in page.css("article.boxAN", auto_save=True):
+                a = article.css("a[href*='/anime/']").first
+                title_el = article.css("div.title").first
                 if not a or not title_el:
                     continue
-                title = title_el.get_text(strip=True)
-                link = a.get("href", "").strip()
+                title = title_el.get_all_text(strip=True)
+                link = (a.attrib.get("href") or "").strip()
                 if title and link:
                     results.append(AnimeMetadata(title=title, url=link, source=self.name))
-        except httpx.HTTPError as e:
+        except FetchError as e:
             logger.debug("goyabu search_anime falhou: %s", e)
         return results
 
     def search_episodes(self, anime: str, url: str, params: dict | None) -> None:
         _ = params
         try:
-            response = httpx.get(
-                url, headers=HEADERS, timeout=REQUEST_TIMEOUT, follow_redirects=True
-            )
-            response.raise_for_status()
+            response = fetch(url, headers=HEADERS, timeout=REQUEST_TIMEOUT)
 
-            match = _ALL_EPISODES_RE.search(response.text)
+            match = _ALL_EPISODES_RE.search(response.html_content)
             if not match:
                 return
 
@@ -78,18 +74,15 @@ class Goyabu:
 
             if titles and urls:
                 rep.add_episode_list(anime, titles, urls, self.name)
-        except (httpx.HTTPError, json.JSONDecodeError, ValueError):
+        except (FetchError, json.JSONDecodeError, ValueError):
             pass
 
     def search_player_src(self, url: str, container: list, event) -> None:
         try:
-            response = httpx.get(
-                url, headers=HEADERS, timeout=REQUEST_TIMEOUT, follow_redirects=True
-            )
-            response.raise_for_status()
+            response = fetch(url, headers=HEADERS, timeout=REQUEST_TIMEOUT)
 
             # Extract playersData JSON from script
-            match = _PLAYERS_DATA_RE.search(response.text)
+            match = _PLAYERS_DATA_RE.search(response.html_content)
             if not match:
                 raise ValueError("No playersData found in Goyabu episode page")
 
