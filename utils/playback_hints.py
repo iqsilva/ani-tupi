@@ -1,8 +1,9 @@
 """MPV playback hints for source-specific stream URLs."""
 
+from scrapers.core.http import resolver_user_agent
+
 _IMAGESKILL_MARKERS = ("imagesskill.com", "cdn.imagesskill.com")
 _ANIVIDEO_REFERER = "https://api.anivideo.net/"
-_DEFAULT_UA = "Mozilla/5.0 (X11; Linux x86_64; rv:126.0) Gecko/20100101 Firefox/126.0"
 
 
 def is_imagesskill_hls(url: str) -> bool:
@@ -24,6 +25,6 @@ def resolve_mpv_stream_options(url: str, referrer: str | None) -> tuple[str | No
         return referrer, None
 
     effective_referrer = _ANIVIDEO_REFERER
-    header_block = f"Referer: {effective_referrer}\\r\\nUser-Agent: {_DEFAULT_UA}\\r\\n"
+    header_block = f"Referer: {effective_referrer}\\r\\nUser-Agent: {resolver_user_agent()}\\r\\n"
     demuxer_lavf_o = f"extension_picky=0,http_multiple=1,headers={header_block}"
     return effective_referrer, demuxer_lavf_o

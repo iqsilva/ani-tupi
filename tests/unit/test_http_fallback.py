@@ -99,3 +99,17 @@ def test_fetch_json_fallback(mock_request):
     mock_request.return_value = _mock_httpx_response(text='{"key": "value"}')
 
     assert http.fetch_json("https://example.com/api") == {"key": "value"}
+
+
+def test_resolver_user_agent_matches_fallback_headers():
+    assert http.resolver_user_agent() == http.RESOLVER_USER_AGENT
+    assert http._FALLBACK_HEADERS["User-Agent"] == http.RESOLVER_USER_AGENT
+
+
+def test_mpv_uses_resolver_user_agent():
+    from utils.playback_hints import resolve_mpv_stream_options
+
+    _, demuxer = resolve_mpv_stream_options(
+        "https://cdn.imagesskill.com/x/index.m3u8", None
+    )
+    assert http.RESOLVER_USER_AGENT in demuxer

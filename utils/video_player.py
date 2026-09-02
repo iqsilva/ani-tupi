@@ -12,6 +12,7 @@ from pathlib import Path
 from datetime import datetime
 
 from models.config import get_data_path, settings
+from scrapers.core.http import resolver_user_agent
 from utils.logging import get_logger
 from utils.playback_hints import resolve_mpv_stream_options
 
@@ -520,7 +521,7 @@ shift+t script-message toggle-sub-dub
             "--ytdl=yes",
             f"--ytdl-format={ytdl_format}",
             f"--ytdl-raw-options=concurrent-fragments={settings.playback.concurrent_fragments}",
-            "--user-agent=Mozilla/5.0 (X11; Linux x86_64; rv:126.0) Gecko/20100101 Firefox/126.0",
+            f"--user-agent={resolver_user_agent()}",
         ]
 
         # Keep MPV log enabled by default for debugging playback failures.
