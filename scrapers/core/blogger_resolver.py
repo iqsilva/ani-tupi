@@ -7,10 +7,9 @@ is fetched through the BloggerVideoPlayerUi batchexecute API.
 import json
 import re
 
-import httpx
+from scrapers.core import http
 
 _HEADERS = {
-    "User-Agent": "Mozilla/5.0 (X11; Linux x86_64; rv:126.0) Gecko/20100101 Firefox/126.0",
     "Accept-Language": "pt-BR,pt;q=0.9",
 }
 _TIMEOUT = 15
@@ -65,21 +64,19 @@ def _parse_batchexecute_streams(inner: object) -> list[str]:
 
 
 def _fetch_batchexecute_inner(token: str) -> object:
-    r = httpx.get(
+    r = http.fetch(
         f"https://www.blogger.com/video.g?token={token}",
         headers=_HEADERS,
         timeout=_TIMEOUT,
-        follow_redirects=True,
     )
-    r.raise_for_status()
 
-    fsid_m = re.search(r'"FdrFJe"\s*:\s*"(-?\d+)"', r.text)
-    bl_m = re.search(r'"cfb2h"\s*:\s*"([^"]+)"', r.text)
+    fsid_m = re.search(r'"FdrFJe"\s*:\s*"(-?\d+)"', r.html_content)
+    bl_m = re.search(r'"cfb2h"\s*:\s*"([^"]+)"', r.html_content)
     if not fsid_m or not bl_m:
         raise ValueError("Could not extract session parameters from blogger page")
 
     f_req = json.dumps([[["WcwnYd", json.dumps([token, None, 0]), None, "generic"]]])
-    r2 = httpx.post(
+    r2 = http.post(
         "https://www.blogger.com/_/BloggerVideoPlayerUi/data/batchexecute",
         params={
             "rpcids": "WcwnYd",
@@ -99,10 +96,9 @@ def _fetch_batchexecute_inner(token: str) -> object:
         },
         timeout=_TIMEOUT,
     )
-    r2.raise_for_status()
 
     json_line = next(
-        (line.strip() for line in r2.text.split("\n") if line.strip().startswith("[[")),
+        (line.strip() for line in r2.html_content.split("\n") if line.strip().startswith("[[")),
         None,
     )
     if not json_line:

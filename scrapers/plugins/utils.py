@@ -1,9 +1,8 @@
 import re
 
-import httpx
-from bs4 import BeautifulSoup
-
+from scrapers.core import http
 from scrapers.core.blogger_resolver import resolve_blogger_streams
+from scrapers.core.http import FetchError, fetch, fetch_json, post  # noqa: F401 (re-export)
 
 DEFAULT_HEADERS = {
     "User-Agent": "Mozilla/5.0 (X11; Linux x86_64; rv:126.0) Gecko/20100101 Firefox/126.0",
@@ -58,22 +57,25 @@ def extract_blogger_from_bg_mp4(
     request_headers = headers or DEFAULT_HEADERS
     iframe_urls = _BG_MP4_IFRAME_RE.findall(html)
     if not iframe_urls:
-        soup = BeautifulSoup(html, "html.parser")
+        from scrapling.parser import Selector
+
+        page = Selector(html)
         iframe_urls = [
             src
-            for iframe in soup.select("iframe.metaframe, iframe")
-            if (src := iframe.get("src")) and "bg.mp4" in src
+            for iframe in page.css("iframe.metaframe, iframe")
+            if (src := iframe.attrib.get("src")) and "bg.mp4" in src
         ]
 
     for iframe_url in iframe_urls:
         try:
-            hop = httpx.get(
+            hop = http.fetch(
                 iframe_url,
                 headers={**request_headers, "Referer": episode_url},
                 timeout=timeout,
                 follow_redirects=False,
+                raise_for_status=False,
             )
-            location = hop.headers.get("location", "")
+            location = hop.headers.get("location", "") or hop.headers.get("Location", "")
             if not location:
                 continue
             if location.startswith("/"):
@@ -82,14 +84,12 @@ def extract_blogger_from_bg_mp4(
                 parsed = urlparse(iframe_url)
                 location = f"{parsed.scheme}://{parsed.netloc}{location}"
 
-            provider = httpx.get(
+            provider = http.fetch(
                 location,
                 headers={**request_headers, "Referer": site_referer},
                 timeout=timeout,
-                follow_redirects=True,
             )
-            provider.raise_for_status()
-            token_match = _TOKEN_RE.search(provider.text)
+            token_match = _TOKEN_RE.search(provider.html_content)
             if not token_match:
                 continue
             return resolve_blogger_streams(token_match.group(1))

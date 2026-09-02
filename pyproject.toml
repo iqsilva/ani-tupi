@@ -27,6 +27,7 @@ dependencies = [
     "python-mpv>=1.0.8",
     "loguru>=0.7.3",
     "httpx>=0.28.1",
+    "scrapling[fetchers]>=0.4.14",
     "yt-dlp>=2026.1.31",
     "selenium>=4.0.0",
     "bs4>=0.0.2",
