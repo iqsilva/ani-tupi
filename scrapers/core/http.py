@@ -92,8 +92,11 @@ class FetchError(Exception):
 class _FallbackResponse(Selector):
     """Selector exposing ``.status``/``.headers``/``.json()`` like Scrapling's Response."""
 
-    def __init__(self, text: str, url: str, status: int, headers: dict[str, str]):
-        super().__init__(text or "<html></html>", url=url)
+    def __init__(self, content: bytes, text: str, url: str, status: int, headers: dict[str, str]):
+        # lxml rejects str input carrying an XML encoding declaration
+        # ("Unicode strings with encoding declaration are not supported"),
+        # so always feed the parser raw bytes like Scrapling's Response does.
+        super().__init__(content or b"<html></html>", url=url)
         self.status = status
         self.headers = headers
         self._raw_text = text
@@ -140,6 +143,7 @@ def _curl_cffi_request(
     except Exception as exc:
         raise FetchError(f"{method} {url} failed: {exc}", url=url) from exc
     return _FallbackResponse(
+        response.content,
         response.text,
         url=str(response.url),
         status=response.status_code,
@@ -185,6 +189,7 @@ def _httpx_request(
     except httpx.HTTPError as exc:
         raise FetchError(f"{method} {url} failed: {exc}", url=url) from exc
     return _FallbackResponse(
+        response.content,
         response.text,
         url=str(response.url),
         status=response.status_code,
