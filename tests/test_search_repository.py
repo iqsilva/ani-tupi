@@ -45,6 +45,27 @@ class TestSearchRepository:
 
         assert "animefire" in repo.get_active_sources()
 
+    def test_cached_results_from_removed_sources_are_skipped(self):
+        """Cache replay must ignore entries from sources no longer installed."""
+        repo = SearchRepository()
+        plugin = Mock()
+        plugin.name = "goyabu"
+        repo.register(plugin)
+
+        cached = {
+            "Naruto": [
+                ("http://goyabu/naruto", "goyabu", {}),
+                ("http://sushi/naruto", "sushianimes", {}),  # removed plugin
+            ],
+        }
+        with patch.object(repo, "_try_cache", return_value=(cached, 0)):
+            with patch.object(repo, "_guard_sources", return_value=None):
+                repo.search_anime("naruto", verbose=False)
+
+        flat = [entry[1] for entry in repo.anime_to_urls.get("Naruto", [])]
+        assert "goyabu" in flat
+        assert "sushianimes" not in flat
+
     def test_get_active_sources_sorted(self):
         """Active sources should be sorted."""
         repo = SearchRepository()
