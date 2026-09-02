@@ -7,22 +7,21 @@ episodes will not be displayed on the page and cannot be fetched.
 The parameter enables proper episode ordering from 1 to end.
 """
 
-import asyncio
 import base64
 import json
 from utils.logging import get_logger
 import re
-from concurrent.futures import ThreadPoolExecutor
 from typing import TypedDict
 
-import httpx
-from bs4 import BeautifulSoup
+from scrapling.parser import Selector
 from thefuzz import fuzz
 
-from scrapers.core.selenium_driver import SeleniumWebDriver
 from scrapers.plugins.utils import (
+    FetchError,
     extract_anivideo_hls,
+    fetch,
     load_plugin,
+    post,
     store_player_source,
 )
 from models.models import AnimeMetadata
@@ -70,13 +69,13 @@ def _strip_audio_marker(title: str) -> str:
 
 
 def _parse_link_from_fragment(html: str) -> tuple[str, str] | None:
-    soup = BeautifulSoup(html, "html.parser")
-    link = soup.find("a", href=True)
+    page = Selector(html)
+    link = page.css("a[href]").first
     if not link:
         return None
-    url = link.get("href")
-    title_elem = link.find("span", class_="title_anime")
-    title = title_elem.get_text(strip=True) if title_elem else ""
+    url = link.attrib.get("href")
+    title_elem = link.css("span.title_anime").first
+    title = title_elem.get_all_text(strip=True) if title_elem else ""
     if title and url:
         return title, url
     return None
@@ -108,14 +107,12 @@ class AnimesDigital:
             "filters": json.dumps(filters),
         }
         try:
-            response = httpx.post(
+            response = post(
                 API_URL,
                 data=payload,
                 headers=API_HEADERS,
                 timeout=REQUEST_TIMEOUT,
-                follow_redirects=True,
             )
-            response.raise_for_status()
             data = response.json()
             results = self._parse_html_results(data.get("results", []))
             metadata = {
@@ -124,7 +121,7 @@ class AnimesDigital:
                 "total_page": data.get("total_page"),
             }
             return results, metadata
-        except httpx.HTTPError as e:
+        except FetchError as e:
             logger.error(f"❌ AnimesDigital API request failed for '{query}': {e}")
             return [], {}
         except json.JSONDecodeError as e:
@@ -139,10 +136,10 @@ class AnimesDigital:
                 if not parsed:
                     continue
                 title, url = parsed
-                soup = BeautifulSoup(html, "html.parser")
-                link = soup.find("a", href=True)
-                img = link.find("img") if link else None
-                image = img.get("src") if img else ""
+                page = Selector(html)
+                link = page.css("a[href]").first
+                img = link.css("img").first if link else None
+                image = img.attrib.get("src") if img else ""
                 results.append({"title": title, "url": url, "image": image})
             except Exception as e:
                 logger.debug(f"Failed to parse HTML fragment: {e}")
@@ -159,17 +156,10 @@ class AnimesDigital:
 
     def _extract_series_url(self, episode_url: str) -> str | None:
         try:
-            resp = httpx.get(
-                episode_url,
-                headers=BROWSER_HEADERS,
-                timeout=REQUEST_TIMEOUT,
-                follow_redirects=True,
-            )
-            resp.raise_for_status()
-            soup = BeautifulSoup(resp.text, "html.parser")
-            link = soup.select_one("div.epsL a[href*='/anime/a/']")
+            soup = fetch(episode_url, headers=BROWSER_HEADERS, timeout=REQUEST_TIMEOUT)
+            link = soup.css("div.epsL a[href*='/anime/a/']").first
             if link:
-                href = link.get("href")
+                href = link.attrib.get("href")
                 if href and not href.startswith("http"):
                     href = f"https://animesdigital.org{href}"
                 return href
@@ -240,26 +230,16 @@ class AnimesDigital:
         return all_anime
 
     def _collect_slug_results(self, query: str) -> dict:
+        from scrapling.fetchers import DynamicFetcher
+
         all_anime: dict = {}
         complete_slug = self._normalize_title_for_slug(query)
         for audio_type in ["legendado", "dublado"]:
             slug = complete_slug if audio_type == "legendado" else f"{complete_slug}-dublado"
             url = _ensure_odr_param(f"https://animesdigital.org/anime/a/{slug}")
             try:
-                try:
-                    loop = asyncio.get_running_loop()
-                    with ThreadPoolExecutor(max_workers=1) as executor:
-
-                        def _fetch_url(u: str = url) -> object:
-                            with SeleniumWebDriver() as driver:
-                                return driver.fetch(u)
-
-                        tree = loop.run_until_complete(loop.run_in_executor(executor, _fetch_url))
-                except RuntimeError:
-                    with SeleniumWebDriver() as driver:
-                        tree = driver.fetch(url)
-
-                if tree.select("div.item_ep"):
+                tree = DynamicFetcher.fetch(url, headless=True, useragent=USER_AGENT)
+                if tree.css("div.item_ep"):
                     self._merge_into(all_anime, query, audio_type, url)
             except Exception as e:
                 logger.debug(f"Complete slug failed for '{slug}': {e}")
@@ -395,25 +375,21 @@ class AnimesDigital:
 
     def _scrape_series_page(self, anime: str, url: str) -> None:
         url = _ensure_odr_param(url)
-        response = httpx.get(
-            url, headers=BROWSER_HEADERS, timeout=REQUEST_TIMEOUT, follow_redirects=True
-        )
-        response.raise_for_status()
-        tree = BeautifulSoup(response.text, "html.parser")
+        tree = fetch(url, headers=BROWSER_HEADERS, timeout=REQUEST_TIMEOUT)
 
         episode_titles: list[str] = []
         episode_urls: list[str] = []
         seen_urls: set[str] = set()
 
-        for ep_div in tree.select("div.item_ep"):
-            link = ep_div.select_one("a")
+        for ep_div in tree.css("div.item_ep"):
+            link = ep_div.css("a").first
             if not link:
                 continue
-            href = link.get("href")
-            title_elem = ep_div.select_one(".title_anime")
+            href = link.attrib.get("href")
+            title_elem = ep_div.css(".title_anime").first
             if not (title_elem and href):
                 continue
-            title = " ".join(str(title_elem.text).split())
+            title = " ".join(title_elem.get_all_text(strip=True).split())
             if not title or re.search(r"Episódio\s+\d+\.\d+", title) or href in seen_urls:
                 continue
             seen_urls.add(href)
@@ -427,14 +403,12 @@ class AnimesDigital:
 
     def search_player_src(self, url: str, container: list, event) -> None:
         try:
-            response = httpx.get(
+            response = fetch(
                 url,
                 headers={"User-Agent": USER_AGENT},
                 timeout=REQUEST_TIMEOUT,
-                follow_redirects=True,
             )
-            response.raise_for_status()
-            html_content = response.text
+            html_content = response.html_content
 
             if hls_url := extract_anivideo_hls(html_content):
                 store_player_source(container, event, hls_url)
@@ -478,31 +452,28 @@ class AnimesDigital:
             logger.debug(f"Could not extract iframe src: {e}")
 
     def _fetch_homepage_episodes(self) -> list[dict]:
-        response = httpx.get(
+        soup = fetch(
             "https://animesdigital.org/home",
             headers={"User-Agent": USER_AGENT},
             timeout=10,
-            follow_redirects=True,
         )
-        response.raise_for_status()
-        soup = BeautifulSoup(response.text, "html.parser")
 
         all_episodes = []
         seen_urls: set[str] = set()
 
-        for link in soup.find_all("a", href=re.compile(r"/video/a/")):
+        for link in soup.css("a[href*='/video/a/']"):
             try:
-                url = link.get("href", "")
+                url = link.attrib.get("href", "")
                 if not url.startswith("http"):
                     url = f"https://animesdigital.org{url}"
                 if url in seen_urls:
                     continue
                 seen_urls.add(url)
 
-                img = link.find("img")
+                img = link.css("img").first
                 if not img:
                     continue
-                full_title = img.get("title", "")
+                full_title = img.attrib.get("title", "")
                 if not full_title:
                     continue
 
@@ -607,8 +578,8 @@ class AnimesDigital:
             )
             return result
 
-        except httpx.TimeoutException:
-            logger.debug("AnimesDigital homepage fetch timed out")
+        except FetchError as e:
+            logger.debug(f"AnimesDigital homepage fetch failed: {e}")
             return []
         except Exception as e:
             logger.debug(f"Error searching AnimesDigital homepage: {e}")

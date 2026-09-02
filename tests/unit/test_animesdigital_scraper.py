@@ -3,24 +3,14 @@
 import logging
 from unittest.mock import MagicMock, patch
 
-import httpx
-
+from scrapers.core.http import FetchError
 from scrapers.plugins.animesdigital import AnimesDigital
 
 
-def _http_error_response() -> MagicMock:
-    response = MagicMock()
-    response.raise_for_status.side_effect = httpx.HTTPError(
-        "500 Server Error: Internal Server Error for url: https://animesdigital.org/home"
-    )
-    return response
+def _html_response(html: str):
+    from scrapling.parser import Selector
 
-
-def _html_response(html: str) -> MagicMock:
-    response = MagicMock()
-    response.text = html
-    response.raise_for_status = MagicMock()
-    return response
+    return Selector(html)
 
 
 SERIES_PAGE_HTML = """
@@ -62,9 +52,11 @@ class TestAnimesDigitalFallbackLogging:
     def setup_method(self):
         self.scraper = AnimesDigital()
 
-    @patch("scrapers.plugins.animesdigital.httpx.get")
+    @patch("scrapers.plugins.animesdigital.fetch")
     def test_homepage_http_error_returns_empty_without_warning(self, mock_get, caplog):
-        mock_get.return_value = _http_error_response()
+        mock_get.side_effect = FetchError(
+            "HTTP 500 for https://animesdigital.org/home", status=500
+        )
 
         with caplog.at_level(logging.WARNING):
             result = self.scraper.search_homepage_incremental("Liar Game")
@@ -93,7 +85,7 @@ class TestAnimesDigitalFallbackLogging:
         mock_homepage_search.assert_called_once_with("Liar Game", audio_type="legendado")
 
     @patch("scrapers.plugins.animesdigital.rep")
-    @patch("scrapers.plugins.animesdigital.httpx.get")
+    @patch("scrapers.plugins.animesdigital.fetch")
     def test_scrape_series_page_uses_static_html_and_appends_odr(self, mock_get, mock_rep):
         mock_get.return_value = _html_response(SERIES_PAGE_HTML)
 
@@ -121,7 +113,7 @@ class TestAnimesDigitalFallbackLogging:
         )
 
     @patch("scrapers.plugins.animesdigital.rep")
-    @patch("scrapers.plugins.animesdigital.httpx.get")
+    @patch("scrapers.plugins.animesdigital.fetch")
     def test_scrape_series_page_preserves_existing_query_string(self, mock_get, mock_rep):
         mock_get.return_value = _html_response("<html></html>")
 
@@ -148,7 +140,7 @@ class TestAnimesDigitalPlayerSrc:
     def setup_method(self):
         self.scraper = AnimesDigital()
 
-    @patch("scrapers.plugins.animesdigital.httpx.get")
+    @patch("scrapers.plugins.animesdigital.fetch")
     def test_search_player_src_extracts_iframe_url(self, mock_get):
         mock_get.return_value = _html_response(IFRAME_PLAYER_HTML)
         container = []

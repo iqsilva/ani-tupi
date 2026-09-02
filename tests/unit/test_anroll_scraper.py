@@ -23,11 +23,10 @@ SIDEBAR_HTML = """
 """
 
 
-def _html_response(html: str) -> MagicMock:
-    response = MagicMock()
-    response.text = html
-    response.raise_for_status = MagicMock()
-    return response
+def _html_response(html: str):
+    from scrapling.parser import Selector
+
+    return Selector(html)
 
 
 class TestAnRollEpisodes:
@@ -35,7 +34,7 @@ class TestAnRollEpisodes:
         self.scraper = AnRoll()
 
     @patch("scrapers.plugins.anroll.rep")
-    @patch("scrapers.plugins.anroll.httpx.get")
+    @patch("scrapers.plugins.anroll.fetch")
     def test_search_episodes_uses_sidebar_not_id_range(self, mock_get, mock_rep):
         mock_get.side_effect = [
             _html_response(ANIME_PAGE_HTML),
@@ -57,7 +56,7 @@ class TestAnRollEpisodes:
         assert urls[0] == "https://anroll.io/53289/"
         assert urls[-1] == "https://anroll.io/60098/"
 
-    @patch("scrapers.plugins.anroll.httpx.get")
+    @patch("scrapers.plugins.anroll.fetch")
     def test_episodes_from_sidebar_parses_ep_list_box(self, mock_get):
         mock_get.return_value = _html_response(SIDEBAR_HTML)
 
@@ -67,7 +66,7 @@ class TestAnRollEpisodes:
         assert titles[0] == "Ep.001"
         assert urls[1] == "https://anroll.io/53633/"
 
-    @patch("scrapers.plugins.anroll.httpx.get")
+    @patch("scrapers.plugins.anroll.fetch")
     def test_episodes_from_sidebar_returns_empty_without_box(self, mock_get):
         mock_get.return_value = _html_response("<html></html>")
 
@@ -92,7 +91,7 @@ class TestAnRollSearchAnimeAndPlayer:
     def setup_method(self):
         self.scraper = AnRoll()
 
-    @patch("scrapers.plugins.anroll.httpx.get")
+    @patch("scrapers.plugins.anroll.fetch")
     def test_search_anime_returns_results(self, mock_get):
         mock_get.return_value = _html_response(SEARCH_ANIME_HTML)
 
@@ -104,23 +103,22 @@ class TestAnRollSearchAnimeAndPlayer:
         assert results[0].source == "anroll"
 
     @patch("scrapers.plugins.anroll.store_player_source")
-    @patch("scrapers.plugins.anroll.SeleniumWebDriver")
-    def test_search_player_src_extracts_video_url(self, mock_selenium_cls, mock_store):
+    @patch("scrapling.fetchers.StealthyFetcher.fetch")
+    def test_search_player_src_extracts_video_url(self, mock_fetch, mock_store):
         mock_store.return_value = True
         event = MagicMock()
         event.is_set.return_value = False
 
-        mock_driver_instance = MagicMock()
-        mock_driver_instance.__enter__ = MagicMock(return_value=mock_driver_instance)
-        mock_driver_instance.__exit__ = MagicMock(return_value=False)
-        mock_selenium_cls.return_value = mock_driver_instance
+        def run_page_action(url, **kwargs):
+            page = MagicMock()
+            frame = MagicMock()
+            frame.url = "https://anidrive.example.com/embed/abc"
+            frame.evaluate.return_value = ["https://googlevideo.com/videoplayback?id=abc"]
+            page.frames = [frame]
+            kwargs["page_action"](page)
+            return MagicMock()
 
-        iframe_el = MagicMock()
-        iframe_el.get_attribute.return_value = "https://anidrive.example.com/embed/abc"
-        mock_driver_instance.driver.find_elements.return_value = [iframe_el]
-        mock_driver_instance.driver.execute_script.return_value = [
-            "https://googlevideo.com/videoplayback?id=abc"
-        ]
+        mock_fetch.side_effect = run_page_action
 
         container = []
         self.scraper.search_player_src("https://anroll.io/53289/", container, event)
