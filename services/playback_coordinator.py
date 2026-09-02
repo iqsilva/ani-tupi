@@ -56,15 +56,15 @@ class PlaybackCoordinator:
             url: The anime page URL
 
         Returns:
-            Source name (e.g., "animefire") or None if not detected
+            Source name (e.g., "goyabu") or None if not detected
         """
         url_lower = url.lower()
 
         # Map domain patterns to scraper sources
         domain_mappings = {
-            "animefire": "animefire",
             "animesdigital": "animesdigital",
-            "animesonline": "sushianimes",
+            "animesonline": "animesonlinecc",
+            "anitube": "anitube",
             "goyabu": "goyabu",
         }
 

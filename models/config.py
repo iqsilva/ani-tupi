@@ -165,15 +165,12 @@ class PluginSettings(BaseModel):
 
     disabled_plugins: list[str] = Field(
         default_factory=list,
-        description="List of disabled plugin names (e.g., ['sushianimes'])",
+        description="List of disabled plugin names (e.g., ['goyabu'])",
     )
     priority_order: list[str] = Field(
         default_factory=lambda: [
-            "dattebayo",
-            "sushianimes",
             "anitube",
             "animesdigital",
-            "animefire",
             "goyabu",
             "animesonlinecc",
         ],
@@ -182,13 +179,18 @@ class PluginSettings(BaseModel):
 
     @field_validator("priority_order")
     @classmethod
-    def append_missing_plugins(cls, v: list[str]) -> list[str]:
-        """Append any installed plugins not yet in the saved priority list."""
+    def sync_installed_plugins(cls, v: list[str]) -> list[str]:
+        """Drop stale plugin names and append installed plugins missing from the list.
+
+        Saved user configs may reference plugins that were removed from the
+        project; those entries are silently discarded on load.
+        """
         plugins_dir = Path(__file__).parent.parent / "scrapers" / "plugins"
         skip = {"__init__.py", "utils.py"}
         installed = {f.stem for f in plugins_dir.glob("*.py") if f.name not in skip}
-        missing = [p for p in installed if p not in v]
-        return v + sorted(missing)
+        kept = [p for p in v if p in installed]
+        missing = [p for p in installed if p not in kept]
+        return kept + sorted(missing)
 
 
 class PerformanceSettings(BaseModel):

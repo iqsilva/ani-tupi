@@ -37,7 +37,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-# Browsers dinâmicos (anroll, animesdigital fallback via StealthyFetcher/DynamicFetcher).
+# Browsers dinâmicos (animesdigital fallback via DynamicFetcher).
 # Não disponível em ARM/piwheels (Raspberry Pi) — as demais fontes funcionam sem isso.
 dynamic = [
     "scrapling[fetchers]>=0.4.14",

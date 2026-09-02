@@ -11,7 +11,7 @@ Assista anime sem anúncios! API + interface web (PWA) em português brasileiro.
 
 - **Python 3.12+** (obrigatório)
 - **mpv** (player de vídeo)
-- **Browsers do Scrapling** (opcional — necessário apenas para as fontes anroll/animesdigital; instale com `just scrapling-install`. Indisponível em ARM/Raspberry Pi: as demais fontes funcionam normalmente)
+- **Browsers do Scrapling** (opcional — necessário apenas para a fonte animesdigital; instale com `just scrapling-install`. Indisponível em ARM/Raspberry Pi: as demais fontes funcionam normalmente)
   - Em ARM 32-bit (armv7l), onde playwright não tem wheels, o app usa um fallback automático: `curl_cffi` com TLS impersonation se instalado (`pip install curl_cffi --index-url https://pypi.org/simple/` — recomendado), ou httpx puro como último recurso.
 
 ### Instalando dependências

@@ -62,14 +62,14 @@ class TestPlaybackCoordinator:
 
         assert coordinator.sources == sources
 
-    def test_detect_source_from_url_animefire(self):
-        """Detect animefire source from URL."""
+    def test_detect_source_from_url_anitube(self):
+        """Detect anitube source from URL."""
         coordinator = PlaybackCoordinator({})
-        url = "https://animefire.net/video/anime/123"
+        url = "https://www.anitube.news/video/anime/123"
 
         source = coordinator._detect_source_from_url(url)
 
-        assert source == "animefire"
+        assert source == "anitube"
 
     def test_detect_source_from_url_animesdigital(self):
         """Detect animesdigital source from URL."""
@@ -80,14 +80,14 @@ class TestPlaybackCoordinator:
 
         assert source == "animesdigital"
 
-    def test_detect_source_from_url_sushianimes(self):
-        """Detect sushianimes source from URL."""
+    def test_detect_source_from_url_animesonlinecc(self):
+        """Detect animesonlinecc source from URL."""
         coordinator = PlaybackCoordinator({})
         url = "https://www.animesonline.cc/watch/123"
 
         source = coordinator._detect_source_from_url(url)
 
-        assert source == "sushianimes"
+        assert source == "animesonlinecc"
 
     def test_detect_source_from_url_goyabu(self):
         """Detect goyabu source from URL."""
