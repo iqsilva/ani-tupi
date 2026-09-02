@@ -106,6 +106,75 @@ def test_resolver_user_agent_matches_fallback_headers():
     assert http._FALLBACK_HEADERS["User-Agent"] == http.RESOLVER_USER_AGENT
 
 
+@patch.object(http, "_HAS_FETCHER", False)
+@patch.object(http, "_HAS_CURL_CFFI", True)
+@patch.object(http, "_curl_cffi_request")
+def test_fallback_prefers_curl_cffi(mock_curl):
+    mock_curl.return_value = MagicMock(status=200)
+
+    response = http.fetch("https://example.com/")
+
+    assert response.status == 200
+    mock_curl.assert_called_once()
+    assert mock_curl.call_args[0] == ("GET", "https://example.com/")
+
+
+@patch.object(http, "_HAS_FETCHER", False)
+@patch.object(http, "_HAS_CURL_CFFI", True)
+@patch.object(http, "_curl_cffi_request")
+def test_post_fallback_prefers_curl_cffi(mock_curl):
+    mock_curl.return_value = MagicMock(status=200)
+
+    http.post("https://example.com/api", data={"a": "1"})
+
+    mock_curl.assert_called_once()
+    assert mock_curl.call_args[0][0] == "POST"
+    assert mock_curl.call_args[1]["data"] == {"a": "1"}
+
+
+@patch.object(http, "_HAS_FETCHER", False)
+@patch.object(http, "_HAS_CURL_CFFI", True)
+def test_curl_cffi_request_impersonates_chrome():
+    fake_response = MagicMock()
+    fake_response.text = "<html></html>"
+    fake_response.status_code = 200
+    fake_response.url = "https://example.com/"
+    fake_response.headers = {}
+
+    fake_requests = MagicMock()
+    fake_requests.request.return_value = fake_response
+
+    import sys
+    from unittest.mock import patch as _patch
+
+    fake_curl_cffi = MagicMock()
+    fake_curl_cffi.requests = fake_requests
+    with _patch.dict(sys.modules, {"curl_cffi": fake_curl_cffi, "curl_cffi.requests": fake_requests}):
+        response = http.fetch("https://example.com/")
+
+    assert response.status == 200
+    kwargs = fake_requests.request.call_args[1]
+    assert kwargs["impersonate"] == http.CURL_IMPERSONATE
+    assert kwargs["headers"]["User-Agent"] == http.RESOLVER_USER_AGENT
+    assert kwargs["allow_redirects"] is True
+
+
+@patch.object(http, "_HAS_FETCHER", False)
+@patch.object(http, "_HAS_CURL_CFFI", True)
+def test_curl_cffi_request_wraps_errors():
+    import sys
+    from unittest.mock import patch as _patch
+
+    fake_requests = MagicMock()
+    fake_requests.request.side_effect = RuntimeError("boom")
+    fake_curl_cffi = MagicMock()
+    fake_curl_cffi.requests = fake_requests
+
+    with _patch.dict(sys.modules, {"curl_cffi": fake_curl_cffi, "curl_cffi.requests": fake_requests}):
+        with pytest.raises(http.FetchError):
+            http.fetch("https://example.com/")
+
+
 def test_mpv_uses_resolver_user_agent():
     from utils.playback_hints import resolve_mpv_stream_options
 
