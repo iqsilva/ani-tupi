@@ -10,10 +10,26 @@ from scrapers.core import http
 def _mock_httpx_response(text="<html><body><a href='x'>hi</a></body></html>", status=200, url="https://example.com/"):
     resp = MagicMock()
     resp.text = text
+    resp.content = text.encode("utf-8")
     resp.status_code = status
     resp.url = url
     resp.headers = {"content-type": "text/html"}
     return resp
+
+
+@patch.object(http, "_HAS_FETCHER", False)
+@patch.object(http, "_HAS_CURL_CFFI", False)
+@patch("httpx.request")
+def test_fallback_parses_xml_with_encoding_declaration(mock_request):
+    # lxml raises ValueError on str input with an encoding declaration;
+    # the fallback must feed bytes to the parser (regression: dattebayo).
+    xml = '<?xml version="1.0" encoding="UTF-8"?><html><body><p>ok</p></body></html>'
+    mock_request.return_value = _mock_httpx_response(text=xml)
+
+    response = http.fetch("https://example.com/feed")
+
+    assert response.css("p").first.get_all_text(strip=True) == "ok"
+    assert response.html_content == xml
 
 
 @patch.object(http, "_HAS_FETCHER", False)
@@ -137,6 +153,7 @@ def test_post_fallback_prefers_curl_cffi(mock_curl):
 def test_curl_cffi_request_impersonates_chrome():
     fake_response = MagicMock()
     fake_response.text = "<html></html>"
+    fake_response.content = b"<html></html>"
     fake_response.status_code = 200
     fake_response.url = "https://example.com/"
     fake_response.headers = {}
